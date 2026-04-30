@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell($env:PATH = [System.Environment]::GetEnvironmentVariable\\(\"PATH\", \"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"PATH\", \"User\"\\); Set-Location \"C:\\\\Users\\\\oren\\\\El-oro\\\\El-oro Sharepoint - מסמכים\\\\AI\\\\PROJECTS\\\\music game 2\\\\client\"; npm install; npm install zustand axios framer-motion 2>&1)",
+      "PowerShell($env:PATH = [System.Environment]::GetEnvironmentVariable\\(\"PATH\", \"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"PATH\", \"User\"\\); Set-Location \"C:\\\\Users\\\\oren\\\\El-oro\\\\El-oro Sharepoint - מסמכים\\\\AI\\\\PROJECTS\\\\music game 2\\\\client\"; Start-Process -FilePath \"npm\" -ArgumentList \"run\",\"dev\" -NoNewWindow -PassThru | Select-Object Id; Start-Sleep -Seconds 4; try { $r = Invoke-WebRequest http://localhost:5173 -UseBasicParsing; Write-Host \"Client OK: $\\($r.StatusCode\\)\" } catch { $_.Exception.Message })",
+      "PowerShell($env:PATH = [System.Environment]::GetEnvironmentVariable\\(\"PATH\", \"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"PATH\", \"User\"\\); Set-Location \"C:\\\\Users\\\\oren\\\\El-oro\\\\El-oro Sharepoint - מסמכים\\\\AI\\\\PROJECTS\\\\music game 2\\\\client\"; $job = Start-Job { Set-Location \"C:\\\\Users\\\\oren\\\\El-oro\\\\El-oro Sharepoint - מסמכים\\\\AI\\\\PROJECTS\\\\music game 2\\\\client\"; & \"C:\\\\Program Files\\\\nodejs\\\\node.exe\" \"C:\\\\Program Files\\\\nodejs\\\\node_modules\\\\npm\\\\bin\\\\npm-cli.js\" run dev 2>&1 }; Start-Sleep -Seconds 8; Receive-Job $job -Keep | Select-Object -Last 10)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(npm run *)",
+      "PowerShell($env:PATH = \"C:\\\\Program Files\\\\nodejs;$env:PATH\"; cd \"C:\\\\Users\\\\oren\\\\El-oro\\\\El-oro Sharepoint - מסמכים\\\\AI\\\\PROJECTS\\\\music game 2\\\\client\"; npm run build 2>&1 | Select-Object -Last 15)",
+      "Bash(gh auth *)",
+      "Bash(git --version)",
+      "Bash(git init *)",
+      "Bash(git remote *)",
+      "Bash(git add *)"
+    ]
+  }
+}

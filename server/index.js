@@ -1,0 +1,100 @@
+import express from 'express';
+import cors from 'cors';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
+import { networkInterfaces } from 'os';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+import playlistsRouter from './routes/playlists.js';
+import audioRouter from './routes/audio.js';
+import coverRouter from './routes/cover.js';
+import settingsRouter from './routes/settings.js';
+import spotifyRouter from './routes/spotify.js';
+import authRouter from './routes/auth.js';
+import usersRouter from './routes/users.js';
+import activityRouter from './routes/activity.js';
+import browseRouter from './routes/browse.js';
+import { requireAuth, requireAdmin } from './middleware/auth.js';
+import { updateSpotifyTokens, getSettings } from './services/SettingsStore.js';
+import { setupMultiplayer } from './multiplayer-socket.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const PORT = process.env.PORT || 3000;
+
+const app = express();
+const httpServer = createServer(app);
+const io = new Server(httpServer, { cors: { origin: '*' } });
+setupMultiplayer(io);
+
+app.use(cors());
+app.use(express.json());
+
+// Serve built client (production)
+const clientDist = join(__dirname, '..', 'client', 'dist');
+app.use(express.static(clientDist));
+
+// Spotify OAuth callback at root level (matches Spotify Dashboard redirect URI)
+app.get('/callback', async (req, res) => {
+  const { code, error } = req.query;
+  if (error || !code) return res.send(`<h2 dir="rtl">שגיאה: ${error || 'אין קוד'}</h2>`);
+
+  const { clientId, clientSecret } = getSettings().spotify;
+  const REDIRECT_URI = 'http://127.0.0.1:3000/callback';
+
+  try {
+    const tokenRes = await fetch('https://accounts.spotify.com/api/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Authorization: 'Basic ' + Buffer.from(`${clientId}:${clientSecret}`).toString('base64'),
+      },
+      body: new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: REDIRECT_URI }),
+    });
+    if (!tokenRes.ok) return res.send('<h2 dir="rtl">שגיאה בקבלת טוקן מ-Spotify</h2>');
+    const data = await tokenRes.json();
+    updateSpotifyTokens({
+      accessToken: data.access_token,
+      refreshToken: data.refresh_token,
+      tokenExpiresAt: Date.now() + data.expires_in * 1000,
+    });
+    res.send('<html><body dir="rtl" style="font-family:sans-serif;padding:2em;background:#1e1e1e;color:#fff"><h2>✅ התחברת בהצלחה לSpotify!</h2><p>ניתן לסגור חלון זה ולחזור לאפליקציה.</p><script>setTimeout(()=>window.close(),2000)</script></body></html>');
+  } catch (err) {
+    res.send(`<h2 dir="rtl">שגיאה: ${err.message}</h2>`);
+  }
+});
+
+// API routes
+app.use('/api/auth', authRouter);
+app.use('/api/users', usersRouter); // per-route auth inside
+app.use('/api/activity', activityRouter);
+app.use('/api/browse', browseRouter);
+app.use('/api/playlists', requireAuth, playlistsRouter);
+app.use('/api/audio', audioRouter);   // public — needed by <audio> element (no custom headers)
+app.use('/api/cover', coverRouter);   // public — same reason
+app.use('/api/settings', requireAdmin, settingsRouter);
+app.use('/api/spotify', requireAdmin, spotifyRouter);
+
+// SPA fallback
+app.get('*', (req, res) => {
+  const index = join(clientDist, 'index.html');
+  res.sendFile(index, err => {
+    if (err) res.status(200).send('<h2>Build the client first: cd client && npm run build</h2>');
+  });
+});
+
+httpServer.listen(PORT, '0.0.0.0', () => {
+  const lanIp = getLanIp();
+  console.log('\n🎵 Music Game Server is running!\n');
+  console.log(`  Local:   http://localhost:${PORT}`);
+  if (lanIp) console.log(`  Network: http://${lanIp}:${PORT}  ← open this on your phone\n`);
+});
+
+function getLanIp() {
+  const nets = networkInterfaces();
+  for (const name of Object.keys(nets)) {
+    for (const net of nets[name]) {
+      if (net.family === 'IPv4' && !net.internal) return net.address;
+    }
+  }
+  return null;
+}

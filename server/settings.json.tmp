@@ -1,0 +1,32 @@
+{
+  "playlists": [
+    {
+      "id": "local-ivrit",
+      "name": "עברית",
+      "type": "local",
+      "path": "C:\\Users\\oren\\Desktop\\mp3\\עברי",
+      "spotifyUri": ""
+    },
+    {
+      "id": "48eeabf1-a157-410e-b40a-3b58c60e3eb6",
+      "name": "לועזי",
+      "type": "local",
+      "path": "C:\\Users\\oren\\Desktop\\mp3\\לועזי",
+      "spotifyUri": ""
+    }
+  ],
+  "spotify": {
+    "clientId": "145f4229038948c68315a05e468afd50",
+    "clientSecret": "3fd6cfaba1944a318df2b72e94502f0d",
+    "accessToken": "BQDdz7RMECYwk7M4HNLe2g5U8hKIQb554hNixgpcuhUggxkpV6SGjFObQJj0qmlJysLsNdFEHPYYMrcgKyTMRVmIbmBPKMsBeXs_NKrONqXZVqFHFTSUBi038jKlBw4rr5ItZmaGni8HFQTMAptYE8ulArmESQiPubx9EiyvMId1x8F-RYNWd0VTcRzBetpXSZoLAWE4GYN5Fuurf71tqIFcw6ZtbiAXyL_1AtVjp9n0TUfU08ezuf6XlLjPUxQQF3IvpZs_f9KoVwNHvm6jgj62Ow",
+    "refreshToken": "AQB9Y43PWr1I-UeMLoyhOsxwmaHDZn9LAXludbkaQjCbjo7jNeUzBfduNgxrfwonVuPGFk-DjEDeLh5xLs3aClX5zmwfUe6PGlNzQRQS-dpXMHFWXRHcSnGFEJfJvV-f0t4",
+    "tokenExpiresAt": 1777571162953
+  },
+  "game": {
+    "shuffle": true,
+    "hintsEnabled": true,
+    "timerSeconds": 120,
+    "victoryAudioPath": "C:\\Users\\oren\\Desktop\\mp3\\מנצח\\We Are The Champions - Remastered 2011 - Queen - Spotimate.app.mp3",
+    "victoryAudioFolder": "C:\\Users\\oren\\Desktop\\mp3\\מנצח"
+  }
+}
