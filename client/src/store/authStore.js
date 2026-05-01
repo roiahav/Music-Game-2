@@ -1,28 +1,29 @@
 import { create } from 'zustand';
+import { getItem, setItem, removeItem, getJSON, setJSON } from '../utils/safeStorage.js';
 
 const TOKEN_KEY = 'mg_token';
 const USER_KEY = 'mg_user';
 
 export const useAuthStore = create((set, get) => ({
-  token: localStorage.getItem(TOKEN_KEY) || null,
-  user: (() => { try { return JSON.parse(localStorage.getItem(USER_KEY)); } catch { return null; } })(),
+  token: getItem(TOKEN_KEY) || null,
+  user: getJSON(USER_KEY, null),
 
   login(token, user) {
-    localStorage.setItem(TOKEN_KEY, token);
-    localStorage.setItem(USER_KEY, JSON.stringify(user));
+    setItem(TOKEN_KEY, token);
+    setJSON(USER_KEY, user);
     set({ token, user });
   },
 
   /** Merge fields into the stored user object (e.g. after completing profile) */
   patchUser(fields) {
     const merged = { ...get().user, ...fields };
-    localStorage.setItem(USER_KEY, JSON.stringify(merged));
+    setJSON(USER_KEY, merged);
     set({ user: merged });
   },
 
   logout() {
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(USER_KEY);
+    removeItem(TOKEN_KEY);
+    removeItem(USER_KEY);
     set({ token: null, user: null });
   },
 }));

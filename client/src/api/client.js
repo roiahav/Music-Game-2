@@ -1,11 +1,12 @@
 import axios from 'axios';
+import { getItem, removeItem } from '../utils/safeStorage.js';
 
 const TOKEN_KEY = 'mg_token';
 
 const api = axios.create({ baseURL: '/api' });
 
 api.interceptors.request.use(config => {
-  const token = localStorage.getItem(TOKEN_KEY);
+  const token = getItem(TOKEN_KEY);
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
@@ -14,8 +15,8 @@ api.interceptors.response.use(
   r => r,
   err => {
     if (err.response?.status === 401) {
-      localStorage.removeItem(TOKEN_KEY);
-      localStorage.removeItem('mg_user');
+      removeItem(TOKEN_KEY);
+      removeItem('mg_user');
       window.location.reload();
     }
     return Promise.reject(err);

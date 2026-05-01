@@ -1248,7 +1248,7 @@ function BackupSection() {
   function handleExport() {
     // Trigger a download via a hidden anchor that hits the API.
     // Authenticate by using fetch + blob (since /export needs Bearer token).
-    const token = localStorage.getItem('mg_token');
+    const token = useAuthStore.getState().token;
     fetch('/api/backup/export', { headers: { Authorization: `Bearer ${token}` } })
       .then(r => {
         if (!r.ok) throw new Error('שגיאה בייצוא');

@@ -4,8 +4,21 @@ import { loginApi } from '../api/client.js';
 import { useLang } from '../i18n/useLang.js';
 import LangPicker from '../components/LangPicker.jsx';
 import ForgotPasswordScreen from './ForgotPasswordScreen.jsx';
+import { getItem, setItem, removeItem } from '../utils/safeStorage.js';
 
 const REMEMBER_KEY = 'mg_remember_username';
+
+/** Detect Safari (iOS or Mac) — has its own credential-saving quirks */
+const isSafari = typeof navigator !== 'undefined'
+  && /^((?!chrome|android|crios|fxios).)*safari/i.test(navigator.userAgent);
+
+/** Secure context = HTTPS or localhost. Required by Credential Management API. */
+function isSecureContext() {
+  if (typeof window === 'undefined') return false;
+  if (window.isSecureContext) return true;
+  const h = window.location?.hostname || '';
+  return h === 'localhost' || h === '127.0.0.1' || h === '::1';
+}
 
 export default function LoginScreen() {
   const [username, setUsername] = useState('');
@@ -20,7 +33,7 @@ export default function LoginScreen() {
   // Pre-fill the remembered username on mount (we never store the password ourselves —
   // the browser's password manager handles that part)
   useEffect(() => {
-    const saved = localStorage.getItem(REMEMBER_KEY);
+    const saved = getItem(REMEMBER_KEY);
     if (saved) setUsername(saved);
     else setRemember(false);
   }, []);
@@ -36,21 +49,25 @@ export default function LoginScreen() {
       const { token, user } = await loginApi(username.trim(), password);
 
       // "Remember me" → save just the username for next time
-      if (remember) localStorage.setItem(REMEMBER_KEY, username.trim());
-      else localStorage.removeItem(REMEMBER_KEY);
+      if (remember) setItem(REMEMBER_KEY, username.trim());
+      else removeItem(REMEMBER_KEY);
 
-      // Ask the browser's credential manager to remember the password (Chrome/Edge).
-      // This explicitly triggers the "save password?" prompt where supported.
-      try {
-        if ('credentials' in navigator && window.PasswordCredential) {
-          const cred = new window.PasswordCredential({
-            id: username.trim(),
-            password,
-            name: user?.username || username.trim(),
-          });
-          await navigator.credentials.store(cred);
-        }
-      } catch { /* not supported on some browsers — fine, the form attrs still help */ }
+      // Ask the browser's credential manager to remember the password.
+      // Only works on secure contexts (HTTPS or localhost) and only in
+      // Chrome/Edge — Safari + Firefox ignore the API but still save via
+      // their own heuristic from the form attributes.
+      if (isSecureContext()) {
+        try {
+          if ('credentials' in navigator && window.PasswordCredential) {
+            const cred = new window.PasswordCredential({
+              id: username.trim(),
+              password,
+              name: user?.username || username.trim(),
+            });
+            await navigator.credentials.store(cred);
+          }
+        } catch { /* swallow — falls back to form-attribute heuristic */ }
+      }
 
       login(token, user);
     } catch (err) {
