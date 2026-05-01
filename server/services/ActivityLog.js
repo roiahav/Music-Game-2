@@ -29,6 +29,31 @@ export function logLogout(userId, username, loginTimestamp) {
   save(entries);
 }
 
+/**
+ * Log an admin action performed on another user.
+ * @param {string} adminId         — id of the admin performing the action
+ * @param {string} adminName       — admin's username
+ * @param {string} action          — one of: 'create' | 'reset_password' | 'delete' |
+ *                                   'block' | 'unblock' | 'role_admin' | 'role_user' |
+ *                                   'host_on' | 'host_off' | 'rename'
+ * @param {object} target          — { id, username }
+ * @param {object} [details]       — optional extras (e.g. previous/new value)
+ */
+export function logAdminAction(adminId, adminName, action, target, details = {}) {
+  const entries = load();
+  entries.push({
+    type: 'admin_action',
+    action,
+    adminId,
+    adminName,
+    targetId: target.id,
+    targetUsername: target.username,
+    details,
+    timestamp: new Date().toISOString(),
+  });
+  save(entries);
+}
+
 export function getLog() {
   return load().reverse();
 }

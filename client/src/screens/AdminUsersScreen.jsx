@@ -270,10 +270,24 @@ function UsersTab() {
 }
 
 // ─── Activity log tab ─────────────────────────────────────────────────────────
+const ADMIN_ACTION_META = {
+  create:         { icon: '👤', label: 'יצירת משתמש',       color: '#1db954' },
+  delete:         { icon: '🗑️', label: 'מחיקת משתמש',       color: '#dc3545' },
+  reset_password: { icon: '🔑', label: 'איפוס סיסמה',        color: '#e67e22' },
+  block:          { icon: '🚫', label: 'חסימה',              color: '#dc3545' },
+  unblock:        { icon: '✅', label: 'ביטול חסימה',         color: '#1db954' },
+  role_admin:     { icon: '👑', label: 'הפיכה למנהל',         color: '#007ACC' },
+  role_user:     { icon: '👤', label: 'הסרת הרשאת מנהל',     color: '#888'    },
+  host_on:        { icon: '🎮', label: 'הענקת הרשאת חדר',     color: '#1db954' },
+  host_off:       { icon: '🎮', label: 'שלילת הרשאת חדר',     color: '#888'    },
+  rename:         { icon: '✏️', label: 'שינוי שם',            color: '#5bb8ff' },
+};
+
 function ActivityTab() {
   const [log, setLog] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchUser, setSearchUser] = useState('');
+  const [typeFilter, setTypeFilter] = useState('all'); // all | sessions | admin
 
   useEffect(() => {
     getActivityLog()
@@ -282,9 +296,30 @@ function ActivityTab() {
       .finally(() => setLoading(false));
   }, []);
 
-  const filtered = searchUser.trim()
-    ? log.filter(e => e.username.toLowerCase().includes(searchUser.trim().toLowerCase()))
-    : log;
+  // Counts for the type-filter chips
+  const counts = {
+    all: log.length,
+    sessions: log.filter(e => e.type === 'login' || e.type === 'logout').length,
+    admin: log.filter(e => e.type === 'admin_action').length,
+  };
+
+  // Filter
+  const filtered = log
+    .filter(e => {
+      if (typeFilter === 'sessions') return e.type === 'login' || e.type === 'logout';
+      if (typeFilter === 'admin')    return e.type === 'admin_action';
+      return true;
+    })
+    .filter(e => {
+      if (!searchUser.trim()) return true;
+      const q = searchUser.trim().toLowerCase();
+      // Match against username (login/logout) or admin/target name (admin_action)
+      return (
+        (e.username || '').toLowerCase().includes(q) ||
+        (e.adminName || '').toLowerCase().includes(q) ||
+        (e.targetUsername || '').toLowerCase().includes(q)
+      );
+    });
 
   function formatDate(iso) {
     const d = new Date(iso);
@@ -306,6 +341,13 @@ function ActivityTab() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {/* Type filter chips */}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <FilterChip label="הכל"          count={counts.all}      active={typeFilter === 'all'}      color="#888"    onClick={() => setTypeFilter('all')} />
+        <FilterChip label="🔑 כניסות"     count={counts.sessions} active={typeFilter === 'sessions'} color="#5bb8ff" onClick={() => setTypeFilter('sessions')} />
+        <FilterChip label="⚙️ פעולות אדמין" count={counts.admin}    active={typeFilter === 'admin'}    color="#e67e22" onClick={() => setTypeFilter('admin')} />
+      </div>
+
       <input
         value={searchUser}
         onChange={e => setSearchUser(e.target.value)}
@@ -321,32 +363,69 @@ function ActivityTab() {
         <div style={{ color: '#555', textAlign: 'center', paddingTop: 12 }}>אין רשומות</div>
       )}
 
-      {filtered.map((entry, i) => (
-        <div key={i} style={{
-          background: '#2d2d30', borderRadius: 12, padding: '10px 14px',
-          border: `1px solid ${entry.type === 'login' ? '#007ACC44' : '#3a3a3a'}`,
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8,
-        }}>
-          <div>
-            <div style={{ color: '#fff', fontWeight: 700, fontSize: 14 }}>{entry.username}</div>
-            <div style={{ color: '#888', fontSize: 12, marginTop: 2 }}>{formatDate(entry.timestamp)}</div>
-          </div>
-          <div style={{ textAlign: 'left', flexShrink: 0 }}>
-            <div style={{
-              fontSize: 12, fontWeight: 600, padding: '3px 8px', borderRadius: 6,
-              background: entry.type === 'login' ? '#007ACC33' : '#2d2d40',
-              color: entry.type === 'login' ? '#5bb8ff' : '#aaa',
+      {filtered.map((entry, i) => {
+        // ── Admin action entry ──
+        if (entry.type === 'admin_action') {
+          const meta = ADMIN_ACTION_META[entry.action] || { icon: '⚙️', label: entry.action, color: '#888' };
+          return (
+            <div key={i} style={{
+              background: '#2d2d30', borderRadius: 12, padding: '10px 14px',
+              border: `1px solid ${meta.color}33`,
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8,
             }}>
-              {entry.type === 'login' ? '🔑 כניסה' : '🚪 יציאה'}
-            </div>
-            {entry.type === 'logout' && entry.durationMs != null && (
-              <div style={{ color: '#888', fontSize: 11, marginTop: 3, textAlign: 'center' }}>
-                ⏱ {formatDuration(entry.durationMs)}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ color: '#fff', fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <span style={{ color: meta.color }}>{entry.targetUsername}</span>
+                  {entry.action === 'rename' && entry.details?.from && (
+                    <span style={{ color: '#888', fontSize: 12, fontWeight: 500 }}>
+                      ({entry.details.from} → {entry.details.to})
+                    </span>
+                  )}
+                </div>
+                <div style={{ color: '#888', fontSize: 12, marginTop: 2 }}>
+                  {formatDate(entry.timestamp)} · בידי <span style={{ color: '#aaa' }}>{entry.adminName}</span>
+                </div>
               </div>
-            )}
+              <div style={{
+                flexShrink: 0,
+                fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 8,
+                background: `${meta.color}22`, color: meta.color,
+                border: `1px solid ${meta.color}44`,
+              }}>
+                {meta.icon} {meta.label}
+              </div>
+            </div>
+          );
+        }
+
+        // ── Login / logout entry ──
+        return (
+          <div key={i} style={{
+            background: '#2d2d30', borderRadius: 12, padding: '10px 14px',
+            border: `1px solid ${entry.type === 'login' ? '#007ACC44' : '#3a3a3a'}`,
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8,
+          }}>
+            <div>
+              <div style={{ color: '#fff', fontWeight: 700, fontSize: 14 }}>{entry.username}</div>
+              <div style={{ color: '#888', fontSize: 12, marginTop: 2 }}>{formatDate(entry.timestamp)}</div>
+            </div>
+            <div style={{ textAlign: 'left', flexShrink: 0 }}>
+              <div style={{
+                fontSize: 12, fontWeight: 600, padding: '3px 8px', borderRadius: 6,
+                background: entry.type === 'login' ? '#007ACC33' : '#2d2d40',
+                color: entry.type === 'login' ? '#5bb8ff' : '#aaa',
+              }}>
+                {entry.type === 'login' ? '🔑 כניסה' : '🚪 יציאה'}
+              </div>
+              {entry.type === 'logout' && entry.durationMs != null && (
+                <div style={{ color: '#888', fontSize: 11, marginTop: 3, textAlign: 'center' }}>
+                  ⏱ {formatDuration(entry.durationMs)}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
