@@ -417,6 +417,7 @@ export default function FavoritesScreen({ onExit }) {
               style={{
                 display: 'flex', alignItems: 'center', gap: 10,
                 padding: '10px 14px',
+                minWidth: 0, overflow: 'hidden',  // ← critical: prevents long titles from pushing the heart off-screen
                 /* Thick accent bar where the song will land */
                 borderTop:    isDragTarget && dragOverIdx < dragIdx ? `3px solid ${accentColor}` : '3px solid transparent',
                 borderBottom: isDragTarget && dragOverIdx > dragIdx ? `3px solid ${accentColor}` : '1px solid var(--bg2)',
@@ -469,17 +470,22 @@ export default function FavoritesScreen({ onExit }) {
                 )}
               </div>
 
-              {/* Info */}
-              <div style={{ flex: 1, minWidth: 0 }}>
+              {/* Info — every child is forced to truncate so nothing pushes the row wider than its container */}
+              <div style={{ flex: '1 1 0', minWidth: 0, overflow: 'hidden' }}>
                 <div style={{
                   color: isActive ? accentColor : 'var(--text)',
                   fontWeight: 700, fontSize: 14,
                   whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                   transition: 'color 0.15s',
+                  maxWidth: '100%',
                 }}>
                   {s.title || s.filePath?.split(/[\\/]/).pop() || '—'}
                 </div>
-                <div style={{ color: 'var(--text2)', fontSize: 12, marginTop: 2 }}>
+                <div style={{
+                  color: 'var(--text2)', fontSize: 12, marginTop: 2,
+                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                  maxWidth: '100%',
+                }}>
                   {s.artist}{s.year ? ` · ${s.year}` : ''}
                 </div>
                 {s.playlistName && activeFilter === 'all' && (
@@ -488,6 +494,8 @@ export default function FavoritesScreen({ onExit }) {
                     background: `${accentColor}28`, color: accentColor,
                     fontSize: 10, fontWeight: 700, borderRadius: 4,
                     padding: '1px 6px',
+                    maxWidth: '100%',
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                   }}>
                     {s.playlistName}
                   </div>
