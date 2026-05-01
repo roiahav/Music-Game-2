@@ -3,7 +3,7 @@ import {
   getUsers, updateUserApi, resetPasswordApi, deleteUserApi, approveUserApi,
   getActivityLog, listInvitesApi, deleteInviteApi, getPlaylists,
   previewBackupApi, importBackupApi, createInviteApi, getSettings as getSettingsApi,
-  getAdminStatsApi,
+  getAdminStatsApi, createUserApi,
 } from '../api/client.js';
 import { useAuthStore } from '../store/authStore.js';
 import { logoutApi } from '../api/client.js';
@@ -382,6 +382,7 @@ function UsersSection() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
   const [sort, setSort] = useState({ key: 'username', dir: 'asc' });
+  const [showAdd, setShowAdd] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -467,7 +468,12 @@ function UsersSection() {
         title="👥 ניהול משתמשים"
         subtitle={`${filtered.length} מתוך ${users.length} משתמשים`}
         actions={
-          <button onClick={exportCSV} style={btnPrimary}>📥 ייצוא ל-CSV</button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => setShowAdd(true)} style={{ ...btnPrimary, background: '#1db954' }}>
+              + משתמש חדש
+            </button>
+            <button onClick={exportCSV} style={btnPrimary}>📥 ייצוא ל-CSV</button>
+          </div>
         }
       />
 
@@ -544,6 +550,111 @@ function UsersSection() {
           </div>
         )}
       </Card>
+
+      {showAdd && (
+        <AddUserModal
+          onClose={() => setShowAdd(false)}
+          onCreated={() => { setShowAdd(false); load(); }}
+        />
+      )}
+    </>
+  );
+}
+
+// ─── Add user modal ──
+function AddUserModal({ onClose, onCreated }) {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPass, setConfirmPass] = useState('');
+  const [role, setRole] = useState('user');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!username.trim()) return setError('שם משתמש נדרש');
+    if (password.length < 4) return setError('סיסמה חייבת להיות לפחות 4 תווים');
+    if (password !== confirmPass) return setError('הסיסמאות אינן תואמות');
+
+    setSubmitting(true);
+    setError('');
+    try {
+      await createUserApi(username.trim(), password, role);
+      onCreated?.();
+    } catch (err) {
+      setError(err.response?.data?.error || 'שגיאה ביצירת המשתמש');
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div onClick={onClose} style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 100,
+      }} />
+
+      {/* Modal */}
+      <div style={{
+        position: 'fixed', top: '50%', left: '50%',
+        transform: 'translate(-50%, -50%)', zIndex: 101,
+        background: '#1a1a1f', border: '1px solid #2d2d33',
+        borderRadius: 14, padding: 26,
+        width: 'min(440px, 90vw)', direction: 'rtl',
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+          <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>+ הוספת משתמש חדש</h3>
+          <button onClick={onClose} style={{
+            background: 'none', border: 'none', color: '#888', fontSize: 22,
+            cursor: 'pointer', padding: 0, lineHeight: 1,
+          }}>✕</button>
+        </div>
+        <p style={{ margin: '0 0 18px', color: '#888', fontSize: 12 }}>
+          המשתמש יוכל להיכנס מיד עם פרטי הכניסה. בכניסה הראשונה הוא יתבקש להשלים פרופיל.
+        </p>
+
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <FormField label="שם משתמש *" value={username} onChange={setUsername} placeholder="לדוג׳ דני כהן" />
+          <FormField label="סיסמה *" value={password} onChange={setPassword} type="password" placeholder="לפחות 4 תווים" />
+          <FormField label="אימות סיסמה *" value={confirmPass} onChange={setConfirmPass} type="password" placeholder="הקלד שוב" />
+
+          <div>
+            <label style={{ color: '#888', fontSize: 11, fontWeight: 700, display: 'block', marginBottom: 4 }}>
+              תפקיד
+            </label>
+            <select
+              value={role}
+              onChange={e => setRole(e.target.value)}
+              style={{ ...inputStyle, width: '100%' }}
+            >
+              <option value="user">👤 משתמש רגיל</option>
+              <option value="admin">👑 מנהל</option>
+            </select>
+          </div>
+
+          {error && (
+            <div style={{ padding: '10px 12px', background: '#3a1010', color: '#ff6b6b', borderRadius: 8, fontSize: 13 }}>
+              ❌ {error}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
+            <button type="button" onClick={onClose} style={{
+              flex: 1, padding: '12px', borderRadius: 10, background: 'transparent',
+              border: '1px solid #444', color: '#aaa', fontSize: 14, fontWeight: 700, cursor: 'pointer',
+            }}>
+              ביטול
+            </button>
+            <button type="submit" disabled={submitting} style={{
+              flex: 2, padding: '12px', borderRadius: 10, background: '#1db954',
+              border: 'none', color: '#fff', fontSize: 14, fontWeight: 700,
+              cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? 0.6 : 1,
+            }}>
+              {submitting ? 'יוצר...' : '✅ צור משתמש'}
+            </button>
+          </div>
+        </form>
+      </div>
     </>
   );
 }
