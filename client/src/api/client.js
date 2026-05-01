@@ -42,6 +42,9 @@ export const registerInviteApi = (token, data) => api.post(`/invites/${token}/re
 // User approval (admin)
 export const approveUserApi = (id) => api.post(`/users/${id}/approve`).then(r => r.data);
 
+// Admin stats (aggregated metrics)
+export const getAdminStatsApi = () => api.get('/admin/stats').then(r => r.data);
+
 // Backup / restore (admin)
 export const previewBackupApi = (data) => api.post('/backup/preview', data, { maxContentLength: Infinity, maxBodyLength: Infinity }).then(r => r.data);
 export const importBackupApi  = (data) => api.post('/backup/import',  data, { maxContentLength: Infinity, maxBodyLength: Infinity }).then(r => r.data);
