@@ -26,7 +26,7 @@ export default function LangPicker({ style = {} }) {
             gap: 4,
           }}
         >
-          <span>{l.flag}</span>
+          {l.flag && <span>{l.flag}</span>}
           <span>{l.label}</span>
         </button>
       ))}
