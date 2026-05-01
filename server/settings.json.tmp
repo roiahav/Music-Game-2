@@ -43,5 +43,12 @@
     "smtpPass": "lozd dtyi nfla gmud",
     "fromName": "Music Game",
     "fromEmail": "musicgame2026@gmail.com"
-  }
+  },
+  "inviteTemplates": [
+    {
+      "id": "tmpl-1777632581924",
+      "name": "הזמנה לשחק",
+      "body": "שלום {firstName}!\nהוזמנת ל-Music Game 🎵\n\n👉 הירשם כאן: {url}"
+    }
+  ]
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getUsers, createUserApi, resetPasswordApi, updateUserApi, deleteUserApi, getActivityLog, approveUserApi, createInviteApi } from '../api/client.js';
+import { getUsers, createUserApi, resetPasswordApi, updateUserApi, deleteUserApi, getActivityLog, approveUserApi, createInviteApi, getSettings as getSettingsApi } from '../api/client.js';
 
 export default function AdminUsersScreen() {
   const [subTab, setSubTab] = useState('users'); // users | log
@@ -937,6 +937,30 @@ function InviteModal({ onClose, onCreated }) {
   const [creating, setCreating] = useState(false);
   const [result, setResult] = useState(null); // { url, emailSent, emailError }
   const [copied, setCopied] = useState(false);
+  const [showUrl, setShowUrl] = useState(false);
+
+  // Templates (loaded once on open)
+  const [templates, setTemplates] = useState([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState('');
+
+  useEffect(() => {
+    getSettingsApi()
+      .then(s => {
+        const tpls = Array.isArray(s.inviteTemplates) ? s.inviteTemplates : [];
+        setTemplates(tpls);
+        if (tpls.length) setSelectedTemplateId(tpls[0].id);
+      })
+      .catch(() => {});
+  }, []);
+
+  function buildMessage() {
+    const tpl = templates.find(t => t.id === selectedTemplateId);
+    const body = tpl?.body || `שלום {firstName}!\nהוזמנת ל-Music Game 🎵\n\n👉 הירשם: {url}`;
+    return body
+      .replace(/\{firstName\}/g, firstName || '')
+      .replace(/\{lastName\}/g, lastName || '')
+      .replace(/\{url\}/g, result?.url || '');
+  }
 
   async function handleCreate(sendEmail = false) {
     if (sendEmail && (!email.trim() || !email.includes('@'))) {
@@ -974,8 +998,7 @@ function InviteModal({ onClose, onCreated }) {
     const cleanPhone = phone.replace(/[^0-9]/g, '');
     // Convert local Israeli phone (05x...) to international (9725x...)
     const intlPhone = cleanPhone.startsWith('0') ? '972' + cleanPhone.slice(1) : cleanPhone;
-    const greeting = firstName ? `שלום ${firstName},` : 'שלום,';
-    const msg = `${greeting}\n\nהוזמנת להצטרף ל-Music Game! 🎵\nכדי להירשם:\n${result.url}\n\nהקישור בתוקף ל-7 ימים.`;
+    const msg = buildMessage();
     const whatsappUrl = intlPhone
       ? `https://wa.me/${intlPhone}?text=${encodeURIComponent(msg)}`
       : `https://wa.me/?text=${encodeURIComponent(msg)}`;
@@ -1010,6 +1033,22 @@ function InviteModal({ onClose, onCreated }) {
               </div>
               <Field label="כתובת מייל" value={email} onChange={setEmail} type="email" placeholder="לשליחה במייל" />
               <Field label="טלפון" value={phone} onChange={setPhone} type="tel" placeholder="לשליחה בוואטסאפ — לדוג׳ 0501234567" />
+
+              {/* Template picker (for WhatsApp) */}
+              {templates.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <label style={{ color: '#aaa', fontSize: 13, fontWeight: 600 }}>
+                    תבנית הודעה <span style={{ color: '#666', fontWeight: 400 }}>(לוואטסאפ)</span>
+                  </label>
+                  <select
+                    value={selectedTemplateId}
+                    onChange={e => setSelectedTemplateId(e.target.value)}
+                    style={{ background: '#1e1e1e', border: '1px solid #3a3a3a', borderRadius: 10, color: '#fff', padding: '10px 12px', fontSize: 15, direction: 'rtl' }}
+                  >
+                    {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
+                </div>
+              )}
             </div>
 
             <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
@@ -1061,22 +1100,22 @@ function InviteModal({ onClose, onCreated }) {
                 : 'שתף את הקישור עם המשתמש בכל דרך שתבחר.'}
             </p>
 
-            {/* The URL */}
-            <div style={{
-              background: '#1e1e1e', border: '1px solid #444', borderRadius: 10,
-              padding: '10px 12px', marginBottom: 12,
-              fontSize: 11, color: '#5bb8ff', wordBreak: 'break-all', direction: 'ltr',
-              fontFamily: 'monospace',
-            }}>
-              {result.url}
-            </div>
-
-            {/* Action buttons */}
-            <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+            {/* Action buttons (primary) */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+              <button
+                onClick={handleWhatsApp}
+                style={{
+                  flex: 1, minWidth: 110, padding: '13px', borderRadius: 12,
+                  background: '#25D366', border: 'none', color: '#fff',
+                  fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                }}
+              >
+                💬 שלח בוואטסאפ
+              </button>
               <button
                 onClick={handleCopy}
                 style={{
-                  flex: 1, minWidth: 110, padding: '12px', borderRadius: 12,
+                  flex: 1, minWidth: 110, padding: '13px', borderRadius: 12,
                   background: copied ? '#1db95433' : '#3a3a3a',
                   border: `1px solid ${copied ? '#1db954' : '#444'}`,
                   color: copied ? '#1db954' : '#fff',
@@ -1085,16 +1124,26 @@ function InviteModal({ onClose, onCreated }) {
               >
                 {copied ? '✓ הועתק!' : '📋 העתק'}
               </button>
+            </div>
+
+            {/* Hidden raw URL behind a toggle */}
+            <div style={{ marginBottom: 10 }}>
               <button
-                onClick={handleWhatsApp}
-                style={{
-                  flex: 1, minWidth: 110, padding: '12px', borderRadius: 12,
-                  background: '#25D366', border: 'none', color: '#fff',
-                  fontSize: 14, fontWeight: 700, cursor: 'pointer',
-                }}
+                onClick={() => setShowUrl(s => !s)}
+                style={{ background: 'none', border: 'none', color: '#666', fontSize: 11, cursor: 'pointer', padding: '4px 0', textDecoration: 'underline' }}
               >
-                💬 WhatsApp
+                {showUrl ? '▲ הסתר קישור' : '▼ הצג קישור גולמי'}
               </button>
+              {showUrl && (
+                <div style={{
+                  marginTop: 6, background: '#1e1e1e', border: '1px solid #444', borderRadius: 8,
+                  padding: '8px 10px',
+                  fontSize: 11, color: '#5bb8ff', wordBreak: 'break-all', direction: 'ltr',
+                  fontFamily: 'monospace',
+                }}>
+                  {result.url}
+                </div>
+              )}
             </div>
 
             <button
