@@ -8,6 +8,7 @@ export default function AdminBlacklistSection({ playlists }) {
   const [blacklist, setBlacklist] = useState(new Set());
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
+  const [showOnlyBlocked, setShowOnlyBlocked] = useState(false);
   const [toggling, setToggling] = useState(new Set()); // IDs being toggled
   const { t } = useLang();
 
@@ -45,6 +46,7 @@ export default function AdminBlacklistSection({ playlists }) {
   }
 
   const filtered = songs.filter(s => {
+    if (showOnlyBlocked && !blacklist.has(s.id)) return false;
     if (!search) return true;
     const q = search.toLowerCase();
     return (s.title || '').toLowerCase().includes(q)
@@ -88,6 +90,39 @@ export default function AdminBlacklistSection({ playlists }) {
           style={{ width: '100%', background: '#1e1e1e', border: '1px solid #444', color: '#fff', borderRadius: 8, padding: '8px 12px', fontSize: 14, direction: 'rtl', boxSizing: 'border-box' }}
         />
       )}
+
+      {/* Show-only-blocked toggle */}
+      <button
+        onClick={() => setShowOnlyBlocked(v => !v)}
+        disabled={blacklistedCount === 0}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          padding: '7px 12px', borderRadius: 10,
+          background: showOnlyBlocked ? '#3a1010' : '#2d2d30',
+          border: `1px solid ${showOnlyBlocked ? '#dc3545' : '#3a3a3a'}`,
+          color: showOnlyBlocked ? '#ff6b6b' : '#aaa',
+          fontSize: 13, fontWeight: 600,
+          cursor: blacklistedCount === 0 ? 'not-allowed' : 'pointer',
+          opacity: blacklistedCount === 0 ? 0.5 : 1,
+          transition: 'all 0.15s',
+        }}
+      >
+        <span style={{
+          width: 16, height: 16, borderRadius: 4, flexShrink: 0,
+          border: `2px solid ${showOnlyBlocked ? '#dc3545' : '#555'}`,
+          background: showOnlyBlocked ? '#dc3545' : 'transparent',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 11, color: '#fff', fontWeight: 900, lineHeight: 1,
+        }}>
+          {showOnlyBlocked && '✓'}
+        </span>
+        🚫 {t('show_only_blocked')}
+        {blacklistedCount > 0 && (
+          <span style={{ marginRight: 'auto', fontSize: 12, opacity: 0.8 }}>
+            ({blacklistedCount})
+          </span>
+        )}
+      </button>
 
       {/* Song list */}
       {loading ? (

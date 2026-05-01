@@ -152,6 +152,7 @@ export const T = {
   block_song:    { he:'חסום שיר',         en:'Block song',                ar:'حظر الأغنية',                  ru:'Блокировать',              es:'Bloquear' },
   unblock_song:  { he:'הסר חסימה',        en:'Unblock',                   ar:'إلغاء الحظر',                  ru:'Разблокировать',           es:'Desbloquear' },
   unblock_all:   { he:'✕ הסר חסימה מכל שירי פלייליסט זה', en:'✕ Unblock all songs in this playlist', ar:'✕ إلغاء حظر جميع أغاني هذه القائمة', ru:'✕ Разблокировать все в этом плейлисте', es:'✕ Desbloquear todas en esta lista' },
+  show_only_blocked: { he:'הצג רק חסומים', en:'Show only blocked', ar:'إظهار المحظورة فقط', ru:'Только заблокированные', es:'Mostrar solo bloqueadas' },
   settings_admin_desc: { he:'פלייליסטים, Spotify, משתמשים', en:'Playlists, Spotify, users', ar:'قوائم التشغيل، Spotify، المستخدمون', ru:'Плейлисты, Spotify, пользователи', es:'Listas, Spotify, usuarios' },
   // ── Game Screen ──
   game_tab:       { he:'משחק',              en:'Game',               ar:'اللعبة',               ru:'Игра',                 es:'Juego' },
