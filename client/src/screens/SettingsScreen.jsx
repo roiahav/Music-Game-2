@@ -13,6 +13,18 @@ import { getJSON, setJSON } from '../utils/safeStorage.js';
 const SECTION_ORDER_KEY = 'mg_settings_section_order';
 const DEFAULT_SECTION_ORDER = ['victory', 'playlists', 'users', 'blacklist', 'email', 'invite', 'invite-templates'];
 
+// Labels rendered inside the floating ghost during drag, so the user can see
+// what they're moving even though the actual card is just an empty placeholder.
+const SECTION_META = {
+  'victory':           { icon: '🏆', label: 'שיר ניצחון' },
+  'playlists':         { icon: '🎵', label: 'פלייליסטים' },
+  'users':             { icon: '👥', label: 'ניהול משתמשים' },
+  'blacklist':         { icon: '🚫', label: 'שירים חסומים' },
+  'email':             { icon: '📧', label: 'הגדרות מייל' },
+  'invite':            { icon: '📨', label: 'הזמנת משתמשים' },
+  'invite-templates':  { icon: '📝', label: 'תבניות הודעה' },
+};
+
 export default function SettingsScreen({ isAdmin = false, usersDefaultFilter = 'all', onUsersFilterConsumed }) {
   const { playlists, setPlaylists, game, saveGame } = useSettingsStore();
   const { t } = useLang();
@@ -146,6 +158,15 @@ export default function SettingsScreen({ isAdmin = false, usersDefaultFilter = '
 
   return (
     <div className="flex flex-col gap-4 p-4 pb-8">
+      {/* Floating ghost while dragging — shows what's being moved */}
+      {dragActive && dragIdx !== null && (
+        <SettingsDragGhost
+          id={sectionOrder[dragIdx]}
+          dragY={dragY}
+          accent="var(--accent)"
+        />
+      )}
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', order: -2 }}>
         <h2 className="text-lg font-bold">{t('settings')}</h2>
         {isAdmin && (
@@ -1273,36 +1294,80 @@ const tplBtnStyle = (bg) => ({
 });
 
 // ─── DraggableCard wrapper ────────────────────────────────────────────────────
-// Adds a small ⠿ handle above each settings card and assigns CSS `order` so the
-// flex-column parent renders cards in the user's chosen order. Drag itself is
-// driven by the parent's pointer-event handlers (handlers prop).
+// Adds a wide ⠿ handle above each settings card and assigns CSS `order` so the
+// flex-column parent renders cards in the user's chosen order. The dragged
+// card becomes a "ghost slot" (faded + diagonal stripes) and the actual visual
+// gets rendered as a floating ghost via SettingsDragGhost.
 function DraggableCard({ idx, order, handlers, isDragging, isDragOver, isDragMovingDown, children }) {
   return (
     <div
       data-section-idx={idx}
       style={{
         order,
-        opacity: isDragging ? 0.3 : 1,
-        transition: 'opacity 0.15s',
+        opacity: isDragging ? 0.25 : 1,
+        background: isDragging
+          ? `repeating-linear-gradient(45deg, var(--bg2), var(--bg2) 8px, var(--bg) 8px, var(--bg) 16px)`
+          : 'transparent',
+        borderRadius: isDragging ? 14 : 0,
+        transition: isDragging ? 'none' : 'opacity 0.15s',
         position: 'relative',
         // Drop-target indicator: thick line on the edge where the dragged item will land
-        ...(isDragOver && isDragMovingDown  ? { boxShadow: 'inset 0 -3px 0 var(--accent)' } : {}),
-        ...(isDragOver && !isDragMovingDown ? { boxShadow: 'inset 0  3px 0 var(--accent)' } : {}),
+        ...(isDragOver && isDragMovingDown  ? { boxShadow: 'inset 0 -3px 0 var(--accent), 0 0 0 2px var(--accent-alpha)' } : {}),
+        ...(isDragOver && !isDragMovingDown ? { boxShadow: 'inset 0  3px 0 var(--accent), 0 0 0 2px var(--accent-alpha)' } : {}),
       }}
     >
-      {/* Drag handle bar — small ⠿ icon centered above the card */}
+      {/* Wide drag handle bar — easier to grab than a single icon between tight cards */}
       <div
         {...handlers}
         style={{
-          height: 16,
+          height: 22,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: '#3a3a3a', fontSize: 14, cursor: 'grab',
+          color: '#555', fontSize: 16, letterSpacing: 4,
+          cursor: 'grab',
           touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none',
-          marginBottom: 2, marginTop: -4,
+          marginBottom: 4, marginTop: -2,
+          background: 'transparent',
+          borderRadius: 8,
+          transition: 'background 0.12s, color 0.12s',
         }}
+        onPointerEnter={e => { e.currentTarget.style.background = 'var(--bg2)'; e.currentTarget.style.color = '#888'; }}
+        onPointerLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#555'; }}
         title="גרור לשינוי סדר"
-      >⠿</div>
+      >
+        ⠿⠿⠿
+      </div>
       {children}
+    </div>
+  );
+}
+
+// ─── Floating drag ghost ──────────────────────────────────────────────────────
+// Rendered at fixed position following the finger so the user always sees what
+// they're moving — same UX as FavoritesScreen.
+function SettingsDragGhost({ id, dragY, accent }) {
+  const meta = SECTION_META[id];
+  if (!meta || dragY == null) return null;
+  return (
+    <div style={{
+      position: 'fixed',
+      top: dragY - 30,
+      left: '50%',
+      transform: 'translateX(-50%) rotate(-1.5deg) scale(1.03)',
+      width: 'calc(100% - 32px)', maxWidth: 440,
+      zIndex: 1000, pointerEvents: 'none',
+      background: 'var(--bg2)',
+      border: `2px solid ${accent}`,
+      borderRadius: 14,
+      boxShadow: '0 10px 30px rgba(0,0,0,0.65), 0 2px 8px rgba(0,0,0,0.4)',
+      padding: '14px 16px',
+      display: 'flex', alignItems: 'center', gap: 10,
+      direction: 'rtl',
+    }}>
+      <span style={{ color: accent, fontSize: 22, opacity: 0.9 }}>⠿</span>
+      <span style={{ fontSize: 22 }}>{meta.icon}</span>
+      <span style={{ color: 'var(--text, #fff)', fontWeight: 800, fontSize: 16, flex: 1 }}>
+        {meta.label}
+      </span>
     </div>
   );
 }
