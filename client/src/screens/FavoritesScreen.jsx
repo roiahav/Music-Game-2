@@ -403,15 +403,17 @@ export default function FavoritesScreen({ onExit }) {
               style={{
                 display: 'flex', alignItems: 'center', gap: 10,
                 padding: '10px 14px',
-                borderTop: isDragTarget && dragOverIdx < dragIdx ? `2px solid ${accentColor}` : '2px solid transparent',
-                borderBottom: isDragTarget && dragOverIdx > dragIdx ? `2px solid ${accentColor}` : '1px solid var(--bg2)',
+                /* Thick accent bar where the song will land */
+                borderTop:    isDragTarget && dragOverIdx < dragIdx ? `3px solid ${accentColor}` : '3px solid transparent',
+                borderBottom: isDragTarget && dragOverIdx > dragIdx ? `3px solid ${accentColor}` : '1px solid var(--bg2)',
                 background: isActive
                   ? `${accentColor}18`
                   : isDragging
-                    ? 'var(--bg3, #333)'
+                    ? `repeating-linear-gradient(45deg, var(--bg2), var(--bg2) 8px, var(--bg) 8px, var(--bg) 16px)`
                     : 'transparent',
                 cursor: 'pointer',
-                opacity: isDragging ? 0.4 : 1,
+                /* Original row — much more transparent so the floating ghost stands out */
+                opacity: isDragging ? 0.2 : 1,
                 transition: dragActive ? 'none' : 'background 0.12s',
                 userSelect: 'none',
               }}
@@ -571,6 +573,51 @@ export default function FavoritesScreen({ onExit }) {
             >
               🔀
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── FLOATING GHOST during drag — visual feedback that follows finger ── */}
+      {dragActive && dragIdx !== null && dragY !== null && displayedSongs[dragIdx] && (
+        <div style={{
+          position: 'fixed',
+          top: dragY - 34,                          // center row on finger
+          left: '50%',
+          transform: 'translateX(-50%) rotate(-1.5deg) scale(1.04)',
+          width: 'calc(100% - 24px)', maxWidth: 456,
+          zIndex: 1000, pointerEvents: 'none',
+          background: 'var(--bg2)',
+          border: `2px solid ${accentColor}`,
+          borderRadius: 14,
+          boxShadow: '0 10px 30px rgba(0,0,0,0.65), 0 2px 8px rgba(0,0,0,0.4)',
+          padding: '10px 14px',
+          display: 'flex', alignItems: 'center', gap: 10,
+          direction: dir,
+        }}>
+          <span style={{ fontSize: 22, color: accentColor, opacity: 0.9 }}>⠿</span>
+
+          <div style={{
+            width: 46, height: 46, borderRadius: 8, overflow: 'hidden', flexShrink: 0,
+            background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            {displayedSongs[dragIdx].coverUrl ? (
+              <img src={displayedSongs[dragIdx].coverUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              <span style={{ fontSize: 22 }}>🎵</span>
+            )}
+          </div>
+
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              color: 'var(--text)', fontWeight: 700, fontSize: 14,
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            }}>
+              {displayedSongs[dragIdx].title || displayedSongs[dragIdx].filePath?.split(/[\\/]/).pop() || '—'}
+            </div>
+            <div style={{ color: 'var(--text2)', fontSize: 12, marginTop: 2 }}>
+              {displayedSongs[dragIdx].artist}
+              {displayedSongs[dragIdx].year ? ` · ${displayedSongs[dragIdx].year}` : ''}
+            </div>
           </div>
         </div>
       )}
