@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { requireAuth, requireAdmin } from '../middleware/auth.js';
 import { getAllUsers, createUser, resetPassword, deleteUser, updateUser, saveAvatar, getAvatarPath } from '../services/UserStore.js';
+import { deleteSessionsByUserId } from '../services/SessionStore.js';
 
 const router = Router();
 
@@ -29,8 +30,14 @@ router.post('/', requireAdmin, (req, res) => {
 });
 
 router.patch('/:id', requireAdmin, (req, res) => {
-  try { res.json(updateUser(req.params.id, req.body)); }
-  catch (e) { res.status(404).json({ error: e.message }); }
+  try {
+    const updated = updateUser(req.params.id, req.body);
+    // If just blocked — kill all active sessions immediately
+    if (req.body.blocked === true) {
+      deleteSessionsByUserId(req.params.id);
+    }
+    res.json(updated);
+  } catch (e) { res.status(404).json({ error: e.message }); }
 });
 
 router.post('/:id/reset-password', requireAdmin, (req, res) => {

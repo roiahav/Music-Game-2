@@ -21,7 +21,12 @@ export default function LoginScreen() {
       const { token, user } = await loginApi(username.trim(), password);
       login(token, user);
     } catch (err) {
-      setError(err.response?.data?.error || t('login_error'));
+      // blocked account returns 403 with error:'blocked'
+      if (err.response?.status === 403 && err.response?.data?.error === 'blocked') {
+        setError(t('account_blocked'));
+      } else {
+        setError(err.response?.data?.error || t('login_error'));
+      }
     } finally {
       setLoading(false);
     }

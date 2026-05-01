@@ -48,22 +48,28 @@ function UsersTab() {
 
   useEffect(() => { load(); }, []);
 
-  async function handleToggleHost(u) {
-    if (toggling.has(u.id + '_host')) return;
-    setToggling(prev => new Set([...prev, u.id + '_host']));
-    try { await updateUserApi(u.id, { canHostRoom: !u.canHostRoom }); load(); }
+  async function handleToggle(u, field, value) {
+    const key = `${u.id}_${field}`;
+    if (toggling.has(key)) return;
+    setToggling(prev => new Set([...prev, key]));
+    try { await updateUserApi(u.id, { [field]: value }); load(); }
     catch (e) { alert(e.response?.data?.error || 'שגיאה'); }
-    finally { setToggling(prev => { const n = new Set(prev); n.delete(u.id + '_host'); return n; }); }
+    finally { setToggling(prev => { const n = new Set(prev); n.delete(key); return n; }); }
   }
 
   async function handleToggleRole(u) {
-    if (toggling.has(u.id + '_role')) return;
     const newRole = u.role === 'admin' ? 'user' : 'admin';
     if (!confirm(`להפוך את "${u.username}" ל${newRole === 'admin' ? 'מנהל' : 'משתמש רגיל'}?`)) return;
-    setToggling(prev => new Set([...prev, u.id + '_role']));
-    try { await updateUserApi(u.id, { role: newRole }); load(); }
-    catch (e) { alert(e.response?.data?.error || 'שגיאה'); }
-    finally { setToggling(prev => { const n = new Set(prev); n.delete(u.id + '_role'); return n; }); }
+    handleToggle(u, 'role', newRole);
+  }
+
+  async function handleToggleBlock(u) {
+    const willBlock = !u.blocked;
+    const msg = willBlock
+      ? `לחסום את "${u.username}"? המשתמש יתנתק מיד ולא יוכל להיכנס.`
+      : `לבטל חסימה של "${u.username}"?`;
+    if (!confirm(msg)) return;
+    handleToggle(u, 'blocked', willBlock);
   }
 
   async function handleDelete(id, name) {
@@ -109,78 +115,112 @@ function UsersTab() {
             <div style={{ color: '#555', textAlign: 'center', paddingTop: 20 }}>לא נמצאו משתמשים</div>
           )}
           {filtered.map(u => {
-            const busyRole = toggling.has(u.id + '_role');
-            const busyHost = toggling.has(u.id + '_host');
             const isAdmin = u.role === 'admin';
+            const isBlocked = u.blocked;
+            const busyRole = toggling.has(u.id + '_role');
+            const busyHost = toggling.has(u.id + '_canHostRoom');
+            const busyBlock = toggling.has(u.id + '_blocked');
+
             return (
-              <div key={u.id} style={{ background: '#2d2d30', borderRadius: 14, padding: '12px 14px', border: '1px solid #3a3a3a' }}>
+              <div key={u.id} style={{
+                background: isBlocked ? '#2a1010' : '#2d2d30',
+                borderRadius: 14, padding: '12px 14px',
+                border: `1px solid ${isBlocked ? '#dc354544' : '#3a3a3a'}`,
+                opacity: isBlocked ? 0.85 : 1,
+                transition: 'all 0.15s',
+              }}>
+                {/* Row 1: name + status badges + action buttons */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ color: '#fff', fontWeight: 700, fontSize: 15 }}>{u.username}</div>
-                    <span style={{
-                      display: 'inline-block', marginTop: 3,
-                      background: isAdmin ? '#007ACC33' : '#1db95433',
-                      color: isAdmin ? '#5bb8ff' : '#1db954',
-                      borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 600,
-                    }}>
-                      {isAdmin ? '👑 מנהל' : '👤 משתמש'}
-                    </span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      <span style={{ color: isBlocked ? '#ff6b6b' : '#fff', fontWeight: 700, fontSize: 15 }}>
+                        {u.username}
+                      </span>
+                      {isBlocked && (
+                        <span style={{
+                          background: '#dc354533', color: '#ff6b6b',
+                          borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 700,
+                        }}>
+                          🚫 חסום
+                        </span>
+                      )}
+                      {!u.profileCompleted && (
+                        <span style={{
+                          background: '#e67e2233', color: '#e67e22',
+                          borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 700,
+                        }}>
+                          ⏳ טרם מילא פרופיל
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Role badge */}
+                    <div style={{ display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+                      <span style={{
+                        background: isAdmin ? '#007ACC33' : '#1db95433',
+                        color: isAdmin ? '#5bb8ff' : '#1db954',
+                        borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 600,
+                      }}>
+                        {isAdmin ? '👑 מנהל' : '👤 משתמש'}
+                      </span>
+                      {/* Profile info */}
+                      {u.profileCompleted && (u.firstName || u.email) && (
+                        <span style={{ color: '#666', fontSize: 11 }}>
+                          {[u.firstName, u.lastName].filter(Boolean).join(' ')}
+                          {u.email ? ` · ${u.email}` : ''}
+                        </span>
+                      )}
+                    </div>
                   </div>
+
+                  {/* Action icons */}
                   <button
                     onClick={() => setModal({ type: 'edit', userId: u.id, username: u.username })}
-                    style={{ background: '#3a3a3a', border: 'none', color: '#aaa', borderRadius: 8, padding: '5px 10px', fontSize: 13, cursor: 'pointer' }}
-                  >
-                    ✏️
-                  </button>
+                    style={iconBtnStyle}
+                    title="עריכת שם"
+                  >✏️</button>
                   <button
                     onClick={() => setModal({ type: 'reset', userId: u.id, username: u.username })}
-                    style={{ background: '#3a3a3a', border: 'none', color: '#aaa', borderRadius: 8, padding: '5px 10px', fontSize: 12, cursor: 'pointer' }}
-                  >
-                    🔑
-                  </button>
+                    style={iconBtnStyle}
+                    title="איפוס סיסמה"
+                  >🔑</button>
                   <button
                     onClick={() => handleDelete(u.id, u.username)}
-                    style={{ background: '#3a1010', border: '1px solid #dc354544', color: '#ff6b6b', borderRadius: 8, padding: '5px 9px', fontSize: 15, cursor: 'pointer', lineHeight: 1 }}
-                  >
-                    ×
-                  </button>
+                    style={{ ...iconBtnStyle, background: '#3a1010', border: '1px solid #dc354544', color: '#ff6b6b' }}
+                    title="מחיקת משתמש"
+                  >×</button>
                 </div>
 
-                {/* Role + Host buttons row */}
+                {/* Row 2: permission toggles */}
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   {/* Toggle role */}
-                  <button
+                  <ToggleBtn
+                    active={isAdmin}
+                    busy={busyRole}
+                    activeColor="#007ACC"
                     onClick={() => handleToggleRole(u)}
-                    disabled={busyRole}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 6,
-                      background: isAdmin ? '#007ACC22' : 'transparent',
-                      border: `1px solid ${isAdmin ? '#007ACC' : '#3a3a3a'}`,
-                      color: isAdmin ? '#5bb8ff' : '#555',
-                      borderRadius: 8, padding: '4px 10px', fontSize: 12, fontWeight: 600,
-                      cursor: busyRole ? 'wait' : 'pointer', opacity: busyRole ? 0.5 : 1,
-                    }}
-                  >
-                    {busyRole ? '...' : isAdmin ? '👑 הסר הרשאת מנהל' : '👑 הפוך למנהל'}
-                  </button>
+                    label={isAdmin ? '👑 הסר הרשאת מנהל' : '👑 הפוך למנהל'}
+                  />
 
-                  {/* Toggle host (only for non-admins) */}
+                  {/* Toggle host (only non-admins) */}
                   {!isAdmin && (
-                    <button
-                      onClick={() => handleToggleHost(u)}
-                      disabled={busyHost}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 6,
-                        background: u.canHostRoom ? '#1db95422' : 'transparent',
-                        border: `1px solid ${u.canHostRoom ? '#1db954' : '#3a3a3a'}`,
-                        color: u.canHostRoom ? '#1db954' : '#555',
-                        borderRadius: 8, padding: '4px 10px', fontSize: 12, fontWeight: 600,
-                        cursor: busyHost ? 'wait' : 'pointer', opacity: busyHost ? 0.5 : 1,
-                      }}
-                    >
-                      {busyHost ? '...' : `🎮 פתיחת חדר — ${u.canHostRoom ? 'מופעל' : 'כבוי'}`}
-                    </button>
+                    <ToggleBtn
+                      active={u.canHostRoom}
+                      busy={busyHost}
+                      activeColor="#1db954"
+                      onClick={() => handleToggle(u, 'canHostRoom', !u.canHostRoom)}
+                      label={`🎮 פתיחת חדר — ${u.canHostRoom ? 'מופעל' : 'כבוי'}`}
+                    />
                   )}
+
+                  {/* Block / Unblock */}
+                  <ToggleBtn
+                    active={isBlocked}
+                    busy={busyBlock}
+                    activeColor="#dc3545"
+                    onClick={() => handleToggleBlock(u)}
+                    label={isBlocked ? '✅ בטל חסימה' : '🚫 חסום משתמש'}
+                  />
                 </div>
               </div>
             );
@@ -199,7 +239,7 @@ function UsersTab() {
 function ActivityTab() {
   const [log, setLog] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchUser, setSearchUser] = useState(''); // '' = all
+  const [searchUser, setSearchUser] = useState('');
 
   useEffect(() => {
     getActivityLog()
@@ -232,7 +272,6 @@ function ActivityTab() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {/* Search */}
       <input
         value={searchUser}
         onChange={e => setSearchUser(e.target.value)}
@@ -358,6 +397,27 @@ function UserModal({ modal, onClose, onDone }) {
   );
 }
 
+// ─── Small helpers ────────────────────────────────────────────────────────────
+function ToggleBtn({ active, busy, activeColor, onClick, label }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={busy}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 6,
+        background: active ? `${activeColor}22` : 'transparent',
+        border: `1px solid ${active ? activeColor : '#3a3a3a'}`,
+        color: active ? activeColor : '#555',
+        borderRadius: 8, padding: '4px 10px', fontSize: 12, fontWeight: 600,
+        cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.5 : 1,
+        transition: 'all 0.15s',
+      }}
+    >
+      {busy ? '...' : label}
+    </button>
+  );
+}
+
 function Field({ label, value, onChange, type = 'text', placeholder }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -369,3 +429,8 @@ function Field({ label, value, onChange, type = 'text', placeholder }) {
     </div>
   );
 }
+
+const iconBtnStyle = {
+  background: '#3a3a3a', border: 'none', color: '#aaa',
+  borderRadius: 8, padding: '5px 10px', fontSize: 13, cursor: 'pointer',
+};

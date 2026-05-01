@@ -28,6 +28,7 @@ export default api;
 export const loginApi = (username, password) => api.post('/auth/login', { username, password }).then(r => r.data);
 export const logoutApi = () => api.post('/auth/logout');
 export const getMeApi = () => api.get('/auth/me').then(r => r.data);
+export const completeProfileApi = (data) => api.post('/auth/complete-profile', data).then(r => r.data);
 
 // Users (admin)
 export const getUsers = () => api.get('/users').then(r => r.data);

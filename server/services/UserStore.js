@@ -26,18 +26,33 @@ function save(users) {
   if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
   writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), 'utf8');
 }
+
+/** Fields safe to send to client */
 function publicFields(u) {
   return {
-    id: u.id, username: u.username, role: u.role,
+    id: u.id,
+    username: u.username,
+    role: u.role,
     canHostRoom: u.canHostRoom ?? (u.role === 'admin'),
     hasAvatar: u.hasAvatar ?? false,
+    blocked: u.blocked ?? false,
+    profileCompleted: u.profileCompleted ?? false,
+    firstName: u.firstName || '',
+    lastName: u.lastName || '',
+    email: u.email || '',
   };
 }
+
 function init() {
   if (!existsSync(USERS_FILE)) {
     const users = ['אורן יהב', 'רותם יהב'].map((username, i) => {
       const { salt, hash } = createHash('!@A22011979a');
-      return { id: String(i + 1), username, role: 'admin', canHostRoom: true, hasAvatar: false, salt, hash };
+      return {
+        id: String(i + 1), username, role: 'admin', canHostRoom: true,
+        hasAvatar: false, blocked: false, profileCompleted: true,
+        firstName: '', lastName: '', email: '', privacyConsented: true,
+        salt, hash,
+      };
     });
     save(users);
   }
@@ -48,7 +63,9 @@ export function getAllUsers() { return load().map(publicFields); }
 export function authenticate(username, password) {
   const users = load();
   const user = users.find(u => u.username === username);
-  if (!user || !verifyPassword(password, user.salt, user.hash)) return null;
+  if (!user) return null;
+  if (!verifyPassword(password, user.salt, user.hash)) return null;
+  if (user.blocked) return { blocked: true };
   return publicFields(user);
 }
 
@@ -57,9 +74,31 @@ export function createUser(username, password, role = 'user') {
   if (users.find(u => u.username === username)) throw new Error('שם משתמש כבר קיים');
   const { salt, hash } = createHash(password);
   const id = String(Date.now());
-  users.push({ id, username, role, canHostRoom: role === 'admin', hasAvatar: false, salt, hash });
+  users.push({
+    id, username, role, canHostRoom: role === 'admin',
+    hasAvatar: false, blocked: false, profileCompleted: false,
+    firstName: '', lastName: '', email: '', privacyConsented: false,
+    salt, hash,
+  });
   save(users);
   return publicFields(users[users.length - 1]);
+}
+
+/** Complete first-time profile — sets firstName, lastName, email, privacyConsented, profileCompleted */
+export function completeProfile(userId, { firstName, lastName, email }) {
+  const users = load();
+  const idx = users.findIndex(u => u.id === userId);
+  if (idx === -1) throw new Error('משתמש לא נמצא');
+  users[idx] = {
+    ...users[idx],
+    firstName: firstName.trim(),
+    lastName: lastName.trim(),
+    email: email.trim().toLowerCase(),
+    privacyConsented: true,
+    profileCompleted: true,
+  };
+  save(users);
+  return publicFields(users[idx]);
 }
 
 export function updateUser(userId, fields) {
@@ -69,7 +108,8 @@ export function updateUser(userId, fields) {
   if (fields.username && fields.username !== users[idx].username) {
     if (users.find(u => u.username === fields.username)) throw new Error('שם משתמש כבר קיים');
   }
-  ['canHostRoom', 'role', 'username'].forEach(k => { if (k in fields) users[idx][k] = fields[k]; });
+  const allowed = ['canHostRoom', 'role', 'username', 'blocked'];
+  allowed.forEach(k => { if (k in fields) users[idx][k] = fields[k]; });
   save(users);
   return publicFields(users[idx]);
 }

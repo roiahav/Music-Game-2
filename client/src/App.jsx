@@ -8,6 +8,7 @@ import SettingsScreen from './screens/SettingsScreen.jsx';
 import MultiplayerScreen from './screens/MultiplayerScreen.jsx';
 import SoloTypingScreen from './screens/SoloTypingScreen.jsx';
 import LoginScreen from './screens/LoginScreen.jsx';
+import CompleteProfileScreen from './screens/CompleteProfileScreen.jsx';
 import AdminUsersScreen from './screens/AdminUsersScreen.jsx';
 import FavoritesScreen from './screens/FavoritesScreen.jsx';
 import YearsGameScreen from './screens/YearsGameScreen.jsx';
@@ -38,6 +39,9 @@ export default function App() {
   useEffect(() => { if (token) load(); }, [token]);
 
   if (!token) return <LoginScreen />;
+
+  // First-time login: ask for name + email + privacy consent
+  if (!user?.profileCompleted) return <CompleteProfileScreen />;
 
   const isAdmin = user?.role === 'admin';
   const theme = THEMES[themeId] || THEMES.dark;

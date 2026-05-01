@@ -28,3 +28,10 @@ export function getSessionData(token) {
 export function deleteSession(token) {
   sessions.delete(token);
 }
+
+/** Kill all active sessions for a given userId (e.g. when blocking a user) */
+export function deleteSessionsByUserId(userId) {
+  for (const [token, session] of sessions.entries()) {
+    if (session.user?.id === userId) sessions.delete(token);
+  }
+}
