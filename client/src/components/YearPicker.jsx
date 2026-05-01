@@ -1,8 +1,10 @@
 import { useRef, useEffect, useCallback } from 'react';
 
-const ITEM_H = 44;
-const VISIBLE = 5; // odd number so center is clear
-const PAD = ITEM_H * Math.floor(VISIBLE / 2); // 2 items padding top/bottom
+// Compact picker so the whole game (cover + inputs + picker + button) fits
+// in one phone viewport without scrolling
+const ITEM_H = 36;
+const VISIBLE = 3;                             // 3 items: prev / selected / next
+const PAD = ITEM_H * Math.floor(VISIBLE / 2);  // 1 item padding top/bottom
 
 function buildYears(min = 1950, max = 2025) {
   const arr = [];
@@ -64,9 +66,9 @@ export default function YearPicker({ value, onChange, disabled }) {
             style={{
               height: ITEM_H,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: y === value ? '#fff' : '#555',
-              fontSize: y === value ? 18 : 14,
-              fontWeight: y === value ? 700 : 400,
+              color: y === value ? '#fff' : '#666',
+              fontSize: y === value ? 17 : 13,
+              fontWeight: y === value ? 800 : 400,
               cursor: disabled ? 'default' : 'pointer',
               userSelect: 'none',
             }}

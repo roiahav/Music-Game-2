@@ -821,12 +821,23 @@ export default function MultiplayerScreen({ onExit }) {
         />
       </div>
 
-      {/* Confirm button (shown while playing and not yet confirmed) */}
+      {/* Confirm button — sticky to the bottom of the scroll area so it's always visible
+          even on narrow phones where the year picker + inputs fill the viewport */}
       {songPhase === 'playing' && !playerConfirmed && (
-        <div style={{ padding: '0 16px', flexShrink: 0 }}>
+        <div style={{
+          position: 'sticky', bottom: 0,
+          padding: '12px 16px 8px',
+          background: 'linear-gradient(to top, var(--bg) 0%, var(--bg) 70%, transparent 100%)',
+          flexShrink: 0, zIndex: 5,
+        }}>
           <button
             onClick={handleConfirm}
-            style={{ ...primaryBtn, background: '#1db954', color: '#000' }}
+            style={{
+              ...primaryBtn,
+              background: '#1db954', color: '#000',
+              boxShadow: '0 4px 16px rgba(29, 185, 84, 0.4)',
+              fontWeight: 800,
+            }}
           >
             {t('confirm_submit')}
           </button>
