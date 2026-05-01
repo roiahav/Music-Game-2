@@ -397,7 +397,7 @@ export default function YearsGameScreen({ onExit }) {
       )}
 
       {/* Content */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 14, padding: '14px 16px', overflowY: 'auto' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 14, padding: '14px 16px 24px', overflowY: 'auto' }}>
 
         {/* Instruction */}
         <p style={{ color: '#666', fontSize: 12, textAlign: 'center', margin: 0 }}>

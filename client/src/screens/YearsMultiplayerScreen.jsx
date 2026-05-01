@@ -394,7 +394,7 @@ export default function YearsMultiplayerScreen({ onExit }) {
       <audio ref={audioRef} preload="auto" />
       <TopBar onExit={onExit} title={`📅 ${t('ygm_game')}`} />
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'center' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px 28px', display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'center' }}>
 
         <div style={{ textAlign: 'center' }}>
           <p style={{ color: '#555', fontSize: 13, margin: 0 }}>{t('ygm_desc')}</p>
@@ -469,7 +469,7 @@ export default function YearsMultiplayerScreen({ onExit }) {
       <audio ref={audioRef} preload="auto" />
       <TopBar onExit={onExit} title={`📅 ${t('ygm_game')}`} />
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
         {/* Room code */}
         <div style={{ textAlign: 'center' }}>
@@ -599,7 +599,7 @@ export default function YearsMultiplayerScreen({ onExit }) {
         )}
 
         {/* Game area */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12, padding: '10px 14px', overflowY: 'auto' }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12, padding: '10px 14px 28px', overflowY: 'auto' }}>
 
           {/* Instruction */}
           <p style={{ color: '#555', fontSize: 11, textAlign: 'center', margin: 0 }}>
@@ -667,7 +667,7 @@ export default function YearsMultiplayerScreen({ onExit }) {
           <div style={{ color: '#888', fontSize: 11 }}>{t('yg_round')} {roundNum}/{totalRounds}</div>
         </div>
 
-        <div style={{ flex: 1, overflowY: 'auto', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '12px 14px 28px', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
           {/* Round song results */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -743,7 +743,7 @@ export default function YearsMultiplayerScreen({ onExit }) {
         <audio ref={victoryAudioRef} preload="auto" />
 
         <TopBar onExit={onExit} title={`📅 ${t('ygm_game')}`} />
-        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 16px 28px', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
           {/* Winner card */}
           {winner && (
@@ -823,6 +823,6 @@ function TopBar({ onExit, title }) {
 }
 
 const shell = { display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg)' };
-const primaryBtn = { width: '100%', padding: '13px', borderRadius: 12, background: 'var(--accent)', color: '#fff', border: 'none', fontSize: 15, fontWeight: 700, cursor: 'pointer' };
-const secondaryBtn = { width: '100%', padding: '12px', borderRadius: 12, background: 'var(--bg2)', color: '#ccc', border: '1px solid var(--border)', fontSize: 14, cursor: 'pointer' };
+const primaryBtn = { width: '100%', padding: '12px', borderRadius: 12, background: 'var(--accent)', color: '#fff', border: 'none', fontSize: 15, fontWeight: 700, cursor: 'pointer' };
+const secondaryBtn = { width: '100%', padding: '12px', borderRadius: 12, background: 'var(--bg2)', color: '#ccc', border: '1px solid var(--border)', fontSize: 15, cursor: 'pointer' };
 const inputStyle = { width: '100%', padding: '12px 14px', borderRadius: 12, background: 'var(--bg2)', border: '1px solid var(--border)', color: '#fff', fontSize: 15, outline: 'none', boxSizing: 'border-box' };

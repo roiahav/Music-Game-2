@@ -22,6 +22,11 @@ import { useLang } from './i18n/useLang.js';
 const shell = {
   display: 'flex', flexDirection: 'column', height: '100dvh',
   background: 'var(--bg)', maxWidth: 480, margin: '0 auto', width: '100%',
+  // Respect the iOS home-indicator + Android navigation-bar safe areas
+  // so content never sits underneath them
+  paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+  paddingTop:    'env(safe-area-inset-top, 0px)',
+  boxSizing:     'border-box',
 };
 
 /** Round icon button used in the top bar (settings, pending mail, etc.) */
