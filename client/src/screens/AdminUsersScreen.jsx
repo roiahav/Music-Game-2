@@ -646,6 +646,14 @@ function Stat({ label, value, color }) {
 }
 
 // ─── Modal ────────────────────────────────────────────────────────────────────
+const ADD_USER_EXPIRY_PRESETS = [
+  { label: '∞ ללא הגבלה', ms: null },
+  { label: '⏱ שעה',        ms: 60 * 60 * 1000 },
+  { label: '🌙 24 שעות',    ms: 24 * 60 * 60 * 1000 },
+  { label: '📅 שבוע',       ms: 7  * 24 * 60 * 60 * 1000 },
+  { label: '🗓 חודש',       ms: 30 * 24 * 60 * 60 * 1000 },
+];
+
 function UserModal({ modal, onClose, onDone }) {
   const isAdd = modal.type === 'add';
   const isEdit = modal.type === 'edit';
@@ -654,8 +662,18 @@ function UserModal({ modal, onClose, onDone }) {
   const [username, setUsername] = useState(isEdit ? modal.username : '');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('user');
+  const [expiryPreset, setExpiryPreset] = useState(null);   // ms duration or null
+  const [customExpiry, setCustomExpiry] = useState('');     // datetime-local string
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  function computeExpiresAt() {
+    if (customExpiry) {
+      const ts = new Date(customExpiry).getTime();
+      return isNaN(ts) ? null : ts;
+    }
+    return expiryPreset ? Date.now() + expiryPreset : null;
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -664,7 +682,13 @@ function UserModal({ modal, onClose, onDone }) {
     try {
       if (isAdd) {
         if (!username.trim() || !password) return setError('נדרשים שם וסיסמה');
-        await createUserApi(username.trim(), password, role);
+        const expiresAt = computeExpiresAt();
+        if (expiresAt && expiresAt < Date.now()) return setError('זמן ההגבלה שבחרת כבר עבר');
+        const created = await createUserApi(username.trim(), password, role);
+        // If a time limit was chosen, apply it via PATCH right after creation
+        if (expiresAt && created?.id) {
+          try { await updateUserApi(created.id, { expiresAt }); } catch {}
+        }
       } else if (isEdit) {
         if (!username.trim()) return setError('שם משתמש נדרש');
         await updateUserApi(modal.userId, { username: username.trim() });
@@ -712,6 +736,51 @@ function UserModal({ modal, onClose, onDone }) {
           {(isAdd || isReset) && (
             <Field label="סיסמה" value={password} onChange={setPassword} type="password" placeholder="הכנס סיסמה" />
           )}
+
+          {/* Time limit (only when adding) */}
+          {isAdd && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={{ color: '#aaa', fontSize: 13, fontWeight: 600 }}>
+                🕐 הגבלת זמן <span style={{ fontWeight: 400, color: '#666' }}>(אופציונלי)</span>
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(105px, 1fr))', gap: 6 }}>
+                {ADD_USER_EXPIRY_PRESETS.map(p => {
+                  const isSelected = !customExpiry && expiryPreset === p.ms;
+                  return (
+                    <button
+                      key={p.label}
+                      type="button"
+                      onClick={() => { setExpiryPreset(p.ms); setCustomExpiry(''); }}
+                      style={{
+                        padding: '8px', borderRadius: 8,
+                        background: isSelected ? '#9b59b622' : '#1e1e1e',
+                        border: `1px solid ${isSelected ? '#9b59b6' : '#3a3a3a'}`,
+                        color: isSelected ? '#c39bd3' : '#aaa',
+                        fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                      }}
+                    >
+                      {p.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 4 }}>
+                <input
+                  type="datetime-local"
+                  value={customExpiry}
+                  onChange={e => { setCustomExpiry(e.target.value); if (e.target.value) setExpiryPreset(null); }}
+                  style={{ flex: 1, background: '#1e1e1e', border: '1px solid #3a3a3a', borderRadius: 10, color: '#fff', padding: '8px 10px', fontSize: 12, direction: 'ltr', colorScheme: 'dark' }}
+                />
+                {customExpiry && (
+                  <button type="button" onClick={() => setCustomExpiry('')}
+                    style={{ background: 'transparent', border: '1px solid #3a3a3a', color: '#888', borderRadius: 8, padding: '8px 10px', fontSize: 11, cursor: 'pointer' }}>
+                    ✕
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
           {error && <div style={{ color: '#ff6b6b', fontSize: 13 }}>{error}</div>}
           <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
             <button type="button" onClick={onClose} style={{ flex: 1, padding: '12px', borderRadius: 12, background: '#3a3a3a', border: 'none', color: '#aaa', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>ביטול</button>
