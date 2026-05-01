@@ -8,6 +8,10 @@ import GameOptionsBar from '../components/GameOptionsBar.jsx';
 import FolderBrowser from '../components/FolderBrowser.jsx';
 import AdminBlacklistSection from '../components/AdminBlacklistSection.jsx';
 import AdminUsersScreen from '../screens/AdminUsersScreen.jsx';
+import { getJSON, setJSON } from '../utils/safeStorage.js';
+
+const SECTION_ORDER_KEY = 'mg_settings_section_order';
+const DEFAULT_SECTION_ORDER = ['victory', 'playlists', 'users', 'blacklist', 'email', 'invite', 'invite-templates'];
 
 export default function SettingsScreen({ isAdmin = false, usersDefaultFilter = 'all', onUsersFilterConsumed }) {
   const { playlists, setPlaylists, game, saveGame } = useSettingsStore();
@@ -21,6 +25,99 @@ export default function SettingsScreen({ isAdmin = false, usersDefaultFilter = '
   const [pendingCount, setPendingCount] = useState(0);
   const previewAudioRef = useRef(null);
   const [previewing, setPreviewing] = useState(false);
+
+  // ── Section order (drag-to-reorder) ──
+  const [sectionOrder, setSectionOrder] = useState(() => {
+    const saved = getJSON(SECTION_ORDER_KEY, null);
+    if (!Array.isArray(saved)) return DEFAULT_SECTION_ORDER;
+    // Backfill: if a new section was added since the user saved their order,
+    // append it at the end so they don't lose access
+    const valid = saved.filter(id => DEFAULT_SECTION_ORDER.includes(id));
+    const missing = DEFAULT_SECTION_ORDER.filter(id => !valid.includes(id));
+    return [...valid, ...missing];
+  });
+
+  // Drag state — same Pointer Events pattern as FavoritesScreen
+  const [dragIdx, setDragIdx] = useState(null);
+  const [dragOverIdx, setDragOverIdx] = useState(null);
+  const [dragActive, setDragActive] = useState(false);
+  const [dragY, setDragY] = useState(null);
+  const dragStartY = useRef(0);
+  const DRAG_THRESHOLD = 5;
+
+  function persistOrder(next) {
+    setSectionOrder(next);
+    setJSON(SECTION_ORDER_KEY, next);
+  }
+
+  function handlePointerDown(e, idx) {
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
+    setDragIdx(idx);
+    setDragOverIdx(idx);
+    setDragY(e.clientY);
+    setDragActive(false);
+    dragStartY.current = e.clientY;
+  }
+
+  function handlePointerMove(e) {
+    if (dragIdx === null) return;
+    if (!dragActive && Math.abs(e.clientY - dragStartY.current) > DRAG_THRESHOLD) setDragActive(true);
+    if (!dragActive && Math.abs(e.clientY - dragStartY.current) <= DRAG_THRESHOLD) return;
+    setDragY(e.clientY);
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    const row = el?.closest('[data-section-idx]');
+    if (row) {
+      const overIdx = parseInt(row.dataset.sectionIdx, 10);
+      if (!isNaN(overIdx) && overIdx !== dragOverIdx) setDragOverIdx(overIdx);
+    }
+  }
+
+  function handlePointerUp() {
+    if (dragActive && dragIdx !== null && dragOverIdx !== null && dragIdx !== dragOverIdx) {
+      const next = [...sectionOrder];
+      const [moved] = next.splice(dragIdx, 1);
+      next.splice(dragOverIdx, 0, moved);
+      persistOrder(next);
+    }
+    setDragIdx(null);
+    setDragOverIdx(null);
+    setDragY(null);
+    setDragActive(false);
+  }
+
+  function handlePointerCancel() {
+    setDragIdx(null);
+    setDragOverIdx(null);
+    setDragY(null);
+    setDragActive(false);
+  }
+
+  function resetOrder() {
+    persistOrder(DEFAULT_SECTION_ORDER);
+  }
+
+  // Build the props for a draggable wrapper given a section id.
+  // CSS `order` is what actually moves the cards visually — the flex container
+  // re-orders children by `order` value, no JSX restructuring needed.
+  function dragProps(id) {
+    const idx = sectionOrder.indexOf(id);
+    if (idx === -1) return null;
+    const isThisDragging = dragIdx === idx && dragActive;
+    const isThisOver     = dragOverIdx === idx && dragIdx !== idx && dragActive;
+    return {
+      idx,
+      order: idx + 1,            // +1 so GameOptionsBar (no order) stays at 0 visually
+      isDragging: isThisDragging,
+      isDragOver: isThisOver,
+      isDragMovingDown: dragIdx !== null && dragOverIdx > dragIdx,
+      handlers: {
+        onPointerDown:   e => handlePointerDown(e, idx),
+        onPointerMove:   handlePointerMove,
+        onPointerUp:     handlePointerUp,
+        onPointerCancel: handlePointerCancel,
+      },
+    };
+  }
 
   // Auto-open the users section when navigated here with a non-default filter
   // (e.g. the home-screen 📨 bell forwards us with usersDefaultFilter='pending')
@@ -49,13 +146,27 @@ export default function SettingsScreen({ isAdmin = false, usersDefaultFilter = '
 
   return (
     <div className="flex flex-col gap-4 p-4 pb-8">
-      <h2 className="text-lg font-bold">{t('settings')}</h2>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', order: -2 }}>
+        <h2 className="text-lg font-bold">{t('settings')}</h2>
+        {isAdmin && (
+          <button
+            onClick={resetOrder}
+            style={{ background: 'none', border: 'none', color: '#666', fontSize: 11, cursor: 'pointer', textDecoration: 'underline' }}
+            title="החזרת סדר ההגדרות לברירת מחדל"
+          >
+            ↻ אפס סדר
+          </button>
+        )}
+      </div>
 
-      <GameOptionsBar />
+      <div style={{ order: -1 }}>
+        <GameOptionsBar />
+      </div>
 
       {isAdmin && (
         <>
           {/* Victory song (collapsible) */}
+          <DraggableCard {...dragProps('victory')}>
           <div style={{ background: '#2d2d30', border: '1px solid #3a3a3a', borderRadius: 14, overflow: 'hidden' }}>
             <button
               onClick={() => setVictoryOpen(o => !o)}
@@ -239,8 +350,10 @@ export default function SettingsScreen({ isAdmin = false, usersDefaultFilter = '
           </div>
           )}
           </div>
+          </DraggableCard>
 
           {/* Playlists (collapsible — contains Spotify connection too) */}
+          <DraggableCard {...dragProps('playlists')}>
           <div style={{ background: '#2d2d30', border: '1px solid #3a3a3a', borderRadius: 14, overflow: 'hidden' }}>
             <button
               onClick={() => setPlaylistsOpen(o => !o)}
@@ -290,8 +403,10 @@ export default function SettingsScreen({ isAdmin = false, usersDefaultFilter = '
               </div>
             )}
           </div>
+          </DraggableCard>
 
           {/* Users management — collapsible (admin-only) */}
+          <DraggableCard {...dragProps('users')}>
           <div style={{ background: '#2d2d30', border: '1px solid #3a3a3a', borderRadius: 14, overflow: 'hidden' }}>
             <button
               onClick={() => setUsersOpen(o => !o)}
@@ -322,22 +437,31 @@ export default function SettingsScreen({ isAdmin = false, usersDefaultFilter = '
               </div>
             )}
           </div>
+          </DraggableCard>
 
           {/* Blacklist */}
           {playlists.some(p => p.type === 'local') && (
-            <AdminBlacklistSection playlists={playlists} />
+            <DraggableCard {...dragProps('blacklist')}>
+              <AdminBlacklistSection playlists={playlists} />
+            </DraggableCard>
           )}
 
           {/* Email / SMTP */}
-          <EmailSettingsPanel />
+          <DraggableCard {...dragProps('email')}>
+            <EmailSettingsPanel />
+          </DraggableCard>
 
           {/* Invite users */}
-          <InviteSettingsPanel />
+          <DraggableCard {...dragProps('invite')}>
+            <InviteSettingsPanel />
+          </DraggableCard>
 
           {/* Invite message templates */}
-          <InviteTemplatesPanel />
+          <DraggableCard {...dragProps('invite-templates')}>
+            <InviteTemplatesPanel />
+          </DraggableCard>
 
-          <div className="text-center text-xs mt-4" style={{ color: '#555' }}>
+          <div className="text-center text-xs mt-4" style={{ color: '#555', order: 999 }}>
             {t('wifi_hint')}
           </div>
         </>
@@ -1147,3 +1271,38 @@ const tplBtnStyle = (bg) => ({
   borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 700,
   cursor: 'pointer',
 });
+
+// ─── DraggableCard wrapper ────────────────────────────────────────────────────
+// Adds a small ⠿ handle above each settings card and assigns CSS `order` so the
+// flex-column parent renders cards in the user's chosen order. Drag itself is
+// driven by the parent's pointer-event handlers (handlers prop).
+function DraggableCard({ idx, order, handlers, isDragging, isDragOver, isDragMovingDown, children }) {
+  return (
+    <div
+      data-section-idx={idx}
+      style={{
+        order,
+        opacity: isDragging ? 0.3 : 1,
+        transition: 'opacity 0.15s',
+        position: 'relative',
+        // Drop-target indicator: thick line on the edge where the dragged item will land
+        ...(isDragOver && isDragMovingDown  ? { boxShadow: 'inset 0 -3px 0 var(--accent)' } : {}),
+        ...(isDragOver && !isDragMovingDown ? { boxShadow: 'inset 0  3px 0 var(--accent)' } : {}),
+      }}
+    >
+      {/* Drag handle bar — small ⠿ icon centered above the card */}
+      <div
+        {...handlers}
+        style={{
+          height: 16,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: '#3a3a3a', fontSize: 14, cursor: 'grab',
+          touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none',
+          marginBottom: 2, marginTop: -4,
+        }}
+        title="גרור לשינוי סדר"
+      >⠿</div>
+      {children}
+    </div>
+  );
+}
