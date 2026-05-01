@@ -40,6 +40,11 @@ app.use(express.json());
 const clientDist = join(__dirname, '..', 'client', 'dist');
 app.use(express.static(clientDist));
 
+// Short invite link: /i/<token> → /?invite_token=<token>
+app.get('/i/:token', (req, res) => {
+  res.redirect(302, `/?invite_token=${encodeURIComponent(req.params.token)}`);
+});
+
 // Spotify OAuth callback at root level (matches Spotify Dashboard redirect URI)
 app.get('/callback', async (req, res) => {
   const { code, error } = req.query;

@@ -34,7 +34,8 @@ function purgeExpired(data) {
 export function createInviteToken(info = {}) {
   const data = load();
   purgeExpired(data);
-  const token = randomBytes(24).toString('hex');
+  // Short token (16 hex chars = 64 bits, plenty for 7-day single-use)
+  const token = randomBytes(8).toString('hex');
   data[token] = {
     createdById: info.createdById || '',
     createdByName: info.createdByName || '',

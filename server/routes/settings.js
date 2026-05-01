@@ -20,14 +20,17 @@ router.get('/', (req, res) => {
   res.json(safe);
 });
 
-// POST /api/settings — full replace (game options, spotify credentials, email)
+// POST /api/settings — full replace (game options, spotify credentials, email, invite templates)
 router.post('/', (req, res) => {
   const current = getSettings();
-  const { game, spotify, email } = req.body;
+  const { game, spotify, email, inviteTemplates } = req.body;
   if (game) current.game = { ...current.game, ...game };
   if (spotify) {
     current.spotify.clientId = spotify.clientId ?? current.spotify.clientId;
     current.spotify.clientSecret = spotify.clientSecret ?? current.spotify.clientSecret;
+  }
+  if (Array.isArray(inviteTemplates)) {
+    current.inviteTemplates = inviteTemplates;
   }
   if (email) {
     if (!current.email) current.email = {};

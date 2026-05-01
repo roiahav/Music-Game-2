@@ -10,11 +10,12 @@ import { logAdminAction } from '../services/ActivityLog.js';
 
 const router = Router();
 
-/** Build the registration URL for an invite token using the request's host. */
+/** Build the short registration URL for an invite token. */
 function buildInviteUrl(req, token) {
   const protocol = req.headers['x-forwarded-proto'] || 'http';
   const host = req.headers['x-forwarded-host'] || req.get('host') || 'localhost:3000';
-  return `${protocol}://${host}/?invite_token=${token}`;
+  // Short form: /i/<token> redirects to /?invite_token=<token>
+  return `${protocol}://${host}/i/${token}`;
 }
 
 // ── Public: validate token + get prefilled info ──────────────────────────────

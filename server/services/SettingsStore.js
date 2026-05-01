@@ -33,6 +33,23 @@ const DEFAULT_SETTINGS = {
     fromEmail: '',
   },
   blacklist: [],
+  inviteTemplates: [
+    {
+      id: 'tmpl-default',
+      name: 'ידידותי',
+      body: 'היי {firstName}! 🎵\nהוזמנת להצטרף ל-Music Game — חידון מוזיקה משעשע.\n\n👉 לחץ להרשמה: {url}\n\nהקישור בתוקף ל-7 ימים.',
+    },
+    {
+      id: 'tmpl-formal',
+      name: 'רשמי',
+      body: 'שלום {firstName} {lastName},\n\nהוזמנת להצטרף לאפליקציית Music Game.\nלהרשמה: {url}\n\nהקישור בתוקף ל-7 ימים.',
+    },
+    {
+      id: 'tmpl-family',
+      name: 'משפחתי',
+      body: 'שלום {firstName} 💙\nהוזמנת ל-Music Game — חידון מוזיקה למשפחה!\n\nהירשם כאן 👇\n{url}',
+    },
+  ],
 };
 
 function load() {
