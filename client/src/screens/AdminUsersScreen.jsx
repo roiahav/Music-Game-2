@@ -77,9 +77,13 @@ function UsersTab() {
     try { await deleteUserApi(id); load(); } catch (e) { alert(e.response?.data?.error || 'שגיאה'); }
   }
 
-  const filtered = users.filter(u =>
-    !search.trim() || u.username.toLowerCase().includes(search.trim().toLowerCase())
-  );
+  const filtered = users
+    .filter(u => !search.trim() || u.username.toLowerCase().includes(search.trim().toLowerCase()))
+    .sort((a, b) => {
+      // Admins first, then regular users — within each group, alphabetical
+      if (a.role === b.role) return a.username.localeCompare(b.username, 'he');
+      return a.role === 'admin' ? -1 : 1;
+    });
 
   return (
     <>
