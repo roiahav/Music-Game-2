@@ -9,11 +9,17 @@ import PlayerControls from '../components/PlayerControls.jsx';
 import PlaylistSelector from '../components/PlaylistSelector.jsx';
 import TimerBar from '../components/TimerBar.jsx';
 import FilterPanel from '../components/FilterPanel.jsx';
+import { useLang } from '../i18n/useLang.js';
+import { useFavorites } from '../hooks/useFavorites.js';
+import { useBlacklist } from '../hooks/useBlacklist.js';
 
 export default function GameScreen() {
   const audioRef = useRef(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const { t } = useLang();
+  const { favoriteIds, toggle: toggleFavorite } = useFavorites();
+  const { blacklistIds, toggleBlacklist, isAdmin } = useBlacklist();
   const [volume, setVolume] = useState(80);
   const [allSongs, setAllSongs] = useState([]);
   const [excludedGenres, setExcludedGenres] = useState(new Set());
@@ -21,20 +27,23 @@ export default function GameScreen() {
   const [showFilter, setShowFilter] = useState(false);
 
   const {
-    currentSong, selectedPlaylistId, isPlaying,
-    loadPlaylist, nextSong, revealCover, revealField, setSelectedPlaylist,
+    currentSong, isPlaying,
+    loadPlaylist, nextSong, revealCover, revealField,
     coverRevealed, artistRevealed, titleRevealed, yearRevealed,
   } = useGameStore();
 
   const { playlists, game } = useSettingsStore();
   const isSpotify = currentSong?.source === 'spotify';
 
+  // Multi-select playlist state
+  const [selectedPlaylistIds, setSelectedPlaylistIds] = useState(new Set());
+
   // Auto-load first playlist on mount
   useEffect(() => {
-    if (playlists.length && !selectedPlaylistId) {
-      handleSelectPlaylist(playlists[0].id);
+    if (playlists.length && selectedPlaylistIds.size === 0) {
+      handleTogglePlaylist(playlists[0].id);
     }
-  }, [playlists]);
+  }, [playlists]); // eslint-disable-line
 
   // Sync volume to audio element
   useEffect(() => {
@@ -54,20 +63,42 @@ export default function GameScreen() {
     loadPlaylist(filtered, doShuffle);
   }
 
-  async function handleSelectPlaylist(id) {
-    setSelectedPlaylist(id);
+  async function loadFromIds(ids) {
+    if (ids.size === 0) {
+      setAllSongs([]);
+      loadPlaylist([], false);
+      return;
+    }
     setLoading(true);
     setError('');
     try {
-      const songs = await getPlaylistSongs(id);
-      if (!songs.length) { setError('לא נמצאו שירים בפלייליסט'); return; }
-      setAllSongs(songs);
-      applyFilters(songs, excludedGenres, excludedDecades, game.shuffle !== false);
+      const results = await Promise.all([...ids].map(id => getPlaylistSongs(id)));
+      // Deduplicate by song id
+      const seen = new Set();
+      const combined = results.flat().filter(s => {
+        if (seen.has(s.id)) return false;
+        seen.add(s.id);
+        return true;
+      });
+      if (!combined.length) { setError(t('no_songs_in_pl')); return; }
+      setAllSongs(combined);
+      applyFilters(combined, excludedGenres, excludedDecades, game.shuffle !== false);
     } catch (e) {
-      setError(e.response?.data?.error || 'שגיאה בטעינת הפלייליסט');
+      setError(e.response?.data?.error || t('error_loading_pl'));
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleTogglePlaylist(id) {
+    const next = new Set(selectedPlaylistIds);
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
+    setSelectedPlaylistIds(next);
+    await loadFromIds(next);
   }
 
   function handleToggleGenre(genre) {
@@ -128,6 +159,13 @@ export default function GameScreen() {
     }
   }, [currentSong?.id]);
 
+  // Auto-reveal cover when both artist and title are revealed
+  useEffect(() => {
+    if (artistRevealed && titleRevealed && !coverRevealed) {
+      revealCover();
+    }
+  }, [artistRevealed, titleRevealed]); // eslint-disable-line
+
   return (
     <>
     <div className="flex flex-col h-full">
@@ -136,8 +174,8 @@ export default function GameScreen() {
         <div className="flex-1 overflow-hidden">
           <PlaylistSelector
             playlists={playlists}
-            selectedId={selectedPlaylistId}
-            onSelect={handleSelectPlaylist}
+            selectedIds={selectedPlaylistIds}
+            onToggle={handleTogglePlaylist}
             loading={loading}
           />
         </div>
@@ -173,7 +211,7 @@ export default function GameScreen() {
 
       {loading && (
         <div className="text-center py-4 text-sm" style={{ color: '#888' }}>
-          טוען שירים...
+          {t('loading_songs')}
         </div>
       )}
 
@@ -187,7 +225,7 @@ export default function GameScreen() {
         <div className="flex-1 flex items-center justify-center text-center px-8" style={{ color: '#555' }}>
           <div>
             <div style={{ fontSize: 64 }}>🎵</div>
-            <p className="mt-3">בחר פלייליסט למעלה כדי להתחיל</p>
+            <p className="mt-3">{t('select_pl_hint')}</p>
           </div>
         </div>
       )}
@@ -201,8 +239,23 @@ export default function GameScreen() {
             onExpire={() => useGameStore.getState().revealAll()}
           />
 
-          {/* Album Art */}
-          <div className="px-4 flex justify-center">
+          {/* Album Art + Favorite button side by side */}
+          <div className="px-4" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 10 }}>
+            <button
+              onClick={() => toggleFavorite(currentSong)}
+              style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+                background: favoriteIds.has(currentSong.id) ? '#dc354522' : '#2d2d30',
+                border: `1px solid ${favoriteIds.has(currentSong.id) ? '#dc3545' : '#3a3a3a'}`,
+                borderRadius: 10, padding: '7px 10px', cursor: 'pointer', transition: 'all 0.15s',
+                flexShrink: 0,
+              }}
+            >
+              <span style={{ fontSize: 20 }}>{favoriteIds.has(currentSong.id) ? '💔' : '❤️'}</span>
+              <span style={{ fontSize: 10, fontWeight: 600, color: favoriteIds.has(currentSong.id) ? '#ff6b6b' : '#888' }}>
+                {favoriteIds.has(currentSong.id) ? t('remove_fav') : t('add_fav')}
+              </span>
+            </button>
             <AlbumArtCard
               coverUrl={currentSong.coverUrl}
               isRevealed={coverRevealed}
@@ -213,24 +266,42 @@ export default function GameScreen() {
           {/* Info fields */}
           <div className="flex flex-col gap-2 px-4">
             <RevealField
-              label="שיר"
+              label={t('song')}
               value={currentSong.title}
               isRevealed={titleRevealed}
               onReveal={() => revealField('title')}
             />
             <RevealField
-              label="זמר"
+              label={t('artist')}
               value={currentSong.artist}
               isRevealed={artistRevealed}
               onReveal={() => revealField('artist')}
             />
             <RevealField
-              label="שנה"
+              label={t('year')}
               value={currentSong.year}
               isRevealed={yearRevealed}
               onReveal={() => revealField('year')}
             />
           </div>
+
+          {/* Blacklist button — admin only */}
+          {isAdmin && (
+            <div className="px-4">
+              <button
+                onClick={() => toggleBlacklist(currentSong.id)}
+                style={{
+                  width: '100%', padding: '6px 10px', borderRadius: 10, fontSize: 12, fontWeight: 600,
+                  background: blacklistIds.has(currentSong.id) ? '#1a1a1a' : '#1e1e1e',
+                  border: `1px solid ${blacklistIds.has(currentSong.id) ? '#dc3545' : '#3a3a3a'}`,
+                  color: blacklistIds.has(currentSong.id) ? '#ff6b6b' : '#555',
+                  cursor: 'pointer', transition: 'all 0.15s',
+                }}
+              >
+                {blacklistIds.has(currentSong.id) ? `✓ ${t('unblock_song')}` : `🚫 ${t('block_song')}`}
+              </button>
+            </div>
+          )}
 
           {/* Controls */}
           <PlayerControls

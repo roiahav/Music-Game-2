@@ -1,7 +1,9 @@
 import { useGameStore } from '../store/gameStore.js';
+import { useLang } from '../i18n/useLang.js';
 
 export default function PlayerControls({ audioRef, isSpotify, onNext, onRevealAll, onSpotifyPause, onSpotifyResume, onSpotifySeek }) {
   const { isPlaying, revealAll } = useGameStore();
+  const { t } = useLang();
 
   function handlePlayPause() {
     if (isSpotify) {
@@ -58,7 +60,7 @@ export default function PlayerControls({ audioRef, isSpotify, onNext, onRevealAl
         className={btnBase}
         style={{ flex: 1.5, height: 52, background: '#28a745', color: '#fff' }}
       >
-        💡 גלה
+        {t('reveal_all')}
       </button>
     </div>
   );

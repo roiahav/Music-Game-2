@@ -37,6 +37,8 @@ function UsersTab() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [modal, setModal] = useState(null);
+  const [search, setSearch] = useState('');
+  const [toggling, setToggling] = useState(new Set()); // IDs being updated
 
   async function load() {
     setLoading(true);
@@ -47,8 +49,21 @@ function UsersTab() {
   useEffect(() => { load(); }, []);
 
   async function handleToggleHost(u) {
+    if (toggling.has(u.id + '_host')) return;
+    setToggling(prev => new Set([...prev, u.id + '_host']));
     try { await updateUserApi(u.id, { canHostRoom: !u.canHostRoom }); load(); }
     catch (e) { alert(e.response?.data?.error || 'שגיאה'); }
+    finally { setToggling(prev => { const n = new Set(prev); n.delete(u.id + '_host'); return n; }); }
+  }
+
+  async function handleToggleRole(u) {
+    if (toggling.has(u.id + '_role')) return;
+    const newRole = u.role === 'admin' ? 'user' : 'admin';
+    if (!confirm(`להפוך את "${u.username}" ל${newRole === 'admin' ? 'מנהל' : 'משתמש רגיל'}?`)) return;
+    setToggling(prev => new Set([...prev, u.id + '_role']));
+    try { await updateUserApi(u.id, { role: newRole }); load(); }
+    catch (e) { alert(e.response?.data?.error || 'שגיאה'); }
+    finally { setToggling(prev => { const n = new Set(prev); n.delete(u.id + '_role'); return n; }); }
   }
 
   async function handleDelete(id, name) {
@@ -56,9 +71,13 @@ function UsersTab() {
     try { await deleteUserApi(id); load(); } catch (e) { alert(e.response?.data?.error || 'שגיאה'); }
   }
 
+  const filtered = users.filter(u =>
+    !search.trim() || u.username.toLowerCase().includes(search.trim().toLowerCase())
+  );
+
   return (
     <>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <span style={{ color: '#fff', fontWeight: 800, fontSize: 16 }}>ניהול משתמשים</span>
         <button
           onClick={() => setModal({ type: 'add' })}
@@ -68,60 +87,104 @@ function UsersTab() {
         </button>
       </div>
 
+      {/* Search */}
+      <input
+        value={search}
+        onChange={e => setSearch(e.target.value)}
+        placeholder="🔍 חיפוש משתמש..."
+        style={{
+          width: '100%', marginBottom: 14, background: '#1e1e1e',
+          border: '1px solid #3a3a3a', borderRadius: 10, color: '#fff',
+          padding: '9px 12px', fontSize: 14, direction: 'rtl',
+          boxSizing: 'border-box', outline: 'none',
+        }}
+      />
+
       {error && <div style={{ color: '#ff6b6b', marginBottom: 12 }}>{error}</div>}
       {loading ? (
         <div style={{ color: '#888', textAlign: 'center', paddingTop: 20 }}>טוען...</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {users.map(u => (
-            <div key={u.id} style={{ background: '#2d2d30', borderRadius: 14, padding: '12px 14px', border: '1px solid #3a3a3a' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ color: '#fff', fontWeight: 700, fontSize: 15 }}>{u.username}</div>
-                  <span style={{
-                    display: 'inline-block', marginTop: 3,
-                    background: u.role === 'admin' ? '#007ACC33' : '#1db95433',
-                    color: u.role === 'admin' ? '#5bb8ff' : '#1db954',
-                    borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 600,
-                  }}>
-                    {u.role === 'admin' ? 'מנהל' : 'משתמש'}
-                  </span>
+          {filtered.length === 0 && (
+            <div style={{ color: '#555', textAlign: 'center', paddingTop: 20 }}>לא נמצאו משתמשים</div>
+          )}
+          {filtered.map(u => {
+            const busyRole = toggling.has(u.id + '_role');
+            const busyHost = toggling.has(u.id + '_host');
+            const isAdmin = u.role === 'admin';
+            return (
+              <div key={u.id} style={{ background: '#2d2d30', borderRadius: 14, padding: '12px 14px', border: '1px solid #3a3a3a' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ color: '#fff', fontWeight: 700, fontSize: 15 }}>{u.username}</div>
+                    <span style={{
+                      display: 'inline-block', marginTop: 3,
+                      background: isAdmin ? '#007ACC33' : '#1db95433',
+                      color: isAdmin ? '#5bb8ff' : '#1db954',
+                      borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 600,
+                    }}>
+                      {isAdmin ? '👑 מנהל' : '👤 משתמש'}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setModal({ type: 'edit', userId: u.id, username: u.username })}
+                    style={{ background: '#3a3a3a', border: 'none', color: '#aaa', borderRadius: 8, padding: '5px 10px', fontSize: 13, cursor: 'pointer' }}
+                  >
+                    ✏️
+                  </button>
+                  <button
+                    onClick={() => setModal({ type: 'reset', userId: u.id, username: u.username })}
+                    style={{ background: '#3a3a3a', border: 'none', color: '#aaa', borderRadius: 8, padding: '5px 10px', fontSize: 12, cursor: 'pointer' }}
+                  >
+                    🔑
+                  </button>
+                  <button
+                    onClick={() => handleDelete(u.id, u.username)}
+                    style={{ background: '#3a1010', border: '1px solid #dc354544', color: '#ff6b6b', borderRadius: 8, padding: '5px 9px', fontSize: 15, cursor: 'pointer', lineHeight: 1 }}
+                  >
+                    ×
+                  </button>
                 </div>
-                <button
-                  onClick={() => setModal({ type: 'edit', userId: u.id, username: u.username })}
-                  style={{ background: '#3a3a3a', border: 'none', color: '#aaa', borderRadius: 8, padding: '5px 10px', fontSize: 13, cursor: 'pointer' }}
-                >
-                  ✏️
-                </button>
-                <button
-                  onClick={() => setModal({ type: 'reset', userId: u.id, username: u.username })}
-                  style={{ background: '#3a3a3a', border: 'none', color: '#aaa', borderRadius: 8, padding: '5px 10px', fontSize: 12, cursor: 'pointer' }}
-                >
-                  🔑
-                </button>
-                <button
-                  onClick={() => handleDelete(u.id, u.username)}
-                  style={{ background: '#3a1010', border: '1px solid #dc354544', color: '#ff6b6b', borderRadius: 8, padding: '5px 9px', fontSize: 15, cursor: 'pointer', lineHeight: 1 }}
-                >
-                  ×
-                </button>
+
+                {/* Role + Host buttons row */}
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {/* Toggle role */}
+                  <button
+                    onClick={() => handleToggleRole(u)}
+                    disabled={busyRole}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      background: isAdmin ? '#007ACC22' : 'transparent',
+                      border: `1px solid ${isAdmin ? '#007ACC' : '#3a3a3a'}`,
+                      color: isAdmin ? '#5bb8ff' : '#555',
+                      borderRadius: 8, padding: '4px 10px', fontSize: 12, fontWeight: 600,
+                      cursor: busyRole ? 'wait' : 'pointer', opacity: busyRole ? 0.5 : 1,
+                    }}
+                  >
+                    {busyRole ? '...' : isAdmin ? '👑 הסר הרשאת מנהל' : '👑 הפוך למנהל'}
+                  </button>
+
+                  {/* Toggle host (only for non-admins) */}
+                  {!isAdmin && (
+                    <button
+                      onClick={() => handleToggleHost(u)}
+                      disabled={busyHost}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        background: u.canHostRoom ? '#1db95422' : 'transparent',
+                        border: `1px solid ${u.canHostRoom ? '#1db954' : '#3a3a3a'}`,
+                        color: u.canHostRoom ? '#1db954' : '#555',
+                        borderRadius: 8, padding: '4px 10px', fontSize: 12, fontWeight: 600,
+                        cursor: busyHost ? 'wait' : 'pointer', opacity: busyHost ? 0.5 : 1,
+                      }}
+                    >
+                      {busyHost ? '...' : `🎮 פתיחת חדר — ${u.canHostRoom ? 'מופעל' : 'כבוי'}`}
+                    </button>
+                  )}
+                </div>
               </div>
-              {u.role !== 'admin' && (
-                <button
-                  onClick={() => handleToggleHost(u)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 6,
-                    background: u.canHostRoom ? '#1db95422' : 'transparent',
-                    border: `1px solid ${u.canHostRoom ? '#1db954' : '#3a3a3a'}`,
-                    color: u.canHostRoom ? '#1db954' : '#555',
-                    borderRadius: 8, padding: '4px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                  }}
-                >
-                  🎮 פתיחת חדר מנהל — {u.canHostRoom ? 'מופעל' : 'כבוי'}
-                </button>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -136,6 +199,7 @@ function UsersTab() {
 function ActivityTab() {
   const [log, setLog] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchUser, setSearchUser] = useState(''); // '' = all
 
   useEffect(() => {
     getActivityLog()
@@ -143,6 +207,10 @@ function ActivityTab() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  const filtered = searchUser.trim()
+    ? log.filter(e => e.username.toLowerCase().includes(searchUser.trim().toLowerCase()))
+    : log;
 
   function formatDate(iso) {
     const d = new Date(iso);
@@ -163,8 +231,24 @@ function ActivityTab() {
   if (!log.length) return <div style={{ color: '#555', textAlign: 'center', paddingTop: 20 }}>אין נתונים עדיין</div>;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {log.map((entry, i) => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {/* Search */}
+      <input
+        value={searchUser}
+        onChange={e => setSearchUser(e.target.value)}
+        placeholder="🔍 חיפוש לפי שם משתמש..."
+        style={{
+          width: '100%', background: '#1e1e1e', border: '1px solid #3a3a3a',
+          borderRadius: 10, color: '#fff', padding: '9px 12px', fontSize: 14,
+          direction: 'rtl', boxSizing: 'border-box', outline: 'none',
+        }}
+      />
+
+      {filtered.length === 0 && (
+        <div style={{ color: '#555', textAlign: 'center', paddingTop: 12 }}>אין רשומות</div>
+      )}
+
+      {filtered.map((entry, i) => (
         <div key={i} style={{
           background: '#2d2d30', borderRadius: 12, padding: '10px 14px',
           border: `1px solid ${entry.type === 'login' ? '#007ACC44' : '#3a3a3a'}`,

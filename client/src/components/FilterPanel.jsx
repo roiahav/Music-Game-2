@@ -1,10 +1,14 @@
 import { useState, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { useLang } from '../i18n/useLang.js';
 
-function getDecadeLabel(decade) {
+function getDecadeLabel(decade, lang) {
   const d = Number(decade);
-  if (d < 2000) return `שנות ה-${String(d).slice(2)}`;
-  return `שנות ה-${d}`;
+  const short = d < 2000 ? String(d).slice(2) : String(d);
+  if (lang === 'he') return d < 2000 ? `שנות ה-${short}` : `שנות ה-${d}`;
+  if (lang === 'ar') return `${short}s`;
+  if (lang === 'ru') return `${short}-е`;
+  return `${short}s`; // en, es
 }
 
 function getDecade(year) {
@@ -16,6 +20,7 @@ function getDecade(year) {
 
 export default function FilterPanel({ songs, excludedGenres, excludedDecades, onToggleGenre, onToggleDecade, onClear, onClose }) {
   const [view, setView] = useState('main'); // main | genre | decade
+  const { t, lang } = useLang();
 
   const genres = useMemo(() => {
     const s = new Set();
@@ -80,7 +85,7 @@ export default function FilterPanel({ songs, excludedGenres, excludedDecades, on
           <div style={{ padding: '16px 20px 32px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <span style={{ fontWeight: 700, fontSize: 16, color: '#fff' }}>
-                סינון {activeFilters > 0 && <span style={{ color: '#007ACC' }}>({activeFilters} פעיל)</span>}
+                {t('filter_title')} {activeFilters > 0 && <span style={{ color: '#007ACC' }}>({activeFilters} {t('active_lbl')})</span>}
               </span>
               <button onClick={onClose} style={{ background: '#444', border: 'none', color: '#fff', borderRadius: '50%', width: 28, height: 28, cursor: 'pointer', fontSize: 16 }}>×</button>
             </div>
@@ -92,9 +97,9 @@ export default function FilterPanel({ songs, excludedGenres, excludedDecades, on
               >
                 <span style={{ fontSize: 20 }}>🎸</span>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontWeight: 700, fontSize: 15 }}>ז'אנר</div>
+                  <div style={{ fontWeight: 700, fontSize: 15 }}>{t('genre_lbl')}</div>
                   <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>
-                    {excludedGenres.size > 0 ? `${excludedGenres.size} מוסתר` : 'הכל מוצג'}
+                    {excludedGenres.size > 0 ? `${excludedGenres.size} ${t('hidden_lbl')}` : t('all_shown')}
                   </div>
                 </div>
                 <span style={{ marginRight: 'auto', color: '#555', fontSize: 18 }}>›</span>
@@ -106,9 +111,9 @@ export default function FilterPanel({ songs, excludedGenres, excludedDecades, on
               >
                 <span style={{ fontSize: 20 }}>📅</span>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontWeight: 700, fontSize: 15 }}>שנה</div>
+                  <div style={{ fontWeight: 700, fontSize: 15 }}>{t('decade_lbl')}</div>
                   <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>
-                    {excludedDecades.size > 0 ? `${excludedDecades.size} מוסתר` : 'הכל מוצג'}
+                    {excludedDecades.size > 0 ? `${excludedDecades.size} ${t('hidden_lbl')}` : t('all_shown')}
                   </div>
                 </div>
                 <span style={{ marginRight: 'auto', color: '#555', fontSize: 18 }}>›</span>
@@ -120,7 +125,7 @@ export default function FilterPanel({ songs, excludedGenres, excludedDecades, on
                 onClick={onClear}
                 style={{ width: '100%', marginTop: 16, padding: '12px', borderRadius: 12, background: '#3a1a1a', border: '1px solid #dc3545', color: '#ff6b6b', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
               >
-                ✕ ניקוי סינון
+                {t('clear_filter')}
               </button>
             )}
           </div>
@@ -130,17 +135,17 @@ export default function FilterPanel({ songs, excludedGenres, excludedDecades, on
           <div style={{ padding: '16px 20px 32px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
               <button onClick={() => setView('main')} style={{ background: 'none', border: 'none', color: '#888', fontSize: 22, cursor: 'pointer', padding: 0 }}>‹</button>
-              <span style={{ fontWeight: 700, fontSize: 16, color: '#fff' }}>סינון ז'אנר</span>
+              <span style={{ fontWeight: 700, fontSize: 16, color: '#fff' }}>{t('filter_genre')}</span>
             </div>
             {genres.length === 0 ? (
-              <p style={{ color: '#555', textAlign: 'center' }}>אין מידע על ז'אנרים בקבצים</p>
+              <p style={{ color: '#555', textAlign: 'center' }}>{t('no_genre_info')}</p>
             ) : (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 {genres.map(g => chip(g, !excludedGenres.has(g), () => onToggleGenre(g)))}
               </div>
             )}
             <button onClick={() => setView('main')} style={{ width: '100%', marginTop: 20, padding: '10px', borderRadius: 12, background: '#007ACC', color: '#fff', border: 'none', fontWeight: 700, cursor: 'pointer' }}>
-              אישור
+              {t('ok_btn')}
             </button>
           </div>
         )}
@@ -149,13 +154,13 @@ export default function FilterPanel({ songs, excludedGenres, excludedDecades, on
           <div style={{ padding: '16px 20px 32px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
               <button onClick={() => setView('main')} style={{ background: 'none', border: 'none', color: '#888', fontSize: 22, cursor: 'pointer', padding: 0 }}>‹</button>
-              <span style={{ fontWeight: 700, fontSize: 16, color: '#fff' }}>סינון לפי עשור</span>
+              <span style={{ fontWeight: 700, fontSize: 16, color: '#fff' }}>{t('decade_filter')}</span>
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              {decades.map(d => chip(getDecadeLabel(d), !excludedDecades.has(d), () => onToggleDecade(d)))}
+              {decades.map(d => chip(getDecadeLabel(d, lang), !excludedDecades.has(d), () => onToggleDecade(d)))}
             </div>
             <button onClick={() => setView('main')} style={{ width: '100%', marginTop: 20, padding: '10px', borderRadius: 12, background: '#007ACC', color: '#fff', border: 'none', fontWeight: 700, cursor: 'pointer' }}>
-              אישור
+              {t('ok_btn')}
             </button>
           </div>
         )}

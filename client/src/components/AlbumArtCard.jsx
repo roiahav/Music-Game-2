@@ -1,6 +1,8 @@
 import { motion, AnimatePresence } from 'framer-motion';
+import { useLang } from '../i18n/useLang.js';
 
 export default function AlbumArtCard({ coverUrl, isRevealed, onTap }) {
+  const { t } = useLang();
   return (
     <div
       className="no-select mx-auto cursor-pointer"
@@ -18,7 +20,7 @@ export default function AlbumArtCard({ coverUrl, isRevealed, onTap }) {
             style={{ background: 'linear-gradient(135deg, #3a3a3a 0%, #2a2a2a 100%)', border: '2px solid #444' }}
           >
             <span style={{ fontSize: 64 }}>🎵</span>
-            <span className="text-sm font-medium" style={{ color: '#888' }}>לחץ לחשיפה</span>
+            <span className="text-sm font-medium" style={{ color: '#888' }}>{t('click_reveal')}</span>
           </motion.div>
         ) : (
           <motion.div

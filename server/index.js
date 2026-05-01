@@ -14,9 +14,12 @@ import authRouter from './routes/auth.js';
 import usersRouter from './routes/users.js';
 import activityRouter from './routes/activity.js';
 import browseRouter from './routes/browse.js';
+import blacklistRouter from './routes/blacklist.js';
+import favoritesRouter from './routes/favorites.js';
 import { requireAuth, requireAdmin } from './middleware/auth.js';
 import { updateSpotifyTokens, getSettings } from './services/SettingsStore.js';
 import { setupMultiplayer } from './multiplayer-socket.js';
+import { setupYearsMultiplayer } from './years-multiplayer-socket.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
@@ -25,6 +28,7 @@ const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, { cors: { origin: '*' } });
 setupMultiplayer(io);
+setupYearsMultiplayer(io);
 
 app.use(cors());
 app.use(express.json());
@@ -73,6 +77,8 @@ app.use('/api/audio', audioRouter);   // public — needed by <audio> element (n
 app.use('/api/cover', coverRouter);   // public — same reason
 app.use('/api/settings', requireAdmin, settingsRouter);
 app.use('/api/spotify', requireAdmin, spotifyRouter);
+app.use('/api/blacklist', requireAdmin, blacklistRouter);
+app.use('/api/favorites', requireAuth, favoritesRouter);
 
 // SPA fallback
 app.get('*', (req, res) => {

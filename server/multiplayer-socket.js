@@ -33,7 +33,9 @@ function shuffle(arr) {
 }
 
 async function loadPlaylistSongs(playlistId) {
-  const { playlists } = getSettings();
+  const settings = getSettings();
+  const { playlists, blacklist = [] } = settings;
+  const bl = new Set(blacklist);
   const playlist = playlists.find(p => p.id === playlistId);
   if (!playlist) throw new Error('פלייליסט לא נמצא');
   if (playlist.type === 'local') {
@@ -46,15 +48,18 @@ async function loadPlaylistSongs(playlistId) {
       const results = await Promise.all(batch.map(f => getSongMetadata(f)));
       songs.push(...results);
     }
-    return songs.map(s => ({
-      ...s,
-      audioUrl: `/api/audio/${encodeURIComponent(s.filePath)}`,
-      coverUrl: s.hasCover ? `/api/cover/${encodeURIComponent(s.filePath)}` : null,
-    }));
+    return songs
+      .filter(s => !bl.has(s.id))
+      .map(s => ({
+        ...s,
+        audioUrl: `/api/audio/${encodeURIComponent(s.filePath)}`,
+        coverUrl: s.hasCover ? `/api/cover/${encodeURIComponent(s.filePath)}` : null,
+      }));
   }
   if (playlist.type === 'spotify') {
     const id = playlist.spotifyUri.split(':').pop();
-    return await getPlaylistTracks(id);
+    const tracks = await getPlaylistTracks(id);
+    return tracks.filter(s => !bl.has(s.id));
   }
   return [];
 }
@@ -109,8 +114,9 @@ function endGame(io, room) {
   clearTimeout(room.scoreTimer);
   room.status = 'ended';
   const { game } = getSettings();
-  // Prefer random file from folder; fall back to single file
-  const victoryFilePath = (game.victoryAudioFolder && pickRandomVictorySong(game.victoryAudioFolder))
+  // Prefer random file from folder (if enabled); fall back to single file
+  const folderEnabled = game.victoryFolderEnabled !== false;
+  const victoryFilePath = (folderEnabled && game.victoryAudioFolder && pickRandomVictorySong(game.victoryAudioFolder))
     || game.victoryAudioPath
     || null;
   const victoryAudioUrl = victoryFilePath
@@ -141,15 +147,34 @@ export function setupMultiplayer(io) {
       socket.to(code.trim()).emit('mp:room_update', { players: serializePlayers(result.room) });
     });
 
-    socket.on('mp:start', async ({ playlistId, songCount, timerSeconds }) => {
+    socket.on('mp:start', async ({ playlistId, playlistIds, songCount, timerSeconds, excludedDecades }) => {
       const room = getRoomBySocket(socket.id);
       if (!room || room.hostSocketId !== socket.id) return;
-      room.playlistId = playlistId;
       room.songCount = Number(songCount) || 10;
       room.timerSeconds = Number(timerSeconds) || 30;
       room.status = 'playing';
+      // Support both single playlistId (legacy) and multiple playlistIds
+      const ids = playlistIds?.length ? playlistIds : (playlistId ? [playlistId] : []);
+      if (!ids.length) { socket.emit('mp:error', { message: 'לא נבחר פלייליסט' }); return; }
       try {
-        let songs = await loadPlaylistSongs(playlistId);
+        const results = await Promise.all(ids.map(id => loadPlaylistSongs(id)));
+        // Deduplicate by song id
+        const seen = new Set();
+        let songs = results.flat().filter(s => {
+          if (seen.has(s.id)) return false;
+          seen.add(s.id);
+          return true;
+        });
+        // Apply decade filter
+        if (excludedDecades && excludedDecades.length > 0) {
+          const exSet = new Set(excludedDecades);
+          const filtered = songs.filter(s => {
+            if (!s.year) return true;
+            const d = String(Math.floor(Number(s.year) / 10) * 10);
+            return !exSet.has(d);
+          });
+          if (filtered.length > 0) songs = filtered;
+        }
         songs = shuffle(songs);
         if (room.songCount > 0) songs = songs.slice(0, room.songCount);
         room.songs = songs;
@@ -187,6 +212,24 @@ export function setupMultiplayer(io) {
       const room = getRoomBySocket(socket.id);
       if (!room || room.hostSocketId !== socket.id) return;
       endGame(io, room);
+    });
+
+    socket.on('mp:host_seek', ({ seconds }) => {
+      const room = getRoomBySocket(socket.id);
+      if (!room || room.hostSocketId !== socket.id) return;
+      io.to(room.code).emit('mp:seek', { seconds: Number(seconds) || 30 });
+    });
+
+    socket.on('mp:mute_all', () => {
+      const room = getRoomBySocket(socket.id);
+      if (!room || room.hostSocketId !== socket.id) return;
+      socket.to(room.code).emit('mp:muted', { muted: true });
+    });
+
+    socket.on('mp:unmute_all', () => {
+      const room = getRoomBySocket(socket.id);
+      if (!room || room.hostSocketId !== socket.id) return;
+      socket.to(room.code).emit('mp:muted', { muted: false });
     });
 
     socket.on('disconnect', () => {

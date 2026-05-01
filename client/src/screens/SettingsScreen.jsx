@@ -1,13 +1,16 @@
 import { useState } from 'react';
 import { useSettingsStore } from '../store/settingsStore.js';
 import { addPlaylist, getPlaylists } from '../api/client.js';
+import { useLang } from '../i18n/useLang.js';
 import SpotifyConnectPanel from '../components/SpotifyConnectPanel.jsx';
 import SettingsPlaylistRow from '../components/SettingsPlaylistRow.jsx';
 import GameOptionsBar from '../components/GameOptionsBar.jsx';
 import FolderBrowser from '../components/FolderBrowser.jsx';
+import AdminBlacklistSection from '../components/AdminBlacklistSection.jsx';
 
 export default function SettingsScreen({ isAdmin = false }) {
   const { playlists, setPlaylists, game, saveGame } = useSettingsStore();
+  const { t } = useLang();
   const [adding, setAdding] = useState(false);
   const [showVictoryBrowser, setShowVictoryBrowser] = useState(false);
   const [showVictoryFolderBrowser, setShowVictoryFolderBrowser] = useState(false);
@@ -25,7 +28,7 @@ export default function SettingsScreen({ isAdmin = false }) {
 
   return (
     <div className="flex flex-col gap-4 p-4 pb-8">
-      <h2 className="text-lg font-bold">הגדרות</h2>
+      <h2 className="text-lg font-bold">{t('settings')}</h2>
 
       <GameOptionsBar />
 
@@ -35,44 +38,62 @@ export default function SettingsScreen({ isAdmin = false }) {
 
           {/* Victory song */}
           <div className="rounded-xl p-4 flex flex-col gap-3" style={{ background: '#2d2d30', border: '1px solid #3a3a3a' }}>
-            <h3 className="font-bold text-sm">🏆 שיר ניצחון</h3>
-            <p style={{ color: '#888', fontSize: 12, margin: 0 }}>בסיום משחק קבוצתי — תיקייה (אקראי) תקדים קובץ בודד</p>
+            <h3 className="font-bold text-sm">{t('victory_song')}</h3>
+            <p style={{ color: '#888', fontSize: 12, margin: 0 }}>{t('victory_song_desc')}</p>
 
             {/* ── Folder (random) ── */}
             <div>
-              <label style={{ color: '#aaa', fontSize: 12, display: 'block', marginBottom: 4 }}>📂 תיקייה (שיר אקראי)</label>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <input
-                  value={game.victoryAudioFolder || ''}
-                  onChange={e => saveGame({ victoryAudioFolder: e.target.value })}
-                  placeholder="נתיב לתיקייה עם שירי ניצחון..."
-                  style={{
-                    flex: 1, background: '#1e1e1e', border: '1px solid #444',
-                    color: '#ccc', borderRadius: 8, padding: '8px 10px',
-                    fontSize: 13, direction: 'ltr',
-                  }}
-                />
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                <label style={{ color: '#aaa', fontSize: 12 }}>{t('folder_random')}</label>
+                {/* Toggle enable/disable folder */}
                 <button
-                  onClick={() => setShowVictoryFolderBrowser(true)}
+                  onClick={() => saveGame({ victoryFolderEnabled: !game.victoryFolderEnabled })}
                   style={{
-                    background: '#1db954', border: 'none', color: '#fff',
-                    borderRadius: 8, padding: '8px 12px', fontSize: 13,
-                    cursor: 'pointer', flexShrink: 0,
+                    background: game.victoryFolderEnabled !== false ? '#1db95433' : 'transparent',
+                    border: `1px solid ${game.victoryFolderEnabled !== false ? '#1db954' : '#3a3a3a'}`,
+                    color: game.victoryFolderEnabled !== false ? '#1db954' : '#555',
+                    borderRadius: 8, padding: '3px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer',
                   }}
                 >
-                  📁
+                  {game.victoryFolderEnabled !== false ? '✓ פעיל' : '✗ כבוי'}
                 </button>
               </div>
-              {game.victoryAudioFolder && (
-                <p style={{ color: '#1db954', fontSize: 11, margin: '4px 0 0', direction: 'ltr' }}>
-                  ✓ {game.victoryAudioFolder}
-                </p>
+              {game.victoryFolderEnabled !== false && (
+                <>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <input
+                      value={game.victoryAudioFolder || ''}
+                      onChange={e => saveGame({ victoryAudioFolder: e.target.value })}
+                      placeholder="נתיב לתיקייה עם שירי ניצחון..."
+                      style={{
+                        flex: 1, background: '#1e1e1e', border: '1px solid #444',
+                        color: '#ccc', borderRadius: 8, padding: '8px 10px',
+                        fontSize: 13, direction: 'ltr',
+                      }}
+                    />
+                    <button
+                      onClick={() => setShowVictoryFolderBrowser(true)}
+                      style={{
+                        background: '#1db954', border: 'none', color: '#fff',
+                        borderRadius: 8, padding: '8px 12px', fontSize: 13,
+                        cursor: 'pointer', flexShrink: 0,
+                      }}
+                    >
+                      📁
+                    </button>
+                  </div>
+                  {game.victoryAudioFolder && (
+                    <p style={{ color: '#1db954', fontSize: 11, margin: '4px 0 0', direction: 'ltr' }}>
+                      ✓ {game.victoryAudioFolder}
+                    </p>
+                  )}
+                </>
               )}
             </div>
 
             {/* ── Single file (fallback) ── */}
             <div>
-              <label style={{ color: '#aaa', fontSize: 12, display: 'block', marginBottom: 4 }}>🎵 קובץ קבוע (גיבוי)</label>
+              <label style={{ color: '#aaa', fontSize: 12, display: 'block', marginBottom: 4 }}>{t('single_file')}</label>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <input
                   value={game.victoryAudioPath || ''}
@@ -108,26 +129,33 @@ export default function SettingsScreen({ isAdmin = false }) {
           {/* Playlists */}
           <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
-              <h3 className="font-bold text-sm">פלייליסטים</h3>
+              <h3 className="font-bold text-sm">{t('playlists_title')}</h3>
               <button
                 onClick={handleAddPlaylist}
                 disabled={adding}
                 className="px-3 py-1 rounded-lg text-sm font-semibold cursor-pointer active:scale-95 transition-all"
                 style={{ background: '#007ACC', color: '#fff', opacity: adding ? 0.6 : 1 }}
               >
-                {adding ? '...' : '➕ הוסף'}
+                {adding ? '...' : t('add_playlist')}
               </button>
             </div>
             {!playlists.length && (
               <div className="text-center py-6 text-sm rounded-xl" style={{ background: '#2d2d30', color: '#666' }}>
-                אין פלייליסטים עדיין — לחץ "הוסף"
+                {t('no_playlists')}
               </div>
             )}
             {playlists.map(p => <SettingsPlaylistRow key={p.id} playlist={p} />)}
           </div>
 
+          {/* Blacklist */}
+          {playlists.some(p => p.type === 'local') && (
+            <div className="rounded-xl p-4 flex flex-col gap-3" style={{ background: '#2d2d30', border: '1px solid #3a3a3a' }}>
+              <AdminBlacklistSection playlists={playlists} />
+            </div>
+          )}
+
           <div className="text-center text-xs mt-4" style={{ color: '#555' }}>
-            פתח את האפליקציה בטלפון דרך WiFi הביתי
+            {t('wifi_hint')}
           </div>
         </>
       )}

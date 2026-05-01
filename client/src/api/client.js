@@ -63,3 +63,14 @@ export const spotifyResume = () => api.post('/spotify/resume');
 export const spotifySeek = positionMs => api.post('/spotify/seek', { positionMs });
 export const spotifyVolume = volume => api.post('/spotify/volume', { volume });
 export const getSpotifyPlayer = () => api.get('/spotify/player').then(r => r.data);
+
+// Blacklist (admin)
+export const getBlacklist = () => api.get('/blacklist').then(r => r.data);
+export const addToBlacklist = (songId) => api.post(`/blacklist/${songId}`).then(r => r.data);
+export const removeFromBlacklist = (songId) => api.delete(`/blacklist/${songId}`).then(r => r.data);
+
+// Favorites
+export const getFavorites = () => api.get('/favorites').then(r => r.data);
+export const addFavorite = (songId, song) => api.post(`/favorites/${songId}`, song).then(r => r.data);
+export const removeFavorite = (songId) => api.delete(`/favorites/${songId}`).then(r => r.data);
+export const reorderFavorites = (ids) => api.patch('/favorites/reorder', { ids }).then(r => r.data);

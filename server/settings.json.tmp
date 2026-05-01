@@ -18,15 +18,17 @@
   "spotify": {
     "clientId": "145f4229038948c68315a05e468afd50",
     "clientSecret": "3fd6cfaba1944a318df2b72e94502f0d",
-    "accessToken": "BQDdz7RMECYwk7M4HNLe2g5U8hKIQb554hNixgpcuhUggxkpV6SGjFObQJj0qmlJysLsNdFEHPYYMrcgKyTMRVmIbmBPKMsBeXs_NKrONqXZVqFHFTSUBi038jKlBw4rr5ItZmaGni8HFQTMAptYE8ulArmESQiPubx9EiyvMId1x8F-RYNWd0VTcRzBetpXSZoLAWE4GYN5Fuurf71tqIFcw6ZtbiAXyL_1AtVjp9n0TUfU08ezuf6XlLjPUxQQF3IvpZs_f9KoVwNHvm6jgj62Ow",
+    "accessToken": "BQCNUPEA-7Y_RzZ9uVllGgM9-BlhAFTyqz7GFs9ZjoFvqielNIg6shdRRUZ6IDV9hFxoifJR7_PwEdN4pK7v0Y3DVz-fSms8C0fRtIaj2KsGk7nOOLjT6_59vUOHhLwXky-0peEkjiygvyi0N-fXtqY4O5lLZd99oSln3I2ax3GOmwuUqcnG_rGROA-dHinTLtVsnNzWZzbxnWrWdnFAnAAWf49TInh5otXGvN_degjVnCDhUID6xR4smo3-gLMtnpUM9z4z383L_gzCkUFRz3Gj9w",
     "refreshToken": "AQB9Y43PWr1I-UeMLoyhOsxwmaHDZn9LAXludbkaQjCbjo7jNeUzBfduNgxrfwonVuPGFk-DjEDeLh5xLs3aClX5zmwfUe6PGlNzQRQS-dpXMHFWXRHcSnGFEJfJvV-f0t4",
-    "tokenExpiresAt": 1777571162953
+    "tokenExpiresAt": 1777598122984
   },
   "game": {
     "shuffle": true,
     "hintsEnabled": true,
-    "timerSeconds": 120,
+    "timerSeconds": 60,
     "victoryAudioPath": "C:\\Users\\oren\\Desktop\\mp3\\מנצח\\We Are The Champions - Remastered 2011 - Queen - Spotimate.app.mp3",
-    "victoryAudioFolder": "C:\\Users\\oren\\Desktop\\mp3\\מנצח"
-  }
+    "victoryAudioFolder": "C:\\Users\\oren\\Desktop\\mp3\\מנצח",
+    "victoryFolderEnabled": false
+  },
+  "blacklist": []
 }

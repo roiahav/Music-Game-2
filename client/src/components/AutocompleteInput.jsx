@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { useLang } from '../i18n/useLang.js';
 
 // Checks whether user's first typed character matches the answer's first character (Hebrew-aware)
 function firstCharMatches(typed, answer) {
@@ -10,6 +11,7 @@ export default function AutocompleteInput({ label, answer, disabled, onAccept, o
   const [phase, setPhase] = useState('idle'); // idle | match | wrong | locked | accepted
   const [attempts, setAttempts] = useState(0);
   const inputRef = useRef(null);
+  const { t, dir } = useLang();
 
   const ans = (answer || '').trim();
 
@@ -43,10 +45,10 @@ export default function AutocompleteInput({ label, answer, disabled, onAccept, o
   const isDisabled = disabled || phase === 'locked' || phase === 'accepted';
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 12, background: '#2d2d30', border: '1px solid #3a3a3a', direction: 'rtl' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 12, background: '#2d2d30', border: '1px solid #3a3a3a', direction: dir }}>
       <span style={{ color: '#888', fontSize: 13, minWidth: 52, flexShrink: 0 }}>{label}:</span>
 
-      <div style={{ flex: 1, direction: 'rtl' }}>
+      <div style={{ flex: 1, direction: dir }}>
         {phase === 'accepted' && (
           <span style={{ color: '#1db954', fontWeight: 700, fontSize: 15 }}>✓ {ans}</span>
         )}
@@ -64,11 +66,11 @@ export default function AutocompleteInput({ label, answer, disabled, onAccept, o
             ref={inputRef}
             onChange={handleChange}
             disabled={isDisabled}
-            placeholder={phase === 'wrong' ? `❌ נסיון ${attempts}/3` : 'הקלד אות ראשונה...'}
+            placeholder={phase === 'wrong' ? `❌ ${t('attempt')} ${attempts}/3` : t('type_first')}
             style={{
               background: 'transparent', border: 'none', outline: 'none',
               color: phase === 'wrong' ? '#dc3545' : '#ccc',
-              fontSize: 14, width: '100%', direction: 'rtl',
+              fontSize: 14, width: '100%', direction: dir,
             }}
           />
         )}

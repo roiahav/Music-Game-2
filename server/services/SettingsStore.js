@@ -20,7 +20,9 @@ const DEFAULT_SETTINGS = {
     timerSeconds: 30,
     victoryAudioPath: '',
     victoryAudioFolder: '',
+    victoryFolderEnabled: true,
   },
+  blacklist: [],
 };
 
 function load() {

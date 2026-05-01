@@ -1,18 +1,20 @@
 import { useSettingsStore } from '../store/settingsStore.js';
+import { useLang } from '../i18n/useLang.js';
 
 const PRESETS = [0, 15, 30, 60, 90, 120];
 
 export default function GameOptionsBar() {
   const { game, saveGame } = useSettingsStore();
+  const { t } = useLang();
   const timer = game.timerSeconds ?? 30;
 
   return (
     <div className="rounded-xl p-4 flex flex-col gap-3" style={{ background: '#2d2d30', border: '1px solid #3a3a3a' }}>
-      <h3 className="font-bold text-sm">הגדרות משחק</h3>
+      <h3 className="font-bold text-sm">{t('game_settings')}</h3>
 
       {/* Shuffle */}
       <div className="flex items-center justify-between">
-        <label className="text-sm cursor-pointer" htmlFor="shuffle">ערבוב שירים</label>
+        <label className="text-sm cursor-pointer" htmlFor="shuffle">{t('shuffle_songs')}</label>
         <input
           id="shuffle"
           type="checkbox"
@@ -26,7 +28,7 @@ export default function GameOptionsBar() {
       {/* Timer */}
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
-          <label className="text-sm">טיימר</label>
+          <label className="text-sm">{t('timer_lbl')}</label>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <input
               type="number"
@@ -41,7 +43,7 @@ export default function GameOptionsBar() {
                 fontSize: 14, textAlign: 'center',
               }}
             />
-            <span style={{ color: '#888', fontSize: 12 }}>שנ׳</span>
+            <span style={{ color: '#888', fontSize: 12 }}>{t('sec_suffix')}</span>
           </div>
         </div>
         {/* Quick presets */}
@@ -58,7 +60,7 @@ export default function GameOptionsBar() {
                 cursor: 'pointer',
               }}
             >
-              {v === 0 ? 'ללא' : `${v}″`}
+              {v === 0 ? t('none') : `${v}″`}
             </button>
           ))}
         </div>

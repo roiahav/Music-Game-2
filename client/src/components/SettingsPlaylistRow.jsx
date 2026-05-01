@@ -3,6 +3,7 @@ import { updatePlaylist, deletePlaylist, getUserSpotifyPlaylists, getPlaylists }
 import { useSettingsStore } from '../store/settingsStore.js';
 import SpotifyPlaylistPicker from './SpotifyPlaylistPicker.jsx';
 import FolderBrowser from './FolderBrowser.jsx';
+import { useLang } from '../i18n/useLang.js';
 
 export default function SettingsPlaylistRow({ playlist }) {
   const [name, setName] = useState(playlist.name);
@@ -13,6 +14,7 @@ export default function SettingsPlaylistRow({ playlist }) {
   const [spotifyPlaylists, setSpotifyPlaylists] = useState([]);
   const [loadingSpotify, setLoadingSpotify] = useState(false);
   const setPlaylists = useSettingsStore(s => s.setPlaylists);
+  const { t } = useLang();
 
   const isSpotify = playlist.type === 'spotify';
 
@@ -74,7 +76,7 @@ export default function SettingsPlaylistRow({ playlist }) {
             style={{ background: '#1e1e1e', border: '1px solid #444', color: '#fff', direction: 'rtl' }}
             value={name}
             onChange={e => setName(e.target.value)}
-            placeholder="שם פלייליסט"
+            placeholder={t('pl_name_ph')}
           />
           <button
             onClick={handleDelete}
@@ -114,7 +116,7 @@ export default function SettingsPlaylistRow({ playlist }) {
               border: '1px solid #444',
             }}
           >
-            📁 תיקייה
+            {t('folder_btn')}
           </button>
           <button
             onClick={openSpotifyPicker}
@@ -135,7 +137,7 @@ export default function SettingsPlaylistRow({ playlist }) {
             className="mr-auto px-4 py-1 rounded-lg text-xs font-semibold cursor-pointer active:scale-95 transition-all"
             style={{ background: '#28a745', color: '#fff', opacity: saving ? 0.6 : 1 }}
           >
-            {saving ? '...' : 'שמור'}
+            {saving ? '...' : t('save')}
           </button>
         </div>
       </div>

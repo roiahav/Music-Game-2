@@ -1,31 +1,46 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSettingsStore } from './store/settingsStore.js';
 import { useAuthStore } from './store/authStore.js';
+import { useThemeStore } from './store/themeStore.js';
+import { THEMES, THEME_LIST, applyTheme } from './themes.js';
 import GameScreen from './screens/GameScreen.jsx';
 import SettingsScreen from './screens/SettingsScreen.jsx';
 import MultiplayerScreen from './screens/MultiplayerScreen.jsx';
+import SoloTypingScreen from './screens/SoloTypingScreen.jsx';
 import LoginScreen from './screens/LoginScreen.jsx';
 import AdminUsersScreen from './screens/AdminUsersScreen.jsx';
+import FavoritesScreen from './screens/FavoritesScreen.jsx';
+import YearsGameScreen from './screens/YearsGameScreen.jsx';
+import YearsMultiplayerScreen from './screens/YearsMultiplayerScreen.jsx';
 import { logoutApi, uploadAvatar, getAvatarUrl } from './api/client.js';
+import { useLang } from './i18n/useLang.js';
 
 const shell = {
   display: 'flex', flexDirection: 'column', height: '100dvh',
-  background: '#1e1e1e', maxWidth: 480, margin: '0 auto', width: '100%',
+  background: 'var(--bg)', maxWidth: 480, margin: '0 auto', width: '100%',
 };
 
 export default function App() {
   const [screen, setScreen] = useState('home');
   const [tab, setTab] = useState('game');
-  const [avatarKey, setAvatarKey] = useState(0); // force re-render after upload
+  const [avatarKey, setAvatarKey] = useState(0);
   const load = useSettingsStore(s => s.load);
   const { token, user, login, logout } = useAuthStore();
+  const { themeId, setTheme } = useThemeStore();
   const fileInputRef = useRef(null);
+  const { t, dir } = useLang();
+
+  // Apply CSS variables whenever theme changes
+  useEffect(() => {
+    applyTheme(THEMES[themeId] || THEMES.dark);
+  }, [themeId]);
 
   useEffect(() => { if (token) load(); }, [token]);
 
   if (!token) return <LoginScreen />;
 
   const isAdmin = user?.role === 'admin';
+  const theme = THEMES[themeId] || THEMES.dark;
 
   async function handleLogout() {
     try { await logoutApi(); } catch {}
@@ -38,7 +53,6 @@ export default function App() {
     const base64 = await resizeAndEncode(file, 300);
     try {
       await uploadAvatar(base64);
-      // Update stored user to reflect hasAvatar
       login(token, { ...user, hasAvatar: true });
       setAvatarKey(k => k + 1);
     } catch {}
@@ -47,64 +61,143 @@ export default function App() {
 
   // ── Home screen ─────────────────────────────────────────────────────────────
   if (screen === 'home') return (
-    <div style={{ ...shell, direction: 'rtl', alignItems: 'center', justifyContent: 'center' }}>
+    <div style={{ ...shell, direction: dir, alignItems: 'center', overflowY: 'auto' }}>
       {/* Top bar */}
       <div style={{
-        position: 'absolute', top: 0, left: 0, right: 0, maxWidth: 480, margin: '0 auto',
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px',
+        width: '100%', display: 'flex', justifyContent: 'space-between',
+        alignItems: 'center', padding: '14px 20px', flexShrink: 0,
       }}>
-        {/* Avatar */}
         <button
           onClick={() => fileInputRef.current?.click()}
           title="לחץ להחלפת תמונה"
           style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
         >
           <AvatarCircle userId={user?.id} hasAvatar={user?.hasAvatar} name={user?.username} size={36} avatarKey={avatarKey} />
-          <span style={{ color: '#888', fontSize: 13 }}>{user?.username}</span>
+          <span style={{ color: 'var(--text2)', fontSize: 13 }}>{user?.username}</span>
         </button>
         <input ref={fileInputRef} type="file" accept="image/*" onChange={handleAvatarPick} style={{ display: 'none' }} />
         <button
           onClick={handleLogout}
-          style={{ background: 'none', border: '1px solid #3a3a3a', color: '#888', borderRadius: 8, padding: '5px 12px', fontSize: 12, cursor: 'pointer' }}
+          style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text2)', borderRadius: 8, padding: '5px 12px', fontSize: 12, cursor: 'pointer' }}
         >
-          יציאה
+          {t('logout')}
         </button>
       </div>
 
       {/* Logo */}
-      <div style={{ textAlign: 'center', marginBottom: 40 }}>
-        <div style={{ fontSize: 60, lineHeight: 1 }}>🎵</div>
-        <h1 style={{ color: '#fff', fontSize: 26, fontWeight: 900, margin: '12px 0 4px' }}>חידון מוזיקה</h1>
-        <p style={{ color: '#555', fontSize: 14, margin: 0 }}>בחר מצב משחק</p>
+      <div style={{ textAlign: 'center', marginBottom: 16, marginTop: 8 }}>
+        <div style={{ fontSize: 56, lineHeight: 1 }}>🎵</div>
+        <h1 style={{ color: 'var(--text)', fontSize: 24, fontWeight: 900, margin: '10px 0 4px' }}>{t('app_title')}</h1>
+        <p style={{ color: 'var(--text3)', fontSize: 13, margin: 0 }}>{t('tagline')}</p>
+      </div>
+
+      {/* Theme picker */}
+      <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginBottom: 20, alignItems: 'center' }}>
+        {THEME_LIST.map(th => (
+          <button
+            key={th.id}
+            onClick={() => setTheme(th.id)}
+            title={th.label}
+            style={{
+              width: themeId === th.id ? 32 : 26,
+              height: themeId === th.id ? 32 : 26,
+              borderRadius: '50%',
+              background: `radial-gradient(circle at 35% 35%, ${th.swatch}dd, ${th.bg2})`,
+              border: themeId === th.id ? `3px solid ${th.swatch}` : '3px solid transparent',
+              cursor: 'pointer', padding: 0,
+              boxShadow: themeId === th.id ? `0 0 12px ${th.swatch}99` : 'none',
+              transition: 'all 0.2s', outline: 'none', flexShrink: 0,
+            }}
+          />
+        ))}
       </div>
 
       {/* Mode cards */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, width: '100%', padding: '0 28px' }}>
-        <button onClick={() => setScreen('solo')} style={modeCard('#007ACC')}>
-          <span style={{ fontSize: 40 }}>🎧</span>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ color: '#fff', fontSize: 18, fontWeight: 800 }}>משחק יחיד</div>
-            <div style={{ color: '#a8d4f5', fontSize: 13, marginTop: 4 }}>נגן לבד, גלה שירים</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%', padding: '0 24px 28px' }}>
+        <button onClick={() => setScreen('solo')} style={modeCard('#007ACC', dir)}>
+          <span style={{ fontSize: 38 }}>🎧</span>
+          <div style={{ flex: 1, textAlign: dir === 'rtl' ? 'right' : 'left' }}>
+            <div style={{ color: '#fff', fontSize: 17, fontWeight: 800 }}>{t('solo_game')}</div>
+            <div style={{ color: '#a8d4f5', fontSize: 12, marginTop: 3 }}>{t('solo_desc')}</div>
           </div>
         </button>
 
-        <button onClick={() => setScreen('multiplayer')} style={modeCard('#1db954')}>
-          <span style={{ fontSize: 40 }}>🎮</span>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ color: '#fff', fontSize: 18, fontWeight: 800 }}>משחק קבוצתי</div>
-            <div style={{ color: '#a8f5c4', fontSize: 13, marginTop: 4 }}>התחרו עם חברים מהטלפון</div>
+        <button onClick={() => setScreen('multiplayer')} style={modeCard('#1db954', dir)}>
+          <span style={{ fontSize: 38 }}>🎮</span>
+          <div style={{ flex: 1, textAlign: dir === 'rtl' ? 'right' : 'left' }}>
+            <div style={{ color: '#fff', fontSize: 17, fontWeight: 800 }}>{t('group_game')}</div>
+            <div style={{ color: '#a8f5c4', fontSize: 12, marginTop: 3 }}>{t('group_desc')}</div>
+          </div>
+        </button>
+
+        <button onClick={() => setScreen('solo-typing')} style={modeCard('#9b59b6', dir)}>
+          <span style={{ fontSize: 38 }}>🎤</span>
+          <div style={{ flex: 1, textAlign: dir === 'rtl' ? 'right' : 'left' }}>
+            <div style={{ color: '#fff', fontSize: 17, fontWeight: 800 }}>{t('free_guess')}</div>
+            <div style={{ color: '#d7b8f5', fontSize: 12, marginTop: 3 }}>{t('free_desc')}</div>
+          </div>
+        </button>
+
+        <button onClick={() => setScreen('years')} style={modeCard('#f39c12', dir)}>
+          <span style={{ fontSize: 38 }}>📅</span>
+          <div style={{ flex: 1, textAlign: dir === 'rtl' ? 'right' : 'left' }}>
+            <div style={{ color: '#fff', fontSize: 17, fontWeight: 800 }}>{t('years_game')}</div>
+            <div style={{ color: '#fde8b0', fontSize: 12, marginTop: 3 }}>{t('years_desc')}</div>
+          </div>
+        </button>
+
+        <button onClick={() => setScreen('years-multi')} style={modeCard('#e67e22', dir)}>
+          <span style={{ fontSize: 38 }}>🏆</span>
+          <div style={{ flex: 1, textAlign: dir === 'rtl' ? 'right' : 'left' }}>
+            <div style={{ color: '#fff', fontSize: 17, fontWeight: 800 }}>{t('ygm_game')}</div>
+            <div style={{ color: '#fdd5b0', fontSize: 12, marginTop: 3 }}>{t('ygm_desc')}</div>
+          </div>
+        </button>
+
+        <button onClick={() => setScreen('favorites')} style={modeCard('#e74c3c', dir)}>
+          <span style={{ fontSize: 38 }}>❤️</span>
+          <div style={{ flex: 1, textAlign: dir === 'rtl' ? 'right' : 'left' }}>
+            <div style={{ color: '#fff', fontSize: 17, fontWeight: 800 }}>{t('my_favorites')}</div>
+            <div style={{ color: '#f5a8a8', fontSize: 12, marginTop: 3 }}>{t('favorites_desc')}</div>
           </div>
         </button>
 
         {isAdmin && (
-          <button onClick={() => { setScreen('solo'); setTab('settings'); }} style={modeCard('#555')}>
-            <span style={{ fontSize: 40 }}>⚙️</span>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ color: '#fff', fontSize: 18, fontWeight: 800 }}>הגדרות</div>
-              <div style={{ color: '#bbb', fontSize: 13, marginTop: 4 }}>פלייליסטים, Spotify, משתמשים</div>
+          <button onClick={() => { setScreen('solo'); setTab('settings'); }} style={modeCard('#666', dir)}>
+            <span style={{ fontSize: 38 }}>⚙️</span>
+            <div style={{ flex: 1, textAlign: dir === 'rtl' ? 'right' : 'left' }}>
+              <div style={{ color: '#fff', fontSize: 17, fontWeight: 800 }}>{t('settings')}</div>
+              <div style={{ color: '#bbb', fontSize: 12, marginTop: 3 }}>{t('settings_admin_desc')}</div>
             </div>
           </button>
         )}
+      </div>
+    </div>
+  );
+
+  // ── Years game (solo) ─────────────────────────────────────────────────────────
+  if (screen === 'years') return (
+    <div style={{ ...shell }}>
+      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <YearsGameScreen onExit={() => setScreen('home')} />
+      </div>
+    </div>
+  );
+
+  // ── Years game (multiplayer) ───────────────────────────────────────────────────
+  if (screen === 'years-multi') return (
+    <div style={{ ...shell }}>
+      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <YearsMultiplayerScreen onExit={() => setScreen('home')} />
+      </div>
+    </div>
+  );
+
+  // ── Favorites ────────────────────────────────────────────────────────────────
+  if (screen === 'favorites') return (
+    <div style={{ ...shell }}>
+      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <FavoritesScreen onExit={() => setScreen('home')} />
       </div>
     </div>
   );
@@ -118,24 +211,33 @@ export default function App() {
     </div>
   );
 
+  // ── Solo typing ───────────────────────────────────────────────────────────────
+  if (screen === 'solo-typing') return (
+    <div style={{ ...shell }}>
+      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <SoloTypingScreen onExit={() => setScreen('home')} />
+      </div>
+    </div>
+  );
+
   // ── Solo ─────────────────────────────────────────────────────────────────────
-  const tabs = [{ id: 'game', label: 'משחק' }, { id: 'settings', label: '⚙️' }];
+  const tabs = [{ id: 'game', label: t('game_tab') }, { id: 'settings', label: '⚙️' }];
   if (isAdmin) tabs.push({ id: 'users', label: '👥' });
 
   return (
     <div style={{ ...shell }}>
-      <div className="flex items-center justify-between px-4 py-3 shrink-0" style={{ borderBottom: '1px solid #2d2d30' }}>
+      <div className="flex items-center justify-between px-4 py-3 shrink-0" style={{ borderBottom: '1px solid var(--border2)' }}>
         <button onClick={() => setScreen('home')}
-          style={{ background: 'none', border: 'none', color: '#888', fontSize: 22, cursor: 'pointer', padding: 0, lineHeight: 1 }}>
+          style={{ background: 'none', border: 'none', color: 'var(--text2)', fontSize: 22, cursor: 'pointer', padding: 0, lineHeight: 1 }}>
           ⌂
         </button>
-        <span className="text-lg font-bold" style={{ color: '#fff' }}>🎵 חידון מוזיקה</span>
+        <span className="text-lg font-bold" style={{ color: 'var(--text)' }}>🎵 {t('app_title')}</span>
         <div className="flex gap-1">
-          {tabs.map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)}
+          {tabs.map(tab_ => (
+            <button key={tab_.id} onClick={() => setTab(tab_.id)}
               className="px-3 py-1 rounded-lg text-sm font-semibold cursor-pointer transition-all no-select"
-              style={{ background: tab === t.id ? '#007ACC' : 'transparent', color: tab === t.id ? '#fff' : '#888' }}>
-              {t.label}
+              style={{ background: tab === tab_.id ? 'var(--accent)' : 'transparent', color: tab === tab_.id ? '#fff' : 'var(--text2)' }}>
+              {tab_.label}
             </button>
           ))}
         </div>
@@ -152,15 +254,14 @@ export default function App() {
 // ── Avatar circle component ──────────────────────────────────────────────────
 export function AvatarCircle({ userId, hasAvatar, name, size = 36, avatarKey = 0, style = {} }) {
   const [imgError, setImgError] = useState(false);
-  // hasAvatar=undefined means "try anyway" (e.g. multiplayer serialised players)
   const showImg = userId && hasAvatar !== false && !imgError;
   const initials = (name || '?').charAt(0).toUpperCase();
 
   return (
     <div style={{
       width: size, height: size, borderRadius: '50%',
-      background: showImg ? 'transparent' : '#007ACC55',
-      border: `2px solid #007ACC66`,
+      background: showImg ? 'transparent' : 'var(--accent-alpha)',
+      border: `2px solid var(--accent)`,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       overflow: 'hidden', flexShrink: 0, ...style,
     }}>
@@ -173,21 +274,23 @@ export function AvatarCircle({ userId, hasAvatar, name, size = 36, avatarKey = 0
           style={{ width: '100%', height: '100%', objectFit: 'cover' }}
         />
       ) : (
-        <span style={{ color: '#5bb8ff', fontSize: size * 0.45, fontWeight: 700 }}>{initials}</span>
+        <span style={{ color: 'var(--accent)', fontSize: size * 0.45, fontWeight: 700 }}>{initials}</span>
       )}
     </div>
   );
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-function modeCard(accent) {
+function modeCard(accent, dir = 'rtl') {
   return {
-    display: 'flex', alignItems: 'center', gap: 18, flexDirection: 'row-reverse',
-    padding: '20px 22px', borderRadius: 18,
-    background: `linear-gradient(135deg, ${accent}22 0%, ${accent}11 100%)`,
-    border: `1.5px solid ${accent}55`, cursor: 'pointer', width: '100%',
+    display: 'flex', alignItems: 'center', gap: 16,
+    flexDirection: dir === 'rtl' ? 'row' : 'row-reverse',
+    padding: '18px 20px', borderRadius: 16,
+    background: `linear-gradient(135deg, ${accent}22 0%, ${accent}0d 100%)`,
+    border: `1.5px solid ${accent}44`, cursor: 'pointer', width: '100%',
     transition: 'transform 0.12s, box-shadow 0.12s',
-    boxShadow: `0 4px 24px ${accent}22`,
+    boxShadow: `0 4px 20px ${accent}1a`,
+    direction: dir,
   };
 }
 
