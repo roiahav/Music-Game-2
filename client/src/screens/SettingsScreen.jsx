@@ -264,8 +264,15 @@ function EmailSettingsPanel() {
           {/* Host + Port row */}
           <div style={{ display: 'flex', gap: 8 }}>
             <div style={{ flex: 3 }}>
-              <label style={{ color: '#aaa', fontSize: 11, fontWeight: 600, display: 'block', marginBottom: 4 }}>{t('email_smtp_host')}</label>
-              <input value={cfg.smtpHost} onChange={e => handleChange('smtpHost', e.target.value)} placeholder="smtp.gmail.com" style={inputStyle} />
+              <label style={{ color: '#aaa', fontSize: 11, fontWeight: 600, display: 'block', marginBottom: 4 }}>
+                {t('email_smtp_host')} <span style={{ color: '#dc3545' }}>*</span>
+              </label>
+              <input
+                value={cfg.smtpHost}
+                onChange={e => handleChange('smtpHost', e.target.value)}
+                placeholder="smtp.gmail.com"
+                style={{ ...inputStyle, borderColor: cfg.smtpHost?.trim() ? '#444' : '#dc354555' }}
+              />
             </div>
             <div style={{ flex: 1 }}>
               <label style={{ color: '#aaa', fontSize: 11, fontWeight: 600, display: 'block', marginBottom: 4 }}>{t('email_smtp_port')}</label>
@@ -286,20 +293,30 @@ function EmailSettingsPanel() {
 
           {/* User */}
           <div>
-            <label style={{ color: '#aaa', fontSize: 11, fontWeight: 600, display: 'block', marginBottom: 4 }}>{t('email_smtp_user')}</label>
-            <input type="email" value={cfg.smtpUser} onChange={e => handleChange('smtpUser', e.target.value)} placeholder="your@gmail.com" style={inputStyle} />
+            <label style={{ color: '#aaa', fontSize: 11, fontWeight: 600, display: 'block', marginBottom: 4 }}>
+              {t('email_smtp_user')} <span style={{ color: '#dc3545' }}>*</span>
+            </label>
+            <input
+              type="email"
+              value={cfg.smtpUser}
+              onChange={e => handleChange('smtpUser', e.target.value)}
+              placeholder="your@gmail.com"
+              style={{ ...inputStyle, borderColor: cfg.smtpUser?.trim() ? '#444' : '#dc354555' }}
+            />
           </div>
 
           {/* Password */}
           <div>
-            <label style={{ color: '#aaa', fontSize: 11, fontWeight: 600, display: 'block', marginBottom: 4 }}>{t('email_smtp_pass')}</label>
+            <label style={{ color: '#aaa', fontSize: 11, fontWeight: 600, display: 'block', marginBottom: 4 }}>
+              {t('email_smtp_pass')} <span style={{ color: '#dc3545' }}>*</span>
+            </label>
             <input
               type="password"
               value={cfg.smtpPass}
               onChange={e => handleChange('smtpPass', e.target.value)}
               placeholder="App Password..."
               autoComplete="new-password"
-              style={inputStyle}
+              style={{ ...inputStyle, borderColor: cfg.smtpPass?.trim() ? '#444' : '#dc354555' }}
             />
           </div>
 
@@ -327,28 +344,41 @@ function EmailSettingsPanel() {
           )}
 
           {/* Buttons */}
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button
-              onClick={handleTest}
-              disabled={testing || saving}
-              style={{
-                flex: 1, padding: '9px', borderRadius: 10, border: '1px solid #444',
-                background: '#1e1e1e', color: '#ccc', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-              }}
-            >
-              {testing ? '...' : t('email_test_btn')}
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={saving || testing}
-              style={{
-                flex: 1, padding: '9px', borderRadius: 10, border: 'none',
-                background: '#007ACC', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-              }}
-            >
-              {saving ? t('saving') : t('save')}
-            </button>
-          </div>
+          {(() => {
+            const hasRequired = cfg.smtpHost?.trim() && cfg.smtpUser?.trim() && cfg.smtpPass?.trim();
+            const disabled = !hasRequired || testing || saving;
+            return (
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  onClick={handleTest}
+                  disabled={disabled}
+                  style={{
+                    flex: 1, padding: '9px', borderRadius: 10, border: '1px solid #444',
+                    background: '#1e1e1e', color: disabled ? '#555' : '#ccc',
+                    fontSize: 13, fontWeight: 700,
+                    cursor: disabled ? 'not-allowed' : 'pointer',
+                    opacity: disabled ? 0.5 : 1,
+                  }}
+                >
+                  {testing ? '...' : t('email_test_btn')}
+                </button>
+                <button
+                  onClick={handleSave}
+                  disabled={disabled}
+                  style={{
+                    flex: 1, padding: '9px', borderRadius: 10, border: 'none',
+                    background: disabled ? '#2d2d30' : '#007ACC',
+                    color: disabled ? '#555' : '#fff',
+                    fontSize: 13, fontWeight: 700,
+                    cursor: disabled ? 'not-allowed' : 'pointer',
+                    opacity: disabled ? 0.5 : 1,
+                  }}
+                >
+                  {saving ? t('saving') : t('save')}
+                </button>
+              </div>
+            );
+          })()}
         </div>
       )}
     </div>

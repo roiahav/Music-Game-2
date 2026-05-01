@@ -1,16 +1,22 @@
 import nodemailer from 'nodemailer';
 import { getSettings } from './SettingsStore.js';
 
-/** Build nodemailer transporter from saved SMTP settings. Returns null if not configured. */
+/** Build nodemailer transporter from saved SMTP settings. Throws with specific reason if missing. */
 function getTransporter() {
   const { email = {} } = getSettings();
   const { smtpHost, smtpPort, smtpSecure, smtpUser, smtpPass } = email;
-  if (!smtpHost || !smtpUser || !smtpPass) return null;
+  const missing = [];
+  if (!smtpHost?.trim()) missing.push('שרת SMTP');
+  if (!smtpUser?.trim()) missing.push('משתמש SMTP');
+  if (!smtpPass?.trim()) missing.push('סיסמת SMTP');
+  if (missing.length) {
+    throw new Error(`חסרים שדות: ${missing.join(', ')}`);
+  }
   return nodemailer.createTransport({
-    host: smtpHost,
+    host: smtpHost.trim(),
     port: Number(smtpPort) || 587,
     secure: smtpSecure === true,
-    auth: { user: smtpUser, pass: smtpPass },
+    auth: { user: smtpUser.trim(), pass: smtpPass },
   });
 }
 
@@ -22,7 +28,6 @@ function getTransporter() {
  */
 export async function sendResetEmail(toEmail, firstName, resetUrl) {
   const transporter = getTransporter();
-  if (!transporter) throw new Error('שירות המייל אינו מוגדר. בקש ממנהל המערכת להגדיר SMTP.');
 
   const { email = {} } = getSettings();
   const fromName  = email.fromName  || 'Music Game';
@@ -99,7 +104,6 @@ export async function sendResetEmail(toEmail, firstName, resetUrl) {
 
 /** Test SMTP connection — throws if it fails. */
 export async function testSmtp() {
-  const transporter = getTransporter();
-  if (!transporter) throw new Error('שירות המייל אינו מוגדר');
+  const transporter = getTransporter(); // throws if not configured
   await transporter.verify();
 }

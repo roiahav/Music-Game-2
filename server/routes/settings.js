@@ -31,10 +31,21 @@ router.post('/', (req, res) => {
   }
   if (email) {
     if (!current.email) current.email = {};
-    Object.assign(current.email, email);
-    // Don't overwrite password if masked placeholder sent
-    if (email.smtpPass === '••••••••') delete current.email.smtpPass;
-    if (email.smtpPass && email.smtpPass !== '••••••••') current.email.smtpPass = email.smtpPass;
+    // Preserve original password (in case client sent masked placeholder)
+    const originalPass = current.email.smtpPass;
+    // Copy all fields except password
+    const { smtpPass: incomingPass, ...rest } = email;
+    Object.assign(current.email, rest);
+    // Handle password specially: only update if user typed a real new value
+    if (incomingPass && incomingPass !== '••••••••') {
+      current.email.smtpPass = incomingPass;
+    } else if (incomingPass === '••••••••' || incomingPass === undefined) {
+      // Keep existing password
+      current.email.smtpPass = originalPass || '';
+    } else {
+      // Empty string — user cleared it intentionally
+      current.email.smtpPass = '';
+    }
   }
   saveSettings(current);
   res.json({ ok: true });

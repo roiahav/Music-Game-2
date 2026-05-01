@@ -30,5 +30,14 @@
     "victoryAudioFolder": "C:\\Users\\oren\\Desktop\\mp3\\מנצח",
     "victoryFolderEnabled": false
   },
-  "blacklist": []
+  "blacklist": [],
+  "email": {
+    "smtpHost": "",
+    "smtpPort": 587,
+    "smtpSecure": false,
+    "smtpUser": "musicgame2026@gmail.com",
+    "smtpPass": "lozd dtyi nfla gmud",
+    "fromName": "Music Game",
+    "fromEmail": "musicgame2026@gmail.com"
+  }
 }
