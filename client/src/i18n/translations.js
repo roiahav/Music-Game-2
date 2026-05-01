@@ -1,7 +1,6 @@
 export const LANGS = [
   { code: 'he', label: 'עברית', flag: '🇮🇱', dir: 'rtl' },
   { code: 'en', label: 'English', flag: '🇺🇸', dir: 'ltr' },
-  { code: 'ar', label: 'عربي',  flag: '🇸🇦', dir: 'rtl' },
   { code: 'ru', label: 'Рус',   flag: '🇷🇺', dir: 'ltr' },
   { code: 'es', label: 'Español', flag: '🇪🇸', dir: 'ltr' },
 ];
