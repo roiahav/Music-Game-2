@@ -415,9 +415,14 @@ export default function FavoritesScreen({ onExit }) {
               data-row-idx={idx}
               onClick={() => { if (!dragActive) playSong(idx); }}
               style={{
-                display: 'flex', alignItems: 'center', gap: 10,
+                /* Grid handles min-content overflow far more reliably than flexbox.
+                   The 1fr column shrinks to whatever's left after the auto columns,
+                   and child overflow:hidden clips any oversized text without pushing siblings. */
+                display: 'grid',
+                gridTemplateColumns: canDrag ? 'auto auto 1fr auto' : 'auto 1fr auto',
+                alignItems: 'center', gap: 10,
                 padding: '10px 14px',
-                minWidth: 0, overflow: 'hidden',  // ← critical: prevents long titles from pushing the heart off-screen
+                width: '100%', boxSizing: 'border-box',
                 /* Thick accent bar where the song will land */
                 borderTop:    isDragTarget && dragOverIdx < dragIdx ? `3px solid ${accentColor}` : '3px solid transparent',
                 borderBottom: isDragTarget && dragOverIdx > dragIdx ? `3px solid ${accentColor}` : '1px solid var(--bg2)',
@@ -427,7 +432,6 @@ export default function FavoritesScreen({ onExit }) {
                     ? `repeating-linear-gradient(45deg, var(--bg2), var(--bg2) 8px, var(--bg) 8px, var(--bg) 16px)`
                     : 'transparent',
                 cursor: 'pointer',
-                /* Original row — much more transparent so the floating ghost stands out */
                 opacity: isDragging ? 0.2 : 1,
                 transition: dragActive ? 'none' : 'background 0.12s',
                 userSelect: 'none',
@@ -470,8 +474,8 @@ export default function FavoritesScreen({ onExit }) {
                 )}
               </div>
 
-              {/* Info — every child is forced to truncate so nothing pushes the row wider than its container */}
-              <div style={{ flex: '1 1 0', minWidth: 0, overflow: 'hidden' }}>
+              {/* Info — grid cell that takes 1fr; overflow:hidden + minWidth:0 ensure long Hebrew titles truncate */}
+              <div style={{ minWidth: 0, overflow: 'hidden' }}>
                 <div style={{
                   color: isActive ? accentColor : 'var(--text)',
                   fontWeight: 700, fontSize: 14,
