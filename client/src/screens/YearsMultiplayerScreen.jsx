@@ -9,7 +9,26 @@ import { useLang } from '../i18n/useLang.js';
 
 const SERVER = import.meta.env.VITE_SERVER_URL || '';
 const TIMER_OPTIONS = [0, 15, 30, 45, 60];
-const SONG_COUNT_OPTIONS = [5, 10, 15, 20];
+
+// In years multiplayer, each round = 4 songs. The picker shows ROUNDS but the
+// label tells the user how many songs that translates to.
+const ROUND_COUNT_OPTIONS = [
+  { value: 3,  label: '3 סיבובים (12 שירים)' },
+  { value: 5,  label: '5 סיבובים (20 שירים)' },
+  { value: 8,  label: '8 סיבובים (32 שירים)' },
+  { value: 10, label: '10 סיבובים (40 שירים)' },
+  { value: 15, label: '15 סיבובים (60 שירים)' },
+  { value: 20, label: '20 סיבובים (80 שירים)' },
+  { value: 25, label: '25 סיבובים (100 שירים)' },
+  { value: 30, label: '30 סיבובים (120 שירים)' },
+  { value: 40, label: '40 סיבובים (160 שירים)' },
+  { value: 50, label: '50 סיבובים (200 שירים)' },
+];
+
+// Wheel-picker constants (match MultiplayerScreen for visual consistency)
+const ITEM_H = 44;
+const VISIBLE = 3;
+const PAD_OP = ITEM_H;
 
 // ── Song Card ─────────────────────────────────────────────────────────────────
 function SongCard({ song, isActive, claimed, isWrong, isMine, roundEndInfo, onClick }) {
@@ -95,6 +114,71 @@ function SongCard({ song, isActive, claimed, isWrong, isMine, roundEndInfo, onCl
         </>
       )}
     </button>
+  );
+}
+
+// ── OptionPicker ──────────────────────────────────────────────────────────────
+// Vertical wheel-style picker — same component pattern as MultiplayerScreen
+// so the UX is identical between the two multiplayer modes.
+function OptionPicker({ options, value, onChange }) {
+  const ref = useRef(null);
+  const suppress = useRef(false);
+  const snapTimer = useRef(null);
+
+  const idx = options.findIndex(o => o.value === value);
+
+  const scrollTo = (i, smooth = false) => {
+    if (!ref.current) return;
+    suppress.current = true;
+    ref.current.scrollTo({ top: i * ITEM_H, behavior: smooth ? 'smooth' : 'instant' });
+    setTimeout(() => { suppress.current = false; }, 300);
+  };
+
+  useEffect(() => { scrollTo(idx >= 0 ? idx : 0); }, []); // eslint-disable-line
+
+  function onScroll() {
+    if (suppress.current) return;
+    clearTimeout(snapTimer.current);
+    snapTimer.current = setTimeout(() => {
+      const i = Math.round(ref.current.scrollTop / ITEM_H);
+      const clamped = Math.max(0, Math.min(options.length - 1, i));
+      scrollTo(clamped, true);
+      if (options[clamped].value !== value) onChange(options[clamped].value);
+    }, 120);
+  }
+
+  return (
+    <div style={{ position: 'relative', height: ITEM_H * VISIBLE, borderRadius: 12, background: 'var(--bg2)', overflow: 'hidden' }}>
+      {/* fade top */}
+      <div style={{ position: 'absolute', top: 0, insetInline: 0, height: PAD_OP, background: 'linear-gradient(to bottom, var(--bg2) 40%, transparent)', zIndex: 2, pointerEvents: 'none' }} />
+      {/* selection highlight */}
+      <div style={{ position: 'absolute', top: PAD_OP, insetInline: 12, height: ITEM_H, background: 'var(--accent-alpha)', border: '1px solid var(--accent)', borderRadius: 8, zIndex: 1, pointerEvents: 'none' }} />
+      {/* fade bottom */}
+      <div style={{ position: 'absolute', bottom: 0, insetInline: 0, height: PAD_OP, background: 'linear-gradient(to top, var(--bg2) 40%, transparent)', zIndex: 2, pointerEvents: 'none' }} />
+
+      <div
+        ref={ref}
+        onScroll={onScroll}
+        style={{ height: '100%', overflowY: 'scroll', scrollbarWidth: 'none', paddingTop: PAD_OP, paddingBottom: PAD_OP, boxSizing: 'border-box' }}
+      >
+        {options.map((o, i) => (
+          <div
+            key={o.value}
+            onClick={() => { scrollTo(i, true); onChange(o.value); }}
+            style={{
+              height: ITEM_H, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: o.value === value ? '#fff' : '#666',
+              fontSize: o.value === value ? 15 : 13,
+              fontWeight: o.value === value ? 700 : 400,
+              cursor: 'pointer', userSelect: 'none',
+              direction: 'rtl',
+            }}
+          >
+            {o.label}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -505,20 +589,12 @@ export default function YearsMultiplayerScreen({ onExit }) {
               }}
             />
 
-            {/* Song count */}
+            {/* Song count — wheel picker matches the regular multiplayer UX */}
             <div>
-              <div style={{ color: '#888', fontSize: 12, marginBottom: 8 }}>{t('song_count_lbl')}</div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                {SONG_COUNT_OPTIONS.map(n => (
-                  <button key={n} onClick={() => setSongCount(n)} style={{
-                    flex: 1, padding: '8px 0', borderRadius: 20, fontSize: 13, fontWeight: 700,
-                    background: songCount === n ? '#007ACC' : '#2d2d30',
-                    color: songCount === n ? '#fff' : '#888',
-                    border: `1.5px solid ${songCount === n ? '#007ACC' : '#3a3a3a'}`,
-                    cursor: 'pointer', transition: 'all 0.15s',
-                  }}>{n}</button>
-                ))}
+              <div style={{ color: '#888', fontSize: 12, marginBottom: 8 }}>
+                כמות השירים במשחק
               </div>
+              <OptionPicker options={ROUND_COUNT_OPTIONS} value={songCount} onChange={setSongCount} />
             </div>
 
             {/* Timer */}
