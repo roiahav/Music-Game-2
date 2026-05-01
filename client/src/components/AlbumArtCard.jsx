@@ -6,7 +6,7 @@ export default function AlbumArtCard({ coverUrl, isRevealed, onTap }) {
   return (
     <div
       className="no-select mx-auto cursor-pointer"
-      style={{ width: 240, height: 240 }}
+      style={{ width: 'min(180px, 45vw)', aspectRatio: '1 / 1' }}
       onClick={onTap}
     >
       <AnimatePresence mode="wait">
@@ -19,8 +19,8 @@ export default function AlbumArtCard({ coverUrl, isRevealed, onTap }) {
             className="w-full h-full rounded-2xl flex flex-col items-center justify-center gap-2"
             style={{ background: 'linear-gradient(135deg, #3a3a3a 0%, #2a2a2a 100%)', border: '2px solid #444' }}
           >
-            <span style={{ fontSize: 64 }}>🎵</span>
-            <span className="text-sm font-medium" style={{ color: '#888' }}>{t('click_reveal')}</span>
+            <span style={{ fontSize: 48 }}>🎵</span>
+            <span style={{ color: '#888', fontSize: 12, fontWeight: 500 }}>{t('click_reveal')}</span>
           </motion.div>
         ) : (
           <motion.div
@@ -40,7 +40,7 @@ export default function AlbumArtCard({ coverUrl, isRevealed, onTap }) {
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center rounded-2xl" style={{ background: '#333' }}>
-                <span style={{ fontSize: 80 }}>💿</span>
+                <span style={{ fontSize: 64 }}>💿</span>
               </div>
             )}
           </motion.div>
