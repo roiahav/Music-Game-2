@@ -212,6 +212,11 @@ export default function FavoritesScreen({ onExit }) {
     setDragActive(false);
   }
 
+  // ── derived values ── (must be defined BEFORE the useEffects that depend on them)
+  const current = currentIdx !== null ? displayedSongs[currentIdx] : null;
+  const accentColor = 'var(--accent)';
+  const canDrag = activeFilter === 'all';
+
   // ── Media Session API: lock-screen artwork + transport controls ──
   useEffect(() => {
     if (!('mediaSession' in navigator) || !current) return;
@@ -271,10 +276,6 @@ export default function FavoritesScreen({ onExit }) {
       if (newIdx >= 0) setCurrentIdx(newIdx);
     }
   }, [songs]); // eslint-disable-line
-
-  const current = currentIdx !== null ? displayedSongs[currentIdx] : null;
-  const accentColor = 'var(--accent)';
-  const canDrag = activeFilter === 'all';
 
   // ── chip counts ──
   function countForFilter(fId) {
