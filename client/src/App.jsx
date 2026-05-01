@@ -143,7 +143,7 @@ export default function App() {
 
       {/* Mode cards */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%', padding: '0 24px 28px' }}>
-        <button onClick={() => setScreen('solo')} style={modeCard('#007ACC', dir)}>
+        <button onClick={() => { setScreen('solo'); setTab('game'); }} style={modeCard('#007ACC', dir)}>
           <span style={{ fontSize: 38 }}>🎧</span>
           <div style={{ flex: 1, textAlign: dir === 'rtl' ? 'right' : 'left' }}>
             <div style={{ color: '#fff', fontSize: 17, fontWeight: 800 }}>{t('solo_game')}</div>
@@ -256,7 +256,7 @@ export default function App() {
   return (
     <div style={{ ...shell }}>
       <div className="flex items-center justify-between px-4 py-3 shrink-0" style={{ borderBottom: '1px solid var(--border2)' }}>
-        <button onClick={() => setScreen('home')}
+        <button onClick={() => { setScreen('home'); setTab('game'); }}
           style={{ background: 'none', border: 'none', color: 'var(--text2)', fontSize: 22, cursor: 'pointer', padding: 0, lineHeight: 1 }}>
           ⌂
         </button>

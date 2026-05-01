@@ -33,7 +33,8 @@
   },
   "blacklist": [
     "cb65fcd4ae6e54141f7e65200aa46e018cedc04a",
-    "ed4bd2289b4e09b6c1aaa9ee1c53f4621c44a715"
+    "ed4bd2289b4e09b6c1aaa9ee1c53f4621c44a715",
+    "f4d153284b5133061da4afa45571f50fff15c0c1"
   ],
   "email": {
     "smtpHost": "smtp.gmail.com",
