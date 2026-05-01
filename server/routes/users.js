@@ -54,6 +54,20 @@ router.patch('/:id', requireAdmin, (req, res) => {
       if ('username' in req.body && before.username !== updated.username) {
         logAdminAction(req.user.id, req.user.username, 'rename', updated, { from: before.username, to: updated.username });
       }
+      if ('expiresAt' in req.body && before.expiresAt !== updated.expiresAt) {
+        logAdminAction(
+          req.user.id, req.user.username,
+          updated.expiresAt ? 'set_expiry' : 'clear_expiry',
+          updated,
+          updated.expiresAt ? { expiresAt: updated.expiresAt } : {}
+        );
+      }
+    }
+
+    // If expiresAt is in the past — block immediately
+    if (updated.expiresAt && updated.expiresAt < Date.now() && !updated.blocked) {
+      updateUser(req.params.id, { blocked: true });
+      deleteSessionsByUserId(req.params.id);
     }
 
     // If just blocked — kill all active sessions immediately

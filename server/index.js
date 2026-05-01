@@ -18,6 +18,8 @@ import blacklistRouter from './routes/blacklist.js';
 import favoritesRouter from './routes/favorites.js';
 import { requireAuth, requireAdmin } from './middleware/auth.js';
 import { updateSpotifyTokens, getSettings } from './services/SettingsStore.js';
+import { lockExpiredUsers } from './services/UserStore.js';
+import { deleteSessionsByUserId } from './services/SessionStore.js';
 import { setupMultiplayer } from './multiplayer-socket.js';
 import { setupYearsMultiplayer } from './years-multiplayer-socket.js';
 
@@ -87,6 +89,16 @@ app.get('*', (req, res) => {
     if (err) res.status(200).send('<h2>Build the client first: cd client && npm run build</h2>');
   });
 });
+
+// Background job: every 60s, auto-lock users whose expiresAt has passed
+// and immediately invalidate their sessions
+setInterval(() => {
+  try {
+    const lockedIds = lockExpiredUsers();
+    for (const id of lockedIds) deleteSessionsByUserId(id);
+    if (lockedIds.length) console.log(`[expiry] auto-locked ${lockedIds.length} expired user(s)`);
+  } catch (e) { console.error('[expiry] check failed:', e.message); }
+}, 60 * 1000);
 
 httpServer.listen(PORT, '0.0.0.0', () => {
   const lanIp = getLanIp();

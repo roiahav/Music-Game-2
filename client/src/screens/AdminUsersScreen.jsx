@@ -41,6 +41,7 @@ function UsersTab() {
   const [filter, setFilter] = useState('all'); // all | admin | host | blocked
   const [toggling, setToggling] = useState(new Set()); // IDs being updated
   const [userLogFor, setUserLogFor] = useState(null); // user object for the log modal
+  const [expiryFor, setExpiryFor] = useState(null);   // user object for the expiry-limit modal
 
   async function load() {
     setLoading(true);
@@ -180,6 +181,14 @@ function UsersTab() {
                           ⏳ טרם מילא פרופיל
                         </span>
                       )}
+                      {u.expiresAt && !u.blocked && (
+                        <span style={{
+                          background: '#9b59b622', color: '#c39bd3',
+                          borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 700,
+                        }}>
+                          🕐 {formatRemaining(u.expiresAt)}
+                        </span>
+                      )}
                     </div>
 
                     {/* Role badge */}
@@ -207,6 +216,14 @@ function UsersTab() {
                     style={iconBtnStyle}
                     title="לוג אישי"
                   >📋</button>
+                  <button
+                    onClick={() => setExpiryFor(u)}
+                    style={{
+                      ...iconBtnStyle,
+                      ...(u.expiresAt ? { background: '#9b59b622', border: '1px solid #9b59b6', color: '#c39bd3' } : {}),
+                    }}
+                    title={u.expiresAt ? `פג תוקף ב-${formatExpiryDate(u.expiresAt)}` : 'הגבלת זמן'}
+                  >🕐</button>
                   <button
                     onClick={() => setModal({ type: 'edit', userId: u.id, username: u.username })}
                     style={iconBtnStyle}
@@ -275,8 +292,41 @@ function UsersTab() {
       {userLogFor && (
         <UserLogModal user={userLogFor} onClose={() => setUserLogFor(null)} />
       )}
+
+      {expiryFor && (
+        <ExpiryModal
+          user={expiryFor}
+          onClose={() => setExpiryFor(null)}
+          onSave={async (newExpiresAt) => {
+            try { await updateUserApi(expiryFor.id, { expiresAt: newExpiresAt }); load(); }
+            catch (e) { alert(e.response?.data?.error || 'שגיאה'); }
+            setExpiryFor(null);
+          }}
+        />
+      )}
     </>
   );
+}
+
+// ─── Time-limit helpers ───────────────────────────────────────────────────────
+function formatExpiryDate(ms) {
+  const d = new Date(ms);
+  return d.toLocaleDateString('he-IL') + ' ' + d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+}
+
+function formatRemaining(ms) {
+  const diff = ms - Date.now();
+  if (diff <= 0) return 'פג';
+  const sec = Math.floor(diff / 1000);
+  const min = Math.floor(sec / 60);
+  const hr  = Math.floor(min / 60);
+  const day = Math.floor(hr / 24);
+  if (day > 1) return `עוד ${day} ימים`;
+  if (day === 1) return 'עוד יום';
+  if (hr > 1) return `עוד ${hr} שעות`;
+  if (hr === 1) return 'עוד שעה';
+  if (min > 0) return `עוד ${min} דק׳`;
+  return `עוד ${sec} שנ׳`;
 }
 
 // ─── Log helpers (shared between ActivityTab + UserLogModal) ─────────────────
@@ -371,6 +421,8 @@ const ADMIN_ACTION_META = {
   host_on:        { icon: '🎮', label: 'הענקת הרשאת חדר',     color: '#1db954' },
   host_off:       { icon: '🎮', label: 'שלילת הרשאת חדר',     color: '#888'    },
   rename:         { icon: '✏️', label: 'שינוי שם',            color: '#5bb8ff' },
+  set_expiry:     { icon: '🕐', label: 'הגבלת זמן',          color: '#9b59b6' },
+  clear_expiry:   { icon: '♾️', label: 'הסרת הגבלת זמן',     color: '#1db954' },
 };
 
 function ActivityTab() {
@@ -684,3 +736,148 @@ const iconBtnStyle = {
   background: '#3a3a3a', border: 'none', color: '#aaa',
   borderRadius: 8, padding: '5px 10px', fontSize: 13, cursor: 'pointer',
 };
+
+// ─── Expiry-limit modal ───────────────────────────────────────────────────────
+function ExpiryModal({ user, onClose, onSave }) {
+  // Pick a default datetime — current expiry, or tomorrow if none
+  const defaultDate = user.expiresAt
+    ? new Date(user.expiresAt)
+    : new Date(Date.now() + 24 * 60 * 60 * 1000);
+  const [customValue, setCustomValue] = useState(toLocalDateTimeInput(defaultDate));
+
+  const presets = [
+    { label: '⏱ שעה',    ms: 60 * 60 * 1000 },
+    { label: '🌙 24 שעות', ms: 24 * 60 * 60 * 1000 },
+    { label: '📅 שבוע',   ms: 7 * 24 * 60 * 60 * 1000 },
+    { label: '🗓 חודש',   ms: 30 * 24 * 60 * 60 * 1000 },
+  ];
+
+  function applyPreset(ms) {
+    onSave(Date.now() + ms);
+  }
+
+  function applyCustom() {
+    const ts = new Date(customValue).getTime();
+    if (isNaN(ts)) return alert('תאריך לא תקין');
+    if (ts < Date.now()) {
+      if (!confirm('התאריך שבחרת בעבר — המשתמש ינעל מיד. להמשיך?')) return;
+    }
+    onSave(ts);
+  }
+
+  function clearLimit() {
+    onSave(null);
+  }
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 50 }} />
+      <div style={{
+        position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 51,
+        background: '#2d2d30', borderRadius: '20px 20px 0 0',
+        maxWidth: 480, margin: '0 auto',
+        padding: '20px 20px 30px', direction: 'rtl',
+      }}>
+        <div style={{ width: 40, height: 4, background: '#555', borderRadius: 2, margin: '0 auto 14px' }} />
+        <h3 style={{ color: '#fff', margin: '0 0 6px', fontSize: 16, fontWeight: 800 }}>
+          🕐 הגבלת זמן — {user.username}
+        </h3>
+        <p style={{ color: '#888', fontSize: 12, margin: '0 0 16px' }}>
+          לאחר תום הזמן, המשתמש ינעל אוטומטית ולא יוכל להיכנס.
+        </p>
+
+        {/* Current state */}
+        {user.expiresAt && (
+          <div style={{
+            background: '#9b59b622', border: '1px solid #9b59b6',
+            borderRadius: 10, padding: '10px 12px', marginBottom: 14,
+            fontSize: 13, color: '#c39bd3',
+          }}>
+            🕐 פג בעוד <strong>{formatRemaining(user.expiresAt)}</strong>
+            <div style={{ fontSize: 11, color: '#aaa', marginTop: 4 }}>
+              {formatExpiryDate(user.expiresAt)}
+            </div>
+          </div>
+        )}
+
+        {/* Quick presets */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
+          {presets.map(p => (
+            <button
+              key={p.label}
+              onClick={() => applyPreset(p.ms)}
+              style={{
+                padding: '11px', borderRadius: 10, border: '1px solid #444',
+                background: '#1e1e1e', color: '#fff', fontSize: 14, fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Custom datetime */}
+        <div style={{ marginBottom: 14 }}>
+          <label style={{ color: '#aaa', fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>
+            או בחר תאריך מותאם:
+          </label>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              type="datetime-local"
+              value={customValue}
+              onChange={e => setCustomValue(e.target.value)}
+              style={{
+                flex: 1, background: '#1e1e1e', border: '1px solid #444',
+                color: '#fff', borderRadius: 10, padding: '10px 12px',
+                fontSize: 14, direction: 'ltr',
+              }}
+            />
+            <button
+              onClick={applyCustom}
+              style={{
+                background: '#9b59b6', border: 'none', color: '#fff',
+                borderRadius: 10, padding: '0 18px', fontSize: 14, fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              שמור
+            </button>
+          </div>
+        </div>
+
+        {/* Bottom actions */}
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={onClose}
+            style={{
+              flex: 1, padding: '12px', borderRadius: 12,
+              background: '#3a3a3a', border: 'none', color: '#aaa',
+              fontSize: 14, fontWeight: 700, cursor: 'pointer',
+            }}
+          >
+            ביטול
+          </button>
+          {user.expiresAt && (
+            <button
+              onClick={clearLimit}
+              style={{
+                flex: 1, padding: '12px', borderRadius: 12,
+                background: '#1db95422', border: '1px solid #1db954', color: '#1db954',
+                fontSize: 14, fontWeight: 700, cursor: 'pointer',
+              }}
+            >
+              ♾️ הסר הגבלה
+            </button>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+/** Format a Date object as the value expected by <input type="datetime-local"> */
+function toLocalDateTimeInput(d) {
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}

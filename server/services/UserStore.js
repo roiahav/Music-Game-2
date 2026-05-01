@@ -49,6 +49,7 @@ function publicFields(u) {
     lastName: u.lastName || '',
     email: u.email || '',
     protected: isProtected(u),
+    expiresAt: u.expiresAt || null,    // ms timestamp; null = no time limit
   };
 }
 
@@ -71,10 +72,19 @@ export function getAllUsers() { return load().map(publicFields); }
 
 export function authenticate(username, password) {
   const users = load();
-  const user = users.find(u => u.username === username);
-  if (!user) return null;
+  const idx = users.findIndex(u => u.username === username);
+  if (idx === -1) return null;
+  const user = users[idx];
   if (!verifyPassword(password, user.salt, user.hash)) return null;
-  if (user.blocked) return { blocked: true };
+
+  // Auto-lock expired accounts
+  if (user.expiresAt && user.expiresAt < Date.now() && !user.blocked) {
+    users[idx].blocked = true;
+    save(users);
+    return { blocked: true, expired: true };
+  }
+
+  if (user.blocked) return { blocked: true, expired: !!user.expiresAt && user.expiresAt < Date.now() };
   return publicFields(user);
 }
 
@@ -117,10 +127,30 @@ export function updateUser(userId, fields) {
   if (fields.username && fields.username !== users[idx].username) {
     if (users.find(u => u.username === fields.username)) throw new Error('שם משתמש כבר קיים');
   }
-  const allowed = ['canHostRoom', 'role', 'username', 'blocked'];
+  const allowed = ['canHostRoom', 'role', 'username', 'blocked', 'expiresAt'];
   allowed.forEach(k => { if (k in fields) users[idx][k] = fields[k]; });
   save(users);
   return publicFields(users[idx]);
+}
+
+/**
+ * Scan users and auto-block those whose expiresAt has passed.
+ * Returns the list of newly-blocked user IDs (so caller can kill their sessions).
+ */
+export function lockExpiredUsers() {
+  const users = load();
+  const now = Date.now();
+  const newlyLocked = [];
+  let changed = false;
+  for (const u of users) {
+    if (u.expiresAt && u.expiresAt < now && !u.blocked) {
+      u.blocked = true;
+      newlyLocked.push(u.id);
+      changed = true;
+    }
+  }
+  if (changed) save(users);
+  return newlyLocked;
 }
 
 export function resetPassword(userId, newPassword) {
