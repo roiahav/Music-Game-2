@@ -40,6 +40,7 @@ function UsersTab() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all'); // all | admin | host | blocked
   const [toggling, setToggling] = useState(new Set()); // IDs being updated
+  const [userLogFor, setUserLogFor] = useState(null); // user object for the log modal
 
   async function load() {
     setLoading(true);
@@ -202,6 +203,11 @@ function UsersTab() {
 
                   {/* Action icons */}
                   <button
+                    onClick={() => setUserLogFor(u)}
+                    style={iconBtnStyle}
+                    title="לוג אישי"
+                  >📋</button>
+                  <button
                     onClick={() => setModal({ type: 'edit', userId: u.id, username: u.username })}
                     style={iconBtnStyle}
                     title="עריכת שם"
@@ -265,7 +271,91 @@ function UsersTab() {
       {modal && (
         <UserModal modal={modal} onClose={() => setModal(null)} onDone={() => { setModal(null); load(); }} />
       )}
+
+      {userLogFor && (
+        <UserLogModal user={userLogFor} onClose={() => setUserLogFor(null)} />
+      )}
     </>
+  );
+}
+
+// ─── Log helpers (shared between ActivityTab + UserLogModal) ─────────────────
+function formatLogDate(iso) {
+  const d = new Date(iso);
+  return d.toLocaleDateString('he-IL') + ' ' + d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+}
+
+function formatLogDuration(ms) {
+  if (!ms || ms < 0) return '—';
+  const totalSec = Math.floor(ms / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+/** Render one log entry (login/logout or admin_action). */
+function LogEntry({ entry }) {
+  if (entry.type === 'admin_action') {
+    const meta = ADMIN_ACTION_META[entry.action] || { icon: '⚙️', label: entry.action, color: '#888' };
+    return (
+      <div style={{
+        background: '#2d2d30', borderRadius: 12, padding: '10px 14px',
+        border: `1px solid ${meta.color}33`,
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8,
+      }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ color: '#fff', fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <span style={{ color: meta.color }}>{entry.targetUsername}</span>
+            {entry.action === 'rename' && entry.details?.from && (
+              <span style={{ color: '#888', fontSize: 12, fontWeight: 500 }}>
+                ({entry.details.from} → {entry.details.to})
+              </span>
+            )}
+          </div>
+          <div style={{ color: '#888', fontSize: 12, marginTop: 2 }}>
+            {formatLogDate(entry.timestamp)} · בידי <span style={{ color: '#aaa' }}>{entry.adminName}</span>
+          </div>
+        </div>
+        <div style={{
+          flexShrink: 0,
+          fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 8,
+          background: `${meta.color}22`, color: meta.color,
+          border: `1px solid ${meta.color}44`,
+        }}>
+          {meta.icon} {meta.label}
+        </div>
+      </div>
+    );
+  }
+
+  // Login / logout entry
+  return (
+    <div style={{
+      background: '#2d2d30', borderRadius: 12, padding: '10px 14px',
+      border: `1px solid ${entry.type === 'login' ? '#007ACC44' : '#3a3a3a'}`,
+      display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8,
+    }}>
+      <div>
+        <div style={{ color: '#fff', fontWeight: 700, fontSize: 14 }}>{entry.username}</div>
+        <div style={{ color: '#888', fontSize: 12, marginTop: 2 }}>{formatLogDate(entry.timestamp)}</div>
+      </div>
+      <div style={{ textAlign: 'left', flexShrink: 0 }}>
+        <div style={{
+          fontSize: 12, fontWeight: 600, padding: '3px 8px', borderRadius: 6,
+          background: entry.type === 'login' ? '#007ACC33' : '#2d2d40',
+          color: entry.type === 'login' ? '#5bb8ff' : '#aaa',
+        }}>
+          {entry.type === 'login' ? '🔑 כניסה' : '🚪 יציאה'}
+        </div>
+        {entry.type === 'logout' && entry.durationMs != null && (
+          <div style={{ color: '#888', fontSize: 11, marginTop: 3, textAlign: 'center' }}>
+            ⏱ {formatLogDuration(entry.durationMs)}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -321,21 +411,6 @@ function ActivityTab() {
       );
     });
 
-  function formatDate(iso) {
-    const d = new Date(iso);
-    return d.toLocaleDateString('he-IL') + ' ' + d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
-  }
-
-  function formatDuration(ms) {
-    if (!ms || ms < 0) return '—';
-    const totalSec = Math.floor(ms / 1000);
-    const h = Math.floor(totalSec / 3600);
-    const m = Math.floor((totalSec % 3600) / 60);
-    const s = totalSec % 60;
-    if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-    return `${m}:${String(s).padStart(2, '0')}`;
-  }
-
   if (loading) return <div style={{ color: '#888', textAlign: 'center', paddingTop: 20 }}>טוען...</div>;
   if (!log.length) return <div style={{ color: '#555', textAlign: 'center', paddingTop: 20 }}>אין נתונים עדיין</div>;
 
@@ -363,69 +438,100 @@ function ActivityTab() {
         <div style={{ color: '#555', textAlign: 'center', paddingTop: 12 }}>אין רשומות</div>
       )}
 
-      {filtered.map((entry, i) => {
-        // ── Admin action entry ──
-        if (entry.type === 'admin_action') {
-          const meta = ADMIN_ACTION_META[entry.action] || { icon: '⚙️', label: entry.action, color: '#888' };
-          return (
-            <div key={i} style={{
-              background: '#2d2d30', borderRadius: 12, padding: '10px 14px',
-              border: `1px solid ${meta.color}33`,
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8,
-            }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ color: '#fff', fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                  <span style={{ color: meta.color }}>{entry.targetUsername}</span>
-                  {entry.action === 'rename' && entry.details?.from && (
-                    <span style={{ color: '#888', fontSize: 12, fontWeight: 500 }}>
-                      ({entry.details.from} → {entry.details.to})
-                    </span>
-                  )}
-                </div>
-                <div style={{ color: '#888', fontSize: 12, marginTop: 2 }}>
-                  {formatDate(entry.timestamp)} · בידי <span style={{ color: '#aaa' }}>{entry.adminName}</span>
-                </div>
-              </div>
-              <div style={{
-                flexShrink: 0,
-                fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 8,
-                background: `${meta.color}22`, color: meta.color,
-                border: `1px solid ${meta.color}44`,
-              }}>
-                {meta.icon} {meta.label}
-              </div>
-            </div>
-          );
-        }
+      {filtered.map((entry, i) => <LogEntry key={i} entry={entry} />)}
+    </div>
+  );
+}
 
-        // ── Login / logout entry ──
-        return (
-          <div key={i} style={{
-            background: '#2d2d30', borderRadius: 12, padding: '10px 14px',
-            border: `1px solid ${entry.type === 'login' ? '#007ACC44' : '#3a3a3a'}`,
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8,
-          }}>
-            <div>
-              <div style={{ color: '#fff', fontWeight: 700, fontSize: 14 }}>{entry.username}</div>
-              <div style={{ color: '#888', fontSize: 12, marginTop: 2 }}>{formatDate(entry.timestamp)}</div>
-            </div>
-            <div style={{ textAlign: 'left', flexShrink: 0 }}>
-              <div style={{
-                fontSize: 12, fontWeight: 600, padding: '3px 8px', borderRadius: 6,
-                background: entry.type === 'login' ? '#007ACC33' : '#2d2d40',
-                color: entry.type === 'login' ? '#5bb8ff' : '#aaa',
-              }}>
-                {entry.type === 'login' ? '🔑 כניסה' : '🚪 יציאה'}
-              </div>
-              {entry.type === 'logout' && entry.durationMs != null && (
-                <div style={{ color: '#888', fontSize: 11, marginTop: 3, textAlign: 'center' }}>
-                  ⏱ {formatDuration(entry.durationMs)}
-                </div>
-              )}
-            </div>
+// ─── Per-user log modal ───────────────────────────────────────────────────────
+function UserLogModal({ user, onClose }) {
+  const [log, setLog] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getActivityLog()
+      .then(setLog)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  // Show entries where this user is involved — as the session owner,
+  // as the target of an admin action, or as the admin who performed it.
+  const filtered = log.filter(e => {
+    if (e.type === 'login' || e.type === 'logout') {
+      return e.userId === user.id;
+    }
+    if (e.type === 'admin_action') {
+      return e.targetId === user.id || e.adminId === user.id;
+    }
+    return false;
+  });
+
+  // Quick stats for the header
+  const stats = {
+    logins:        filtered.filter(e => e.type === 'login').length,
+    actionsOnUser: filtered.filter(e => e.type === 'admin_action' && e.targetId === user.id).length,
+    actionsByUser: filtered.filter(e => e.type === 'admin_action' && e.adminId === user.id).length,
+  };
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 50 }} />
+      <div style={{
+        position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 51,
+        background: '#1e1e1e', borderRadius: '20px 20px 0 0',
+        maxWidth: 480, margin: '0 auto',
+        padding: '16px 16px 30px', direction: 'rtl',
+        maxHeight: '85dvh', display: 'flex', flexDirection: 'column',
+      }}>
+        <div style={{ width: 40, height: 4, background: '#555', borderRadius: 2, margin: '0 auto 14px' }} />
+
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+          <h3 style={{ color: '#fff', margin: 0, fontSize: 16, fontWeight: 800 }}>
+            📋 לוג: {user.username}
+          </h3>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#888', fontSize: 22, cursor: 'pointer', padding: 0, lineHeight: 1 }}>
+            ✕
+          </button>
+        </div>
+
+        {/* Stats row */}
+        {!loading && filtered.length > 0 && (
+          <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
+            <Stat label="🔑 כניסות" value={stats.logins} color="#5bb8ff" />
+            <Stat label="📥 פעולות עליו" value={stats.actionsOnUser} color="#e67e22" />
+            {user.role === 'admin' && (
+              <Stat label="📤 פעולות שביצע" value={stats.actionsByUser} color="#1db954" />
+            )}
           </div>
-        );
-      })}
+        )}
+
+        {/* List */}
+        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {loading && <div style={{ color: '#888', textAlign: 'center', paddingTop: 20 }}>טוען...</div>}
+          {!loading && filtered.length === 0 && (
+            <div style={{ color: '#555', textAlign: 'center', paddingTop: 30 }}>
+              <div style={{ fontSize: 40, marginBottom: 10 }}>📭</div>
+              <div style={{ fontSize: 13 }}>אין רשומות עבור משתמש זה</div>
+            </div>
+          )}
+          {filtered.map((entry, i) => <LogEntry key={i} entry={entry} />)}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function Stat({ label, value, color }) {
+  return (
+    <div style={{
+      flex: 1, minWidth: 80,
+      background: `${color}15`, border: `1px solid ${color}33`,
+      borderRadius: 10, padding: '6px 10px', textAlign: 'center',
+    }}>
+      <div style={{ color, fontSize: 18, fontWeight: 800, lineHeight: 1 }}>{value}</div>
+      <div style={{ color: '#aaa', fontSize: 10, marginTop: 4 }}>{label}</div>
     </div>
   );
 }
