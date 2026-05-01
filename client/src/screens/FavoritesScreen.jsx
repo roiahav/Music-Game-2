@@ -560,19 +560,22 @@ export default function FavoritesScreen({ onExit }) {
               </div>
             </div>
 
-            {/* Buttons */}
-            <button onClick={handlePlayPrev} style={iconBtn}>⏮</button>
-            <button onClick={togglePlayPause} style={{ ...iconBtn, background: accentColor, color: '#fff', width: 40, height: 40, borderRadius: 20 }}>
-              {isPlaying ? '⏸' : '▶'}
-            </button>
-            <button onClick={handlePlayNext} style={iconBtn}>⏭</button>
-            <button
-              onClick={() => setShuffleMode(v => !v)}
-              style={{ ...iconBtn, color: shuffleMode ? accentColor : 'var(--text2)' }}
-              title="Shuffle"
-            >
-              🔀
-            </button>
+            {/* Buttons — forced LTR so transport controls stay in standard music-player order
+                (⏮ on the left, ⏭ on the right) regardless of page direction */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, direction: 'ltr', flexShrink: 0 }}>
+              <button onClick={handlePlayPrev} style={iconBtn}>⏮</button>
+              <button onClick={togglePlayPause} style={{ ...iconBtn, background: accentColor, color: '#fff', width: 40, height: 40, borderRadius: 20 }}>
+                {isPlaying ? '⏸' : '▶'}
+              </button>
+              <button onClick={handlePlayNext} style={iconBtn}>⏭</button>
+              <button
+                onClick={() => setShuffleMode(v => !v)}
+                style={{ ...iconBtn, color: shuffleMode ? accentColor : 'var(--text2)' }}
+                title="Shuffle"
+              >
+                🔀
+              </button>
+            </div>
           </div>
         </div>
       )}
