@@ -15,7 +15,7 @@ import AdminUsersScreen from './screens/AdminUsersScreen.jsx';
 import FavoritesScreen from './screens/FavoritesScreen.jsx';
 import YearsGameScreen from './screens/YearsGameScreen.jsx';
 import YearsMultiplayerScreen from './screens/YearsMultiplayerScreen.jsx';
-import { logoutApi, uploadAvatar, getAvatarUrl } from './api/client.js';
+import { logoutApi, uploadAvatar, getAvatarUrl, getUsers } from './api/client.js';
 import { useLang } from './i18n/useLang.js';
 
 const shell = {
@@ -23,10 +23,21 @@ const shell = {
   background: 'var(--bg)', maxWidth: 480, margin: '0 auto', width: '100%',
 };
 
+/** Round icon button used in the top bar (settings, pending mail, etc.) */
+const topIconBtn = {
+  position: 'relative',
+  background: 'var(--bg2)', border: '1px solid var(--border)',
+  borderRadius: 10, padding: '6px 10px',
+  cursor: 'pointer',
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+};
+
 export default function App() {
   const [screen, setScreen] = useState('home');
   const [tab, setTab] = useState('game');
   const [avatarKey, setAvatarKey] = useState(0);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [usersDefaultFilter, setUsersDefaultFilter] = useState('all');
   const load = useSettingsStore(s => s.load);
   const { token, user, login, logout } = useAuthStore();
   const { themeId, setTheme } = useThemeStore();
@@ -39,6 +50,16 @@ export default function App() {
   }, [themeId]);
 
   useEffect(() => { if (token) load(); }, [token]);
+
+  // Refresh pending-users count for admins (re-runs when navigating back to home)
+  useEffect(() => {
+    if (!token || user?.role !== 'admin' || screen !== 'home') return;
+    let cancelled = false;
+    getUsers()
+      .then(list => { if (!cancelled) setPendingCount(list.filter(u => u.approved === false).length); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [token, user?.role, screen]);
 
   // Password-reset link — handled before auth check so unauthenticated users can reset
   const urlParams = new URLSearchParams(window.location.search);
@@ -105,12 +126,49 @@ export default function App() {
           <span style={{ color: 'var(--text2)', fontSize: 13 }}>{user?.username}</span>
         </button>
         <input ref={fileInputRef} type="file" accept="image/*" onChange={handleAvatarPick} style={{ display: 'none' }} />
-        <button
-          onClick={handleLogout}
-          style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text2)', borderRadius: 8, padding: '5px 12px', fontSize: 12, cursor: 'pointer' }}
-        >
-          {t('logout')}
-        </button>
+
+        {/* Right cluster: admin shortcuts + logout */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* Pending users (admin only, only when there's something pending) */}
+          {isAdmin && pendingCount > 0 && (
+            <button
+              onClick={() => { setUsersDefaultFilter('pending'); setScreen('solo'); setTab('users'); }}
+              title={`${pendingCount} משתמשים ממתינים לאישור`}
+              style={topIconBtn}
+            >
+              <span style={{ fontSize: 20 }}>📨</span>
+              <span style={{
+                position: 'absolute', top: -2, left: -2,
+                background: '#dc3545', color: '#fff',
+                borderRadius: 10, minWidth: 18, height: 18,
+                fontSize: 11, fontWeight: 800,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                padding: '0 5px', border: '2px solid var(--bg)',
+                lineHeight: 1,
+              }}>
+                {pendingCount}
+              </span>
+            </button>
+          )}
+
+          {/* Settings shortcut (admin only) */}
+          {isAdmin && (
+            <button
+              onClick={() => { setScreen('solo'); setTab('settings'); }}
+              title={t('settings')}
+              style={topIconBtn}
+            >
+              <span style={{ fontSize: 20 }}>⚙️</span>
+            </button>
+          )}
+
+          <button
+            onClick={handleLogout}
+            style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text2)', borderRadius: 8, padding: '5px 12px', fontSize: 12, cursor: 'pointer' }}
+          >
+            {t('logout')}
+          </button>
+        </div>
       </div>
 
       {/* Logo */}
@@ -191,15 +249,6 @@ export default function App() {
           </div>
         </button>
 
-        {isAdmin && (
-          <button onClick={() => { setScreen('solo'); setTab('settings'); }} style={modeCard('#666', dir)}>
-            <span style={{ fontSize: 38 }}>⚙️</span>
-            <div style={{ flex: 1, textAlign: dir === 'rtl' ? 'right' : 'left' }}>
-              <div style={{ color: '#fff', fontSize: 17, fontWeight: 800 }}>{t('settings')}</div>
-              <div style={{ color: '#bbb', fontSize: 12, marginTop: 3 }}>{t('settings_admin_desc')}</div>
-            </div>
-          </button>
-        )}
       </div>
     </div>
   );
@@ -274,7 +323,14 @@ export default function App() {
       <div className="flex-1 flex flex-col overflow-hidden">
         {tab === 'game' && <GameScreen />}
         {tab === 'settings' && <div className="flex-1 overflow-y-auto"><SettingsScreen isAdmin={isAdmin} /></div>}
-        {tab === 'users' && isAdmin && <div className="flex-1 overflow-y-auto"><AdminUsersScreen /></div>}
+        {tab === 'users' && isAdmin && (
+          <div className="flex-1 overflow-y-auto">
+            <AdminUsersScreen
+              defaultFilter={usersDefaultFilter}
+              onFilterConsumed={() => setUsersDefaultFilter('all')}
+            />
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { getUsers, createUserApi, resetPasswordApi, updateUserApi, deleteUserApi, getActivityLog, approveUserApi, createInviteApi, getSettings as getSettingsApi } from '../api/client.js';
 
-export default function AdminUsersScreen() {
+export default function AdminUsersScreen({ defaultFilter = 'all', onFilterConsumed }) {
   const [subTab, setSubTab] = useState('users'); // users | log
 
   return (
@@ -25,20 +25,30 @@ export default function AdminUsersScreen() {
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 80px' }}>
-        {subTab === 'users' ? <UsersTab /> : <ActivityTab />}
+        {subTab === 'users'
+          ? <UsersTab defaultFilter={defaultFilter} onFilterConsumed={onFilterConsumed} />
+          : <ActivityTab />}
       </div>
     </div>
   );
 }
 
 // ─── Users tab ────────────────────────────────────────────────────────────────
-function UsersTab() {
+function UsersTab({ defaultFilter = 'all', onFilterConsumed }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [modal, setModal] = useState(null);
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState('all'); // all | admin | host | blocked
+  const [filter, setFilter] = useState(defaultFilter); // all | admin | host | blocked | pending
+
+  // If parent passes a new defaultFilter (e.g. clicking the pending bell), apply it once
+  useEffect(() => {
+    if (defaultFilter && defaultFilter !== 'all') {
+      setFilter(defaultFilter);
+      onFilterConsumed?.();
+    }
+  }, [defaultFilter]); // eslint-disable-line
   const [toggling, setToggling] = useState(new Set()); // IDs being updated
   const [userLogFor, setUserLogFor] = useState(null); // user object for the log modal
   const [expiryFor, setExpiryFor] = useState(null);   // user object for the expiry-limit modal
