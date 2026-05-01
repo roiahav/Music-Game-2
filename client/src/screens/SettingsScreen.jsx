@@ -7,11 +7,11 @@ import SettingsPlaylistRow from '../components/SettingsPlaylistRow.jsx';
 import GameOptionsBar from '../components/GameOptionsBar.jsx';
 import FolderBrowser from '../components/FolderBrowser.jsx';
 import AdminBlacklistSection from '../components/AdminBlacklistSection.jsx';
-import AdminUsersScreen from '../screens/AdminUsersScreen.jsx';
+import AdminUsersScreen, { ActivityTab } from '../screens/AdminUsersScreen.jsx';
 import { getJSON, setJSON } from '../utils/safeStorage.js';
 
 const SECTION_ORDER_KEY = 'mg_settings_section_order';
-const DEFAULT_SECTION_ORDER = ['victory', 'playlists', 'users', 'blacklist', 'email', 'invite', 'invite-templates'];
+const DEFAULT_SECTION_ORDER = ['victory', 'playlists', 'users', 'activity-log', 'blacklist', 'email', 'invite', 'invite-templates'];
 
 // Labels rendered inside the floating ghost during drag, so the user can see
 // what they're moving even though the actual card is just an empty placeholder.
@@ -19,6 +19,7 @@ const SECTION_META = {
   'victory':           { icon: '🏆', label: 'שיר ניצחון' },
   'playlists':         { icon: '🎵', label: 'פלייליסטים' },
   'users':             { icon: '👥', label: 'ניהול משתמשים' },
+  'activity-log':      { icon: '📋', label: 'לוג פעילות' },
   'blacklist':         { icon: '🚫', label: 'שירים חסומים' },
   'email':             { icon: '📧', label: 'הגדרות מייל' },
   'invite':            { icon: '📨', label: 'הזמנת משתמשים' },
@@ -34,6 +35,7 @@ export default function SettingsScreen({ isAdmin = false, usersDefaultFilter = '
   const [playlistsOpen, setPlaylistsOpen] = useState(false);
   const [victoryOpen, setVictoryOpen] = useState(false);
   const [usersOpen, setUsersOpen] = useState(false);
+  const [activityLogOpen, setActivityLogOpen] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const previewAudioRef = useRef(null);
   const [previewing, setPreviewing] = useState(false);
@@ -448,13 +450,33 @@ export default function SettingsScreen({ isAdmin = false, usersDefaultFilter = '
             </button>
 
             {usersOpen && (
-              /* Negative left/right margin pulls AdminUsersScreen out of the parent's padding,
-                 since it has its own internal padding for cards/rows. */
               <div style={{ padding: '0 0 12px' }}>
                 <AdminUsersScreen
                   defaultFilter={usersDefaultFilter}
                   onFilterConsumed={onUsersFilterConsumed}
                 />
+              </div>
+            )}
+          </div>
+          </DraggableCard>
+
+          {/* Activity log — collapsible */}
+          <DraggableCard {...dragProps('activity-log')}>
+          <div style={{ background: '#2d2d30', border: '1px solid #3a3a3a', borderRadius: 14, overflow: 'hidden' }}>
+            <button
+              onClick={() => setActivityLogOpen(o => !o)}
+              style={{
+                width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                padding: '14px 16px', background: 'none', border: 'none', cursor: 'pointer', color: '#fff',
+              }}
+            >
+              <span style={{ fontWeight: 700, fontSize: 14 }}>📋 לוג פעילות</span>
+              <span style={{ color: '#888', fontSize: 18 }}>{activityLogOpen ? '▲' : '▼'}</span>
+            </button>
+
+            {activityLogOpen && (
+              <div style={{ padding: '0 20px 20px' }}>
+                <ActivityTab />
               </div>
             )}
           </div>

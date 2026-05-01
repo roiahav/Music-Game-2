@@ -76,6 +76,20 @@
       "title": "ריק בחלל",
       "artist": "Marina Maximilian",
       "year": "2025"
+    },
+    {
+      "id": "09753ca66db74945125bc06d4b4a89f281eea2b8",
+      "filePath": "C:\\Users\\oren\\Desktop\\mp3\\לועזי\\72. Babylon Zoo - Spaceman.mp3",
+      "title": "Spaceman",
+      "artist": "Babylon Zoo",
+      "year": "2019"
+    },
+    {
+      "id": "5be790d22bc77b3a1845a60e3b28bd00be5482a1",
+      "filePath": "C:\\Users\\oren\\Desktop\\mp3\\עברי\\איש לא שומע - Assaf Gold - Spotimate.app.mp3",
+      "title": "איש לא שומע",
+      "artist": "Assaf Gold",
+      "year": "2023"
     }
   ]
 }

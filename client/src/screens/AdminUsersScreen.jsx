@@ -2,33 +2,12 @@ import { useState, useEffect } from 'react';
 import { getUsers, createUserApi, resetPasswordApi, updateUserApi, deleteUserApi, getActivityLog, approveUserApi, createInviteApi, getSettings as getSettingsApi } from '../api/client.js';
 
 export default function AdminUsersScreen({ defaultFilter = 'all', onFilterConsumed }) {
-  const [subTab, setSubTab] = useState('users'); // users | log
-
+  // The activity-log used to be a sub-tab here. It's now its own collapsible
+  // section in Settings ("📋 לוג פעילות"), so this screen just renders the users
+  // table directly.
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', direction: 'rtl' }}>
-      {/* Sub-tabs */}
-      <div style={{ display: 'flex', gap: 4, padding: '12px 20px 0', flexShrink: 0 }}>
-        {[{ id: 'users', label: 'משתמשים' }, { id: 'log', label: 'לוג פעילות' }].map(t => (
-          <button
-            key={t.id}
-            onClick={() => setSubTab(t.id)}
-            style={{
-              padding: '7px 18px', borderRadius: 10, border: 'none', fontSize: 14, fontWeight: 700,
-              background: subTab === t.id ? '#007ACC' : '#2d2d30',
-              color: subTab === t.id ? '#fff' : '#888',
-              cursor: 'pointer',
-            }}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 80px' }}>
-        {subTab === 'users'
-          ? <UsersTab defaultFilter={defaultFilter} onFilterConsumed={onFilterConsumed} />
-          : <ActivityTab />}
-      </div>
+    <div style={{ direction: 'rtl', padding: '16px 20px 24px' }}>
+      <UsersTab defaultFilter={defaultFilter} onFilterConsumed={onFilterConsumed} />
     </div>
   );
 }
@@ -482,7 +461,7 @@ const ADMIN_ACTION_META = {
   backup_import:  { icon: '⬆️', label: 'שחזור מגיבוי',         color: '#e67e22' },
 };
 
-function ActivityTab() {
+export function ActivityTab() {
   const [log, setLog] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchUser, setSearchUser] = useState('');
