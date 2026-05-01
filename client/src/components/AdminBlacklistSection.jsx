@@ -3,7 +3,7 @@ import api, { getBlacklist, addToBlacklist, removeFromBlacklist } from '../api/c
 import { useLang } from '../i18n/useLang.js';
 
 export default function AdminBlacklistSection({ playlists }) {
-  const [selectedId, setSelectedId] = useState(playlists[0]?.id || '');
+  const [selectedId, setSelectedId] = useState('__all__');
   const [songs, setSongs] = useState([]);
   const [blacklist, setBlacklist] = useState(new Set());
   const [loading, setLoading] = useState(false);
@@ -18,18 +18,48 @@ export default function AdminBlacklistSection({ playlists }) {
     getBlacklist().then(ids => setBlacklist(new Set(ids))).catch(() => {});
   }, []);
 
-  // Load songs when playlist changes
+  // Load songs when playlist changes (or "all playlists" selected)
   useEffect(() => {
     if (!selectedId) return;
     setLoading(true);
     setSongs([]);
     setSearch('');
-    // includeBlacklisted=1 so admin can see and manage all songs
+
+    const localPlaylists = playlists.filter(p => p.type === 'local');
+
+    // "__all__" = combine songs from ALL local playlists into one list
+    if (selectedId === '__all__') {
+      Promise.all(
+        localPlaylists.map(p =>
+          api.get(`/playlists/${p.id}/songs?includeBlacklisted=1`)
+            .then(r => (Array.isArray(r.data) ? r.data : []).map(s => ({ ...s, _playlistName: p.name })))
+            .catch(() => [])
+        )
+      )
+      .then(results => {
+        // Flatten and deduplicate by song id (a song could appear in multiple playlists)
+        const seen = new Set();
+        const merged = [];
+        for (const list of results) {
+          for (const song of list) {
+            if (!seen.has(song.id)) {
+              seen.add(song.id);
+              merged.push(song);
+            }
+          }
+        }
+        setSongs(merged);
+      })
+      .finally(() => setLoading(false));
+      return;
+    }
+
+    // Single playlist
     api.get(`/playlists/${selectedId}/songs?includeBlacklisted=1`)
       .then(r => setSongs(Array.isArray(r.data) ? r.data : []))
       .catch(() => setSongs([]))
       .finally(() => setLoading(false));
-  }, [selectedId]);
+  }, [selectedId, playlists]);
 
   async function toggleBlacklist(song) {
     if (toggling.has(song.id)) return;
@@ -90,6 +120,7 @@ export default function AdminBlacklistSection({ playlists }) {
         onChange={e => setSelectedId(e.target.value)}
         style={{ width: '100%', background: '#1e1e1e', border: '1px solid #444', color: '#fff', borderRadius: 8, padding: '8px 12px', fontSize: 14, direction: 'rtl' }}
       >
+        <option value="__all__">📚 {t('all_playlists')}</option>
         {playlists.filter(p => p.type === 'local').map(p => (
           <option key={p.id} value={p.id}>{p.name}</option>
         ))}
@@ -168,6 +199,17 @@ export default function AdminBlacklistSection({ playlists }) {
                   <div style={{ color: '#888', fontSize: 11, marginTop: 2 }}>
                     {song.artist}{song.year ? ` · ${song.year}` : ''}
                   </div>
+                  {/* Show source playlist when viewing combined "all" view */}
+                  {selectedId === '__all__' && song._playlistName && (
+                    <span style={{
+                      display: 'inline-block', marginTop: 3,
+                      background: '#007ACC22', color: '#5bb8ff',
+                      fontSize: 10, fontWeight: 700, borderRadius: 4,
+                      padding: '1px 6px',
+                    }}>
+                      {song._playlistName}
+                    </span>
+                  )}
                 </div>
                 <button
                   onClick={() => toggleBlacklist(song)}
