@@ -184,19 +184,31 @@ export default function FavoritesScreen({ onExit }) {
 
   function commitDragReorder() {
     if (dragIdx !== null && dragOverIdx !== null && dragIdx !== dragOverIdx && dragActive) {
-      const from = dragIdx;
-      const to = dragOverIdx;
-      setSongs(prev => {
-        const next = [...prev];
-        const [removed] = next.splice(from, 1);
-        next.splice(to, 0, removed);
-        clearTimeout(reorderTimer.current);
-        reorderTimer.current = setTimeout(() => {
-          reorderFavorites(next.map(s => s.id)).catch(() => {});
-        }, 600);
-        return next;
-      });
-      if (currentIdx !== null) setCurrentIdx(null);  // re-sync via effect
+      // dragIdx/dragOverIdx are indices in the *filtered* list — map back to the full list
+      const fromSong = displayedSongs[dragIdx];
+      const toSong   = displayedSongs[dragOverIdx];
+      if (fromSong && toSong) {
+        setSongs(prev => {
+          const fromFull = prev.findIndex(s => s.id === fromSong.id);
+          const toFull   = prev.findIndex(s => s.id === toSong.id);
+          if (fromFull < 0 || toFull < 0 || fromFull === toFull) return prev;
+
+          const next = [...prev];
+          const [removed] = next.splice(fromFull, 1);
+          // Account for the shift after removing the item before the target
+          const insertAt = fromFull < toFull ? toFull - 1 : toFull;
+          // If we're moving DOWN past the target, drop just after it; otherwise drop before
+          const finalIdx = (dragOverIdx > dragIdx) ? insertAt + 1 : insertAt;
+          next.splice(Math.max(0, Math.min(next.length, finalIdx)), 0, removed);
+
+          clearTimeout(reorderTimer.current);
+          reorderTimer.current = setTimeout(() => {
+            reorderFavorites(next.map(s => s.id)).catch(() => {});
+          }, 600);
+          return next;
+        });
+        if (currentIdx !== null) setCurrentIdx(null);  // re-sync via effect
+      }
     }
     setDragIdx(null);
     setDragOverIdx(null);
@@ -215,7 +227,9 @@ export default function FavoritesScreen({ onExit }) {
   // ── derived values ── (must be defined BEFORE the useEffects that depend on them)
   const current = currentIdx !== null ? displayedSongs[currentIdx] : null;
   const accentColor = 'var(--accent)';
-  const canDrag = activeFilter === 'all';
+  // Drag works in any view (filtered or not). The reorder logic maps display
+  // indices back to full-list indices so the saved order is always correct.
+  const canDrag = displayedSongs.length > 1;
 
   // ── Media Session API: lock-screen artwork + transport controls ──
   useEffect(() => {
@@ -480,7 +494,7 @@ export default function FavoritesScreen({ onExit }) {
                 )}
               </div>
 
-              {/* Playing indicator + Remove */}
+              {/* Playing indicator + Remove (always visible) */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                 {isActive && (
                   <span style={{ color: accentColor, fontSize: 14 }}>
@@ -489,11 +503,17 @@ export default function FavoritesScreen({ onExit }) {
                 )}
                 <button
                   onClick={e => handleRemove(e, s)}
-                  style={{
-                    background: 'none', border: 'none', color: '#dc3545',
-                    fontSize: 18, cursor: 'pointer', padding: 4, lineHeight: 1,
-                  }}
                   title={t('remove_fav')}
+                  style={{
+                    background: '#dc354522',
+                    border: '1px solid #dc354544',
+                    borderRadius: 10,
+                    fontSize: 20, cursor: 'pointer',
+                    width: 38, height: 38,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    flexShrink: 0,
+                    lineHeight: 1, padding: 0,
+                  }}
                 >
                   💔
                 </button>

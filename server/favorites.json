@@ -1,39 +1,11 @@
 {
   "1": [
     {
-      "id": "9b9f52412673e81f59f03937027200fe8523391a",
-      "filePath": "C:\\Users\\oren\\Desktop\\mp3\\עברי\\הבלדה על אביר החופש ובת גלים - Karolina_ Uri Brauner Kinrot - Spotimate.app.mp3",
-      "title": "הבלדה על אביר החופש ובת גלים",
-      "artist": "Karolina, Uri Brauner Kinrot",
-      "year": "2009"
-    },
-    {
-      "id": "db0fa345216f2501b6eadb81b9dd2134c98dcb7a",
-      "filePath": "C:\\Users\\oren\\Desktop\\mp3\\עברי\\מה שיבוא - שי המבר_ Ran Danker - Spotimate.app.mp3",
-      "title": "מה שיבוא",
-      "artist": "שי המבר, Ran Danker",
-      "year": "2025"
-    },
-    {
-      "id": "0f80ce6f9fbcf073808033f3e20eee2e4d8a0caa",
-      "filePath": "C:\\Users\\oren\\Desktop\\mp3\\עברי\\עד העונג הבא - The Witches - Spotimate.app.mp3",
-      "title": "עד העונג הבא",
-      "artist": "The Witches",
-      "year": "1994"
-    },
-    {
       "id": "d2d7bc0e3aaf831c9d1fd87bd7160863ac602baf",
       "filePath": "C:\\Users\\oren\\Desktop\\mp3\\לועזי\\70. Tasmin Archer - Sleeping Satellite.mp3",
       "title": "Sleeping Satellite",
       "artist": "Tasmin Archer",
       "year": "2019"
-    },
-    {
-      "id": "abbf145cc7ccde689ee86202356287e30f41d1e4",
-      "filePath": "C:\\Users\\oren\\Desktop\\mp3\\עברי\\שיר נבואי קוסמי עליז - Yoni Rechter_ Eli Mohar - Spotimate.app.mp3",
-      "title": "שיר נבואי קוסמי עליז",
-      "artist": "Yoni Rechter, Eli Mohar",
-      "year": "1986"
     },
     {
       "id": "9e8ce3f4f13b1f6931e6304f138261ccc538ae2b",
@@ -43,11 +15,53 @@
       "year": "2005"
     },
     {
+      "id": "93fc8b20e4fc2d50384013245c0349b9ebb53767",
+      "filePath": "C:\\Users\\oren\\Desktop\\mp3\\עברי\\איך אפשר - Jane Bordeaux - Spotimate.app.mp3",
+      "title": "איך אפשר",
+      "artist": "ג'יין בורדו",
+      "year": "2014"
+    },
+    {
+      "id": "9b9f52412673e81f59f03937027200fe8523391a",
+      "filePath": "C:\\Users\\oren\\Desktop\\mp3\\עברי\\הבלדה על אביר החופש ובת גלים - Karolina_ Uri Brauner Kinrot - Spotimate.app.mp3",
+      "title": "הבלדה על אביר החופש ובת גלים",
+      "artist": "Karolina, Uri Brauner Kinrot",
+      "year": "2009"
+    },
+    {
+      "id": "31c8af4ea6a0c854eded4d93aa4942e623e0d658",
+      "filePath": "C:\\Users\\oren\\Desktop\\mp3\\עברי\\Lo Yachol Lehorid Mimench Et HaEynaim _Can_t Take My Eyes Off Of You_ - Meir Ariel - Spotimate.app.mp3",
+      "title": "Lo Yachol Lehorid Mimench Et HaEynaim (Can't Take My Eyes Off Of You)",
+      "artist": "מאיר אריאל",
+      "year": "1997"
+    },
+    {
       "id": "e8985c5028df1074c308f5363703ff30651ce8ba",
       "filePath": "C:\\Users\\oren\\Desktop\\mp3\\עברי\\ככה זה _לאהוב אותך_ - Berry Sakharof - Spotimate.app.mp3",
       "title": "ככה זה (לאהוב אותך)",
       "artist": "ברי סחרוף",
       "year": "1998"
+    },
+    {
+      "id": "0f80ce6f9fbcf073808033f3e20eee2e4d8a0caa",
+      "filePath": "C:\\Users\\oren\\Desktop\\mp3\\עברי\\עד העונג הבא - The Witches - Spotimate.app.mp3",
+      "title": "עד העונג הבא",
+      "artist": "The Witches",
+      "year": "1994"
+    },
+    {
+      "id": "abbf145cc7ccde689ee86202356287e30f41d1e4",
+      "filePath": "C:\\Users\\oren\\Desktop\\mp3\\עברי\\שיר נבואי קוסמי עליז - Yoni Rechter_ Eli Mohar - Spotimate.app.mp3",
+      "title": "שיר נבואי קוסמי עליז",
+      "artist": "Yoni Rechter, Eli Mohar",
+      "year": "1986"
+    },
+    {
+      "id": "db0fa345216f2501b6eadb81b9dd2134c98dcb7a",
+      "filePath": "C:\\Users\\oren\\Desktop\\mp3\\עברי\\מה שיבוא - שי המבר_ Ran Danker - Spotimate.app.mp3",
+      "title": "מה שיבוא",
+      "artist": "שי המבר, Ran Danker",
+      "year": "2025"
     }
   ]
 }
