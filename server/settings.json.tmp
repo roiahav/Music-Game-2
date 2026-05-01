@@ -25,13 +25,13 @@
   "game": {
     "shuffle": true,
     "hintsEnabled": true,
-    "timerSeconds": 60,
+    "timerSeconds": 120,
     "victoryAudioPath": "C:\\Users\\oren\\Desktop\\mp3\\מנצח\\We Are The Champions - Remastered 2011 - Queen - Spotimate.app.mp3",
     "victoryAudioFolder": "C:\\Users\\oren\\Desktop\\mp3\\מנצח",
-    "victoryFolderEnabled": false
+    "victoryFolderEnabled": false,
+    "victoryStartSeconds": 35
   },
   "blacklist": [
-    "b1d911d08987f19dadd24edcc275a476069049ba",
     "cb65fcd4ae6e54141f7e65200aa46e018cedc04a",
     "ed4bd2289b4e09b6c1aaa9ee1c53f4621c44a715"
   ],

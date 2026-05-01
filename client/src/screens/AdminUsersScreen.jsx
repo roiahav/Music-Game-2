@@ -38,6 +38,7 @@ function UsersTab() {
   const [error, setError] = useState('');
   const [modal, setModal] = useState(null);
   const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState('all'); // all | admin | host | blocked
   const [toggling, setToggling] = useState(new Set()); // IDs being updated
 
   async function load() {
@@ -77,7 +78,21 @@ function UsersTab() {
     try { await deleteUserApi(id); load(); } catch (e) { alert(e.response?.data?.error || 'שגיאה'); }
   }
 
+  // Counts for filter chips
+  const counts = {
+    all: users.length,
+    admin: users.filter(u => u.role === 'admin').length,
+    host: users.filter(u => u.canHostRoom && u.role !== 'admin').length,
+    blocked: users.filter(u => u.blocked).length,
+  };
+
   const filtered = users
+    .filter(u => {
+      if (filter === 'admin' && u.role !== 'admin') return false;
+      if (filter === 'host' && !u.canHostRoom) return false;
+      if (filter === 'blocked' && !u.blocked) return false;
+      return true;
+    })
     .filter(u => !search.trim() || u.username.toLowerCase().includes(search.trim().toLowerCase()))
     .sort((a, b) => {
       // Admins first, then regular users — within each group, alphabetical
@@ -95,6 +110,14 @@ function UsersTab() {
         >
           + הוסף
         </button>
+      </div>
+
+      {/* Filter chips */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
+        <FilterChip label="הכל"          count={counts.all}     active={filter === 'all'}     color="#888"    onClick={() => setFilter('all')} />
+        <FilterChip label="👑 אדמינים"    count={counts.admin}   active={filter === 'admin'}   color="#5bb8ff" onClick={() => setFilter('admin')} />
+        <FilterChip label="🎮 מנהלי חדר"  count={counts.host}    active={filter === 'host'}    color="#1db954" onClick={() => setFilter('host')} />
+        <FilterChip label="🚫 חסומים"     count={counts.blocked} active={filter === 'blocked'} color="#ff6b6b" onClick={() => setFilter('blocked')} disabled={counts.blocked === 0} />
       </div>
 
       {/* Search */}
@@ -409,6 +432,37 @@ function UserModal({ modal, onClose, onDone }) {
 }
 
 // ─── Small helpers ────────────────────────────────────────────────────────────
+function FilterChip({ label, count, active, color, onClick, disabled = false }) {
+  return (
+    <button
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 6,
+        padding: '5px 12px', borderRadius: 16,
+        background: active ? `${color}22` : '#1e1e1e',
+        border: `1px solid ${active ? color : '#3a3a3a'}`,
+        color: active ? color : (disabled ? '#444' : '#aaa'),
+        fontSize: 12, fontWeight: 700,
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.5 : 1,
+        transition: 'all 0.15s',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {label}
+      <span style={{
+        background: active ? color : '#3a3a3a',
+        color: active ? '#fff' : '#888',
+        borderRadius: 8, padding: '0 6px',
+        fontSize: 10, fontWeight: 800, minWidth: 14, textAlign: 'center',
+      }}>
+        {count}
+      </span>
+    </button>
+  );
+}
+
 function ToggleBtn({ active, busy, activeColor, onClick, label }) {
   return (
     <button
