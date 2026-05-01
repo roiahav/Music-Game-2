@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import {
   getUsers, updateUserApi, resetPasswordApi, deleteUserApi, approveUserApi,
   getActivityLog, listInvitesApi, deleteInviteApi, getPlaylists,
-  previewBackupApi, importBackupApi,
+  previewBackupApi, importBackupApi, createInviteApi, getSettings as getSettingsApi,
 } from '../api/client.js';
 import { useAuthStore } from '../store/authStore.js';
 import { logoutApi } from '../api/client.js';
@@ -12,7 +12,16 @@ import { AvatarCircle } from '../App.jsx';
 // ─── Public component ─────────────────────────────────────────────────────────
 export default function AdminDashboardScreen({ onExit }) {
   const [section, setSection] = useState('overview');
+  const [pendingCount, setPendingCount] = useState(0);
   const { user, logout } = useAuthStore();
+
+  // Refresh pending count when navigating between sections, so the sidebar badge stays current
+  function refreshPending() {
+    getUsers()
+      .then(list => setPendingCount(list.filter(u => u.approved === false).length))
+      .catch(() => {});
+  }
+  useEffect(() => { refreshPending(); }, [section]);
 
   async function handleLogout() {
     try { await logoutApi(); } catch {}
@@ -42,6 +51,7 @@ export default function AdminDashboardScreen({ onExit }) {
 
         <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '0 12px', gap: 2 }}>
           <NavItem icon="📊" label="סקירה כללית"   active={section === 'overview'} onClick={() => setSection('overview')} />
+          <NavItem icon="📬" label="בקשות הצטרפות" active={section === 'messages'} onClick={() => setSection('messages')} badge={pendingCount} />
           <NavItem icon="👥" label="משתמשים"      active={section === 'users'}    onClick={() => setSection('users')} />
           <NavItem icon="📋" label="לוג פעילות"   active={section === 'activity'} onClick={() => setSection('activity')} />
           <NavItem icon="📨" label="הזמנות"       active={section === 'invites'}  onClick={() => setSection('invites')} />
@@ -81,13 +91,14 @@ export default function AdminDashboardScreen({ onExit }) {
         {section === 'invites'   && <InvitesSection />}
         {section === 'playlists' && <PlaylistsSection />}
         {section === 'backup'    && <BackupSection />}
+        {section === 'messages'  && <MessagesSection onChange={refreshPending} />}
       </main>
     </div>
   );
 }
 
 // ─── Sidebar nav item ─────────────────────────────────────────────────────────
-function NavItem({ icon, label, active, onClick }) {
+function NavItem({ icon, label, active, onClick, badge = 0 }) {
   return (
     <button onClick={onClick} style={{
       display: 'flex', alignItems: 'center', gap: 10,
@@ -99,7 +110,17 @@ function NavItem({ icon, label, active, onClick }) {
       transition: 'all 0.12s',
     }}>
       <span style={{ fontSize: 16 }}>{icon}</span>
-      <span>{label}</span>
+      <span style={{ flex: 1, textAlign: 'right' }}>{label}</span>
+      {badge > 0 && (
+        <span style={{
+          background: '#dc3545', color: '#fff',
+          fontSize: 11, fontWeight: 800,
+          borderRadius: 10, padding: '1px 7px', minWidth: 18, textAlign: 'center',
+          lineHeight: 1.4,
+        }}>
+          {badge}
+        </span>
+      )}
     </button>
   );
 }
@@ -493,6 +514,7 @@ function ActivityRow({ entry, compact = false }) {
 function InvitesSection() {
   const [invites, setInvites] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -514,7 +536,19 @@ function InvitesSection() {
 
   return (
     <>
-      <SectionHeader title="📨 הזמנות" subtitle={`${invites.length} הזמנות`} />
+      <SectionHeader
+        title="📨 הזמנות"
+        subtitle={`${invites.length} הזמנות`}
+        actions={
+          <button onClick={() => setShowCreate(s => !s)} style={btnPrimary}>
+            {showCreate ? '✕ סגור' : '+ הזמנה חדשה'}
+          </button>
+        }
+      />
+
+      {showCreate && (
+        <CreateInviteCard onCreated={() => { setShowCreate(false); load(); }} />
+      )}
 
       <Card>
         {loading ? (
@@ -617,6 +651,314 @@ function PlaylistsSection() {
         </p>
       </Card>
     </>
+  );
+}
+
+// ─── Create-invite inline card (used inside InvitesSection) ──────────────────
+function CreateInviteCard({ onCreated }) {
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName]   = useState('');
+  const [email, setEmail]         = useState('');
+  const [phone, setPhone]         = useState('');
+
+  const [templates, setTemplates]               = useState([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState('');
+  useEffect(() => {
+    getSettingsApi().then(s => {
+      const tpls = Array.isArray(s.inviteTemplates) ? s.inviteTemplates : [];
+      setTemplates(tpls);
+      if (tpls.length) setSelectedTemplateId(tpls[0].id);
+    }).catch(() => {});
+  }, []);
+
+  const [creating, setCreating] = useState(false);
+  const [result, setResult]     = useState(null); // { url, emailSent, emailError }
+  const [copied, setCopied]     = useState(false);
+
+  function reset() {
+    setFirstName(''); setLastName(''); setEmail(''); setPhone('');
+    setResult(null); setCopied(false);
+  }
+
+  async function handleCreate(sendEmail = false) {
+    if (sendEmail && (!email.trim() || !email.includes('@'))) {
+      return alert('כדי לשלוח במייל — הזן כתובת מייל תקינה');
+    }
+    setCreating(true);
+    try {
+      const res = await createInviteApi({
+        firstName: firstName.trim(), lastName: lastName.trim(),
+        email: email.trim(), sendEmail,
+      });
+      setResult(res);
+      if (sendEmail && !res.emailSent && res.emailError) {
+        alert(`המייל לא נשלח:\n${res.emailError}\n\nאך הקישור נוצר — אפשר להעתיק או לשלוח בוואטסאפ.`);
+      }
+    } catch (e) { alert(e.response?.data?.error || 'שגיאה'); }
+    setCreating(false);
+  }
+
+  function buildMsg() {
+    const tpl = templates.find(t => t.id === selectedTemplateId);
+    const body = tpl?.body || `שלום {firstName}!\nהוזמנת ל-Music Game 🎵\n\n👉 הירשם: {url}`;
+    return body
+      .replace(/\{firstName\}/g, firstName || '')
+      .replace(/\{lastName\}/g, lastName || '')
+      .replace(/\{url\}/g, result?.url || '');
+  }
+
+  function handleCopy() {
+    if (!result?.url) return;
+    navigator.clipboard?.writeText(result.url).then(
+      () => { setCopied(true); setTimeout(() => setCopied(false), 2000); },
+      () => alert('לא ניתן להעתיק — בחר ידנית')
+    );
+  }
+
+  function handleWhatsApp() {
+    if (!result?.url) return;
+    const cleanPhone = phone.replace(/[^0-9]/g, '');
+    const intlPhone = cleanPhone.startsWith('0') ? '972' + cleanPhone.slice(1) : cleanPhone;
+    const msg = buildMsg();
+    const url = intlPhone
+      ? `https://wa.me/${intlPhone}?text=${encodeURIComponent(msg)}`
+      : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+    window.open(url, '_blank');
+  }
+
+  return (
+    <Card title="✨ יצירת הזמנה חדשה">
+      {!result ? (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+            <FormField label="שם פרטי"   value={firstName} onChange={setFirstName} placeholder="לא חובה" />
+            <FormField label="שם משפחה"  value={lastName}  onChange={setLastName}  placeholder="לא חובה" />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+            <FormField label="כתובת מייל" value={email}    onChange={setEmail} type="email" placeholder="לשליחה במייל" ltr />
+            <FormField label="טלפון"      value={phone}    onChange={setPhone} type="tel"  placeholder="לוואטסאפ — 0501234567" ltr />
+          </div>
+
+          {templates.length > 0 && (
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ color: '#888', fontSize: 11, fontWeight: 700, display: 'block', marginBottom: 4 }}>
+                תבנית הודעה (לוואטסאפ)
+              </label>
+              <select value={selectedTemplateId} onChange={e => setSelectedTemplateId(e.target.value)}
+                style={{ ...inputStyle, width: '100%' }}>
+                {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => handleCreate(true)} disabled={creating || !email.trim()}
+              style={{ ...btnPrimary, flex: 1, opacity: creating || !email.trim() ? 0.5 : 1 }}>
+              {creating ? '...' : '📧 שלח במייל'}
+            </button>
+            <button onClick={() => handleCreate(false)} disabled={creating}
+              style={{ ...btnPrimary, background: '#1db954', flex: 1 }}>
+              {creating ? '...' : '🔗 צור קישור'}
+            </button>
+          </div>
+        </>
+      ) : (
+        // Result panel
+        <>
+          <div style={{
+            background: result.emailSent ? '#1db95422' : '#007ACC22',
+            border: `1px solid ${result.emailSent ? '#1db954' : '#007ACC'}`,
+            borderRadius: 10, padding: '12px 14px', marginBottom: 14,
+          }}>
+            <div style={{ color: result.emailSent ? '#1db954' : '#5bb8ff', fontWeight: 700 }}>
+              {result.emailSent ? '✅ ההזמנה נשלחה במייל!' : '🔗 הקישור מוכן'}
+            </div>
+            <div style={{ color: '#888', fontSize: 12, marginTop: 4 }}>
+              {result.emailSent
+                ? `נשלח אל ${email}. אפשר גם להעתיק או לשלוח בוואטסאפ.`
+                : 'שתף את הקישור עם המשתמש בכל דרך.'}
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+            <button onClick={handleWhatsApp} style={{
+              flex: 1, padding: '12px', borderRadius: 10, background: '#25D366',
+              border: 'none', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer',
+            }}>
+              💬 שלח בוואטסאפ
+            </button>
+            <button onClick={handleCopy} style={{
+              flex: 1, padding: '12px', borderRadius: 10,
+              background: copied ? '#1db95433' : '#2d2d33',
+              border: `1px solid ${copied ? '#1db954' : '#444'}`,
+              color: copied ? '#1db954' : '#fff',
+              fontSize: 14, fontWeight: 700, cursor: 'pointer',
+            }}>
+              {copied ? '✓ הועתק!' : '📋 העתק'}
+            </button>
+          </div>
+
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={reset} style={{
+              flex: 1, padding: '10px', borderRadius: 10, background: 'transparent',
+              border: '1px solid #444', color: '#aaa', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+            }}>
+              🆕 הזמנה נוספת
+            </button>
+            <button onClick={() => onCreated?.()} style={{ ...btnPrimary, flex: 1 }}>
+              סיום
+            </button>
+          </div>
+        </>
+      )}
+    </Card>
+  );
+}
+
+function FormField({ label, value, onChange, type = 'text', placeholder, ltr }) {
+  return (
+    <div>
+      <label style={{ color: '#888', fontSize: 11, fontWeight: 700, display: 'block', marginBottom: 4 }}>
+        {label}
+      </label>
+      <input
+        type={type} value={value} onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+        style={{ ...inputStyle, width: '100%', direction: ltr ? 'ltr' : 'rtl' }}
+      />
+    </div>
+  );
+}
+
+// ─── Section: Messages (pending join requests) ────────────────────────────────
+function MessagesSection({ onChange }) {
+  const [pending, setPending] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState(null);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const list = await getUsers();
+      setPending(list.filter(u => u.approved === false));
+    } catch {}
+    setLoading(false);
+  }
+  useEffect(() => { load(); }, []);
+
+  async function handleApprove(u) {
+    setBusyId(u.id);
+    try {
+      await approveUserApi(u.id);
+      await load();
+      onChange?.();
+    } catch (e) { alert(e.response?.data?.error || 'שגיאה'); }
+    setBusyId(null);
+  }
+
+  async function handleReject(u) {
+    if (!confirm(`לדחות ולמחוק את הבקשה של "${u.username}"?`)) return;
+    setBusyId(u.id);
+    try {
+      await deleteUserApi(u.id);
+      await load();
+      onChange?.();
+    } catch (e) { alert(e.response?.data?.error || 'שגיאה'); }
+    setBusyId(null);
+  }
+
+  function timeAgo(idStr) {
+    const ts = Number(idStr);
+    if (isNaN(ts)) return '';
+    const diff = Date.now() - ts;
+    const min = Math.floor(diff / 60000);
+    const hr  = Math.floor(min / 60);
+    const day = Math.floor(hr / 24);
+    if (day > 0) return `לפני ${day} ימים`;
+    if (hr > 0)  return `לפני ${hr} שעות`;
+    if (min > 0) return `לפני ${min} דק׳`;
+    return 'זה עתה';
+  }
+
+  return (
+    <>
+      <SectionHeader
+        title="📬 בקשות הצטרפות"
+        subtitle={pending.length === 0
+          ? 'אין בקשות פתוחות'
+          : `${pending.length} משתמשים ממתינים לאישור שלך`}
+      />
+
+      {loading ? (
+        <div style={{ color: '#888' }}>טוען...</div>
+      ) : pending.length === 0 ? (
+        <Card>
+          <div style={{ textAlign: 'center', padding: '40px 20px', color: '#666' }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>📭</div>
+            <div style={{ fontSize: 15, fontWeight: 600, color: '#aaa', marginBottom: 6 }}>תיבת הדואר ריקה</div>
+            <div style={{ fontSize: 12 }}>כשמשתמש חדש ירשום עצמו דרך קישור הזמנה, הבקשה תופיע כאן.</div>
+          </div>
+        </Card>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {pending.map(u => (
+            <div key={u.id} style={{
+              background: '#1a1a1f', border: '1px solid #e67e2244',
+              borderRadius: 12, padding: 18,
+              borderRight: '4px solid #e67e22',
+              display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 16, alignItems: 'center',
+            }}>
+              <AvatarCircle userId={u.id} hasAvatar={u.hasAvatar} name={u.username} size={48} />
+
+              <div style={{ minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 16, fontWeight: 800 }}>{u.username}</span>
+                  <Tag color="#e67e22">⏳ ממתין</Tag>
+                  <span style={{ fontSize: 11, color: '#888' }}>{timeAgo(u.id)}</span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8, fontSize: 13 }}>
+                  {(u.firstName || u.lastName) && (
+                    <InfoLine label="שם מלא" value={[u.firstName, u.lastName].filter(Boolean).join(' ')} />
+                  )}
+                  {u.email && <InfoLine label="מייל" value={u.email} ltr />}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <button onClick={() => handleApprove(u)} disabled={busyId === u.id}
+                  style={{
+                    background: '#1db954', border: 'none', color: '#fff',
+                    borderRadius: 8, padding: '10px 18px', fontSize: 13, fontWeight: 700,
+                    cursor: busyId === u.id ? 'wait' : 'pointer', opacity: busyId === u.id ? 0.6 : 1,
+                    whiteSpace: 'nowrap',
+                  }}>
+                  ✅ אשר
+                </button>
+                <button onClick={() => handleReject(u)} disabled={busyId === u.id}
+                  style={{
+                    background: 'transparent', border: '1px solid #dc354555', color: '#dc3545',
+                    borderRadius: 8, padding: '8px 18px', fontSize: 12, fontWeight: 700,
+                    cursor: busyId === u.id ? 'wait' : 'pointer', opacity: busyId === u.id ? 0.6 : 1,
+                    whiteSpace: 'nowrap',
+                  }}>
+                  🗑️ דחה
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+function InfoLine({ label, value, ltr }) {
+  return (
+    <div>
+      <div style={{ fontSize: 10, color: '#888', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 }}>{label}</div>
+      <div style={{ color: '#ddd', fontSize: 13, direction: ltr ? 'ltr' : 'rtl', textAlign: 'right' }}>{value}</div>
+    </div>
   );
 }
 
