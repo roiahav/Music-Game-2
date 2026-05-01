@@ -14,6 +14,7 @@ export default function SettingsScreen({ isAdmin = false }) {
   const [adding, setAdding] = useState(false);
   const [showVictoryBrowser, setShowVictoryBrowser] = useState(false);
   const [showVictoryFolderBrowser, setShowVictoryFolderBrowser] = useState(false);
+  const [playlistsOpen, setPlaylistsOpen] = useState(false);
 
   async function handleAddPlaylist() {
     setAdding(true);
@@ -34,8 +35,6 @@ export default function SettingsScreen({ isAdmin = false }) {
 
       {isAdmin && (
         <>
-          <SpotifyConnectPanel />
-
           {/* Victory song */}
           <div className="rounded-xl p-4 flex flex-col gap-3" style={{ background: '#2d2d30', border: '1px solid #3a3a3a' }}>
             <h3 className="font-bold text-sm">{t('victory_song')}</h3>
@@ -126,25 +125,55 @@ export default function SettingsScreen({ isAdmin = false }) {
             </div>
           </div>
 
-          {/* Playlists */}
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <h3 className="font-bold text-sm">{t('playlists_title')}</h3>
-              <button
-                onClick={handleAddPlaylist}
-                disabled={adding}
-                className="px-3 py-1 rounded-lg text-sm font-semibold cursor-pointer active:scale-95 transition-all"
-                style={{ background: '#007ACC', color: '#fff', opacity: adding ? 0.6 : 1 }}
-              >
-                {adding ? '...' : t('add_playlist')}
-              </button>
-            </div>
-            {!playlists.length && (
-              <div className="text-center py-6 text-sm rounded-xl" style={{ background: '#2d2d30', color: '#666' }}>
-                {t('no_playlists')}
+          {/* Playlists (collapsible — contains Spotify connection too) */}
+          <div style={{ background: '#2d2d30', border: '1px solid #3a3a3a', borderRadius: 14, overflow: 'hidden' }}>
+            <button
+              onClick={() => setPlaylistsOpen(o => !o)}
+              style={{
+                width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                padding: '14px 16px', background: 'none', border: 'none', cursor: 'pointer',
+                color: '#fff',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontWeight: 700, fontSize: 14 }}>🎵 {t('playlists_title')}</span>
+                {playlists.length > 0 && (
+                  <span style={{ fontSize: 11, color: '#5bb8ff', background: '#007ACC22', padding: '2px 8px', borderRadius: 10, border: '1px solid #007ACC55', fontWeight: 700 }}>
+                    {playlists.length}
+                  </span>
+                )}
+              </div>
+              <span style={{ color: '#888', fontSize: 18 }}>{playlistsOpen ? '▲' : '▼'}</span>
+            </button>
+
+            {playlistsOpen && (
+              <div style={{ padding: '0 16px 16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {/* Spotify connection — at the top, since it powers Spotify-type playlists */}
+                <SpotifyConnectPanel />
+
+                {/* Add playlist button */}
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <button
+                    onClick={handleAddPlaylist}
+                    disabled={adding}
+                    style={{
+                      background: '#007ACC', color: '#fff', border: 'none',
+                      padding: '8px 16px', borderRadius: 10, fontSize: 13, fontWeight: 700,
+                      cursor: adding ? 'not-allowed' : 'pointer', opacity: adding ? 0.6 : 1,
+                    }}
+                  >
+                    {adding ? '...' : '+ ' + t('add_playlist')}
+                  </button>
+                </div>
+
+                {!playlists.length && (
+                  <div style={{ textAlign: 'center', padding: '24px', fontSize: 13, color: '#666', background: '#1e1e1e', borderRadius: 10 }}>
+                    {t('no_playlists')}
+                  </div>
+                )}
+                {playlists.map(p => <SettingsPlaylistRow key={p.id} playlist={p} />)}
               </div>
             )}
-            {playlists.map(p => <SettingsPlaylistRow key={p.id} playlist={p} />)}
           </div>
 
           {/* Blacklist */}
