@@ -50,6 +50,7 @@ function publicFields(u) {
     email: u.email || '',
     protected: isProtected(u),
     expiresAt: u.expiresAt || null,    // ms timestamp; null = no time limit
+    approved: u.approved !== false,    // default true; false only for invite-registered pending users
   };
 }
 
@@ -84,6 +85,9 @@ export function authenticate(username, password) {
     return { blocked: true, expired: true };
   }
 
+  // Pending approval (invite-registered but not yet approved)
+  if (user.approved === false) return { pending: true };
+
   if (user.blocked) return { blocked: true, expired: !!user.expiresAt && user.expiresAt < Date.now() };
   return publicFields(user);
 }
@@ -101,6 +105,40 @@ export function createUser(username, password, role = 'user') {
   });
   save(users);
   return publicFields(users[users.length - 1]);
+}
+
+/**
+ * Self-registration via invite token.
+ * Creates a fully-filled user, but with approved=false until an admin approves.
+ */
+export function registerFromInvite({ username, password, firstName, lastName, email }) {
+  const users = load();
+  if (users.find(u => u.username === username)) throw new Error('שם משתמש כבר קיים');
+  const { salt, hash } = createHash(password);
+  const id = String(Date.now());
+  users.push({
+    id, username, role: 'user', canHostRoom: false,
+    hasAvatar: false, blocked: false,
+    profileCompleted: true,
+    firstName: (firstName || '').trim(),
+    lastName: (lastName || '').trim(),
+    email: (email || '').trim().toLowerCase(),
+    privacyConsented: true,
+    approved: false,                  // ← pending admin approval
+    salt, hash,
+  });
+  save(users);
+  return publicFields(users[users.length - 1]);
+}
+
+/** Mark a user as approved (admin action). */
+export function approveUser(userId) {
+  const users = load();
+  const idx = users.findIndex(u => u.id === userId);
+  if (idx === -1) throw new Error('משתמש לא נמצא');
+  users[idx].approved = true;
+  save(users);
+  return publicFields(users[idx]);
 }
 
 /** Complete first-time profile — sets firstName, lastName, email, privacyConsented, profileCompleted */

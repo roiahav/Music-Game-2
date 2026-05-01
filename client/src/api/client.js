@@ -32,6 +32,16 @@ export const completeProfileApi = (data) => api.post('/auth/complete-profile', d
 export const forgotPasswordApi = (email) => api.post('/auth/forgot-password', { email }).then(r => r.data);
 export const resetPasswordWithTokenApi = (token, newPassword) => api.post('/auth/reset-password', { token, newPassword }).then(r => r.data);
 
+// Invites (admin)
+export const createInviteApi = (data) => api.post('/invites', data).then(r => r.data);
+export const listInvitesApi = () => api.get('/invites').then(r => r.data);
+export const deleteInviteApi = (token) => api.delete(`/invites/${token}`).then(r => r.data);
+// Invites (public)
+export const validateInviteApi = (token) => api.get(`/invites/${token}`).then(r => r.data);
+export const registerInviteApi = (token, data) => api.post(`/invites/${token}/register`, data).then(r => r.data);
+// User approval (admin)
+export const approveUserApi = (id) => api.post(`/users/${id}/approve`).then(r => r.data);
+
 // Users (admin)
 export const getUsers = () => api.get('/users').then(r => r.data);
 export const createUserApi = (username, password, role) => api.post('/users', { username, password, role }).then(r => r.data);

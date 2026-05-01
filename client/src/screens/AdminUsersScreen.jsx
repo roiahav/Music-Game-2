@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getUsers, createUserApi, resetPasswordApi, updateUserApi, deleteUserApi, getActivityLog } from '../api/client.js';
+import { getUsers, createUserApi, resetPasswordApi, updateUserApi, deleteUserApi, getActivityLog, approveUserApi, createInviteApi } from '../api/client.js';
 
 export default function AdminUsersScreen() {
   const [subTab, setSubTab] = useState('users'); // users | log
@@ -42,6 +42,7 @@ function UsersTab() {
   const [toggling, setToggling] = useState(new Set()); // IDs being updated
   const [userLogFor, setUserLogFor] = useState(null); // user object for the log modal
   const [expiryFor, setExpiryFor] = useState(null);   // user object for the expiry-limit modal
+  const [inviteOpen, setInviteOpen] = useState(false); // invite modal
 
   async function load() {
     setLoading(true);
@@ -80,12 +81,18 @@ function UsersTab() {
     try { await deleteUserApi(id); load(); } catch (e) { alert(e.response?.data?.error || 'שגיאה'); }
   }
 
+  async function handleApprove(u) {
+    if (!confirm(`לאשר את "${u.username}"? המשתמש יוכל מעכשיו להיכנס למערכת.`)) return;
+    try { await approveUserApi(u.id); load(); } catch (e) { alert(e.response?.data?.error || 'שגיאה'); }
+  }
+
   // Counts for filter chips
   const counts = {
     all: users.length,
     admin: users.filter(u => u.role === 'admin').length,
     host: users.filter(u => u.canHostRoom && u.role !== 'admin').length,
     blocked: users.filter(u => u.blocked).length,
+    pending: users.filter(u => u.approved === false).length,
   };
 
   const filtered = users
@@ -93,6 +100,7 @@ function UsersTab() {
       if (filter === 'admin' && u.role !== 'admin') return false;
       if (filter === 'host' && !u.canHostRoom) return false;
       if (filter === 'blocked' && !u.blocked) return false;
+      if (filter === 'pending' && u.approved !== false) return false;
       return true;
     })
     .filter(u => !search.trim() || u.username.toLowerCase().includes(search.trim().toLowerCase()))
@@ -104,14 +112,22 @@ function UsersTab() {
 
   return (
     <>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 8 }}>
         <span style={{ color: '#fff', fontWeight: 800, fontSize: 16 }}>ניהול משתמשים</span>
-        <button
-          onClick={() => setModal({ type: 'add' })}
-          style={{ background: '#007ACC', border: 'none', color: '#fff', borderRadius: 10, padding: '8px 16px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}
-        >
-          + הוסף
-        </button>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button
+            onClick={() => setInviteOpen(true)}
+            style={{ background: '#1db954', border: 'none', color: '#fff', borderRadius: 10, padding: '8px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+          >
+            📨 הזמן
+          </button>
+          <button
+            onClick={() => setModal({ type: 'add' })}
+            style={{ background: '#007ACC', border: 'none', color: '#fff', borderRadius: 10, padding: '8px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+          >
+            + הוסף
+          </button>
+        </div>
       </div>
 
       {/* Filter chips */}
@@ -119,6 +135,7 @@ function UsersTab() {
         <FilterChip label="הכל"          count={counts.all}     active={filter === 'all'}     color="#888"    onClick={() => setFilter('all')} />
         <FilterChip label="👑 אדמינים"    count={counts.admin}   active={filter === 'admin'}   color="#5bb8ff" onClick={() => setFilter('admin')} />
         <FilterChip label="🎮 מנהלי חדר"  count={counts.host}    active={filter === 'host'}    color="#1db954" onClick={() => setFilter('host')} />
+        <FilterChip label="⏳ ממתינים"    count={counts.pending} active={filter === 'pending'} color="#e67e22" onClick={() => setFilter('pending')} disabled={counts.pending === 0} />
         <FilterChip label="🚫 חסומים"     count={counts.blocked} active={filter === 'blocked'} color="#ff6b6b" onClick={() => setFilter('blocked')} disabled={counts.blocked === 0} />
       </div>
 
@@ -189,6 +206,14 @@ function UsersTab() {
                           🕐 {formatRemaining(u.expiresAt)}
                         </span>
                       )}
+                      {u.approved === false && (
+                        <span style={{
+                          background: '#e67e2233', color: '#e67e22',
+                          borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 700,
+                        }}>
+                          ⏳ ממתין לאישור
+                        </span>
+                      )}
                     </div>
 
                     {/* Role badge */}
@@ -250,6 +275,20 @@ function UsersTab() {
 
                 {/* Row 2: permission toggles */}
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {/* Approve (only if pending) */}
+                  {u.approved === false && (
+                    <button
+                      onClick={() => handleApprove(u)}
+                      style={{
+                        background: '#1db95422', border: '1px solid #1db954',
+                        color: '#1db954', borderRadius: 8, padding: '4px 12px',
+                        fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                      }}
+                    >
+                      ✅ אשר משתמש
+                    </button>
+                  )}
+
                   {/* Toggle role */}
                   <ToggleBtn
                     active={isAdmin}
@@ -303,6 +342,10 @@ function UsersTab() {
             setExpiryFor(null);
           }}
         />
+      )}
+
+      {inviteOpen && (
+        <InviteModal onClose={() => setInviteOpen(false)} onCreated={() => { setInviteOpen(false); load(); }} />
       )}
     </>
   );
@@ -423,6 +466,8 @@ const ADMIN_ACTION_META = {
   rename:         { icon: '✏️', label: 'שינוי שם',            color: '#5bb8ff' },
   set_expiry:     { icon: '🕐', label: 'הגבלת זמן',          color: '#9b59b6' },
   clear_expiry:   { icon: '♾️', label: 'הסרת הגבלת זמן',     color: '#1db954' },
+  invite_create:  { icon: '📨', label: 'יצירת הזמנה',         color: '#1db954' },
+  approve:        { icon: '✅', label: 'אישור משתמש',         color: '#1db954' },
 };
 
 function ActivityTab() {
@@ -880,4 +925,191 @@ function ExpiryModal({ user, onClose, onSave }) {
 function toLocalDateTimeInput(d) {
   const pad = n => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// ─── Invite modal ─────────────────────────────────────────────────────────────
+function InviteModal({ onClose, onCreated }) {
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+
+  const [creating, setCreating] = useState(false);
+  const [result, setResult] = useState(null); // { url, emailSent, emailError }
+  const [copied, setCopied] = useState(false);
+
+  async function handleCreate(sendEmail = false) {
+    if (sendEmail && (!email.trim() || !email.includes('@'))) {
+      return alert('כדי לשלוח במייל — הכנס כתובת מייל תקינה');
+    }
+    setCreating(true);
+    try {
+      const res = await createInviteApi({
+        firstName: firstName.trim(),
+        lastName:  lastName.trim(),
+        email:     email.trim(),
+        sendEmail,
+      });
+      setResult(res);
+      if (sendEmail && !res.emailSent && res.emailError) {
+        alert(`המייל לא נשלח:\n${res.emailError}\n\nאך הקישור נוצר — אפשר להעתיק/לשלוח בוואטסאפ.`);
+      }
+    } catch (e) {
+      alert(e.response?.data?.error || 'שגיאה ביצירת ההזמנה');
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  function handleCopy() {
+    if (!result?.url) return;
+    navigator.clipboard?.writeText(result.url).then(
+      () => { setCopied(true); setTimeout(() => setCopied(false), 2000); },
+      () => alert('לא ניתן להעתיק — בחר את הקישור ידנית')
+    );
+  }
+
+  function handleWhatsApp() {
+    if (!result?.url) return;
+    const cleanPhone = phone.replace(/[^0-9]/g, '');
+    // Convert local Israeli phone (05x...) to international (9725x...)
+    const intlPhone = cleanPhone.startsWith('0') ? '972' + cleanPhone.slice(1) : cleanPhone;
+    const greeting = firstName ? `שלום ${firstName},` : 'שלום,';
+    const msg = `${greeting}\n\nהוזמנת להצטרף ל-Music Game! 🎵\nכדי להירשם:\n${result.url}\n\nהקישור בתוקף ל-7 ימים.`;
+    const whatsappUrl = intlPhone
+      ? `https://wa.me/${intlPhone}?text=${encodeURIComponent(msg)}`
+      : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+    window.open(whatsappUrl, '_blank');
+  }
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 50 }} />
+      <div style={{
+        position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 51,
+        background: '#2d2d30', borderRadius: '20px 20px 0 0',
+        maxWidth: 480, margin: '0 auto',
+        padding: '20px 20px 30px', direction: 'rtl',
+        maxHeight: '90dvh', overflowY: 'auto',
+      }}>
+        <div style={{ width: 40, height: 4, background: '#555', borderRadius: 2, margin: '0 auto 14px' }} />
+
+        {!result ? (
+          <>
+            <h3 style={{ color: '#fff', margin: '0 0 6px', fontSize: 16, fontWeight: 800 }}>
+              📨 הזמנת משתמש חדש
+            </h3>
+            <p style={{ color: '#888', fontSize: 12, margin: '0 0 16px' }}>
+              ייווצר קישור הרשמה. המשתמש יקבל גישה רק לאחר שתאשר אותו.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <Field label="שם פרטי" value={firstName} onChange={setFirstName} placeholder="לא חובה" />
+                <Field label="שם משפחה" value={lastName} onChange={setLastName} placeholder="לא חובה" />
+              </div>
+              <Field label="כתובת מייל" value={email} onChange={setEmail} type="email" placeholder="לשליחה במייל" />
+              <Field label="טלפון" value={phone} onChange={setPhone} type="tel" placeholder="לשליחה בוואטסאפ — לדוג׳ 0501234567" />
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
+              <button
+                onClick={() => handleCreate(true)}
+                disabled={creating || !email.trim()}
+                style={{
+                  flex: 1, minWidth: 130, padding: '12px', borderRadius: 12,
+                  background: creating || !email.trim() ? '#3a3a3a' : '#007ACC',
+                  border: 'none', color: '#fff', fontSize: 14, fontWeight: 700,
+                  cursor: creating || !email.trim() ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {creating ? '...' : '📧 שלח במייל'}
+              </button>
+              <button
+                onClick={() => handleCreate(false)}
+                disabled={creating}
+                style={{
+                  flex: 1, minWidth: 130, padding: '12px', borderRadius: 12,
+                  background: '#1db954', border: 'none', color: '#fff',
+                  fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                }}
+              >
+                {creating ? '...' : '🔗 צור קישור בלבד'}
+              </button>
+            </div>
+
+            <button
+              onClick={onClose}
+              style={{
+                width: '100%', marginTop: 8, padding: '10px', borderRadius: 12,
+                background: 'none', border: '1px solid #444', color: '#888',
+                fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              }}
+            >
+              ביטול
+            </button>
+          </>
+        ) : (
+          // ── Result state ──
+          <>
+            <h3 style={{ color: '#fff', margin: '0 0 6px', fontSize: 16, fontWeight: 800 }}>
+              {result.emailSent ? '✅ ההזמנה נשלחה!' : '🔗 קישור הזמנה מוכן'}
+            </h3>
+            <p style={{ color: '#888', fontSize: 12, margin: '0 0 14px' }}>
+              {result.emailSent
+                ? `המייל נשלח ל-${email}. אפשר גם לשלוח בוואטסאפ או להעתיק.`
+                : 'שתף את הקישור עם המשתמש בכל דרך שתבחר.'}
+            </p>
+
+            {/* The URL */}
+            <div style={{
+              background: '#1e1e1e', border: '1px solid #444', borderRadius: 10,
+              padding: '10px 12px', marginBottom: 12,
+              fontSize: 11, color: '#5bb8ff', wordBreak: 'break-all', direction: 'ltr',
+              fontFamily: 'monospace',
+            }}>
+              {result.url}
+            </div>
+
+            {/* Action buttons */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+              <button
+                onClick={handleCopy}
+                style={{
+                  flex: 1, minWidth: 110, padding: '12px', borderRadius: 12,
+                  background: copied ? '#1db95433' : '#3a3a3a',
+                  border: `1px solid ${copied ? '#1db954' : '#444'}`,
+                  color: copied ? '#1db954' : '#fff',
+                  fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                }}
+              >
+                {copied ? '✓ הועתק!' : '📋 העתק'}
+              </button>
+              <button
+                onClick={handleWhatsApp}
+                style={{
+                  flex: 1, minWidth: 110, padding: '12px', borderRadius: 12,
+                  background: '#25D366', border: 'none', color: '#fff',
+                  fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                }}
+              >
+                💬 WhatsApp
+              </button>
+            </div>
+
+            <button
+              onClick={onCreated}
+              style={{
+                width: '100%', padding: '12px', borderRadius: 12,
+                background: '#007ACC', border: 'none', color: '#fff',
+                fontSize: 14, fontWeight: 700, cursor: 'pointer',
+              }}
+            >
+              סיום
+            </button>
+          </>
+        )}
+      </div>
+    </>
+  );
 }

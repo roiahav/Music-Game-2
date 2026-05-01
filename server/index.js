@@ -16,6 +16,7 @@ import activityRouter from './routes/activity.js';
 import browseRouter from './routes/browse.js';
 import blacklistRouter from './routes/blacklist.js';
 import favoritesRouter from './routes/favorites.js';
+import invitesRouter from './routes/invites.js';
 import { requireAuth, requireAdmin } from './middleware/auth.js';
 import { updateSpotifyTokens, getSettings } from './services/SettingsStore.js';
 import { lockExpiredUsers } from './services/UserStore.js';
@@ -81,6 +82,7 @@ app.use('/api/settings', requireAdmin, settingsRouter);
 app.use('/api/spotify', requireAdmin, spotifyRouter);
 app.use('/api/blacklist', requireAdmin, blacklistRouter);
 app.use('/api/favorites', requireAuth, favoritesRouter);
+app.use('/api/invites', invitesRouter); // mixed: GET/:token + POST/:token/register are public; admin endpoints require admin (handled per-route)
 
 // SPA fallback
 app.get('*', (req, res) => {

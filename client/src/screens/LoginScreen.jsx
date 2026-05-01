@@ -28,6 +28,8 @@ export default function LoginScreen() {
       // blocked account returns 403 with error:'blocked'
       if (err.response?.status === 403 && err.response?.data?.error === 'blocked') {
         setError(t('account_blocked'));
+      } else if (err.response?.status === 403 && err.response?.data?.error === 'pending') {
+        setError(err.response?.data?.message || 'החשבון ממתין לאישור מנהל');
       } else {
         setError(err.response?.data?.error || t('login_error'));
       }

@@ -14,6 +14,7 @@ router.post('/login', (req, res) => {
 
   const result = authenticate(username, password);
   if (!result) return res.status(401).json({ error: 'שם משתמש או סיסמה שגויים' });
+  if (result.pending) return res.status(403).json({ error: 'pending', message: 'החשבון שלך ממתין לאישור מנהל. נא להמתין לאישור.' });
   if (result.blocked) return res.status(403).json({ error: 'blocked', message: 'החשבון שלך חסום. פנה למנהל המערכת.' });
 
   const token = createSession(result);

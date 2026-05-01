@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { requireAuth, requireAdmin } from '../middleware/auth.js';
-import { getAllUsers, createUser, resetPassword, deleteUser, updateUser, saveAvatar, getAvatarPath } from '../services/UserStore.js';
+import { getAllUsers, createUser, resetPassword, deleteUser, updateUser, saveAvatar, getAvatarPath, approveUser } from '../services/UserStore.js';
 import { deleteSessionsByUserId } from '../services/SessionStore.js';
 import { logAdminAction } from '../services/ActivityLog.js';
 
@@ -74,6 +74,14 @@ router.patch('/:id', requireAdmin, (req, res) => {
     if (req.body.blocked === true) {
       deleteSessionsByUserId(req.params.id);
     }
+    res.json(updated);
+  } catch (e) { res.status(404).json({ error: e.message }); }
+});
+
+router.post('/:id/approve', requireAdmin, (req, res) => {
+  try {
+    const updated = approveUser(req.params.id);
+    logAdminAction(req.user.id, req.user.username, 'approve', updated);
     res.json(updated);
   } catch (e) { res.status(404).json({ error: e.message }); }
 });
