@@ -10,6 +10,7 @@ export default function AdminBlacklistSection({ playlists }) {
   const [search, setSearch] = useState('');
   const [showOnlyBlocked, setShowOnlyBlocked] = useState(false);
   const [toggling, setToggling] = useState(new Set()); // IDs being toggled
+  const [open, setOpen] = useState(false);
   const { t } = useLang();
 
   // Load blacklist on mount
@@ -56,19 +57,32 @@ export default function AdminBlacklistSection({ playlists }) {
   const blacklistedCount = songs.filter(s => blacklist.has(s.id)).length;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h3 style={{ color: '#fff', fontSize: 15, fontWeight: 700, margin: 0 }}>{t('blacklist_title')}</h3>
-        {blacklistedCount > 0 && (
-          <span style={{ fontSize: 12, color: '#ff6b6b', background: '#3a1010', padding: '2px 8px', borderRadius: 10, border: '1px solid #dc3545' }}>
-            {blacklistedCount} {t('blocked_label').replace(/[✕×] ?/, '')}
-          </span>
-        )}
-      </div>
+    <div style={{ background: '#2d2d30', border: '1px solid #3a3a3a', borderRadius: 14, overflow: 'hidden' }}>
+      {/* Header — click to toggle */}
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          padding: '14px 16px', background: 'none', border: 'none', cursor: 'pointer',
+          color: '#fff',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontWeight: 700, fontSize: 14 }}>{t('blacklist_title')}</span>
+          {blacklistedCount > 0 && (
+            <span style={{ fontSize: 11, color: '#ff6b6b', background: '#3a1010', padding: '2px 8px', borderRadius: 10, border: '1px solid #dc3545', fontWeight: 700 }}>
+              {blacklistedCount}
+            </span>
+          )}
+        </div>
+        <span style={{ color: '#888', fontSize: 18 }}>{open ? '▲' : '▼'}</span>
+      </button>
 
-      <p style={{ color: '#888', fontSize: 12, margin: 0 }}>
-        {t('blacklist_desc')}
-      </p>
+      {open && (
+        <div style={{ padding: '0 16px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <p style={{ color: '#888', fontSize: 12, margin: 0 }}>
+            {t('blacklist_desc')}
+          </p>
 
       {/* Playlist select */}
       <select
@@ -177,21 +191,23 @@ export default function AdminBlacklistSection({ playlists }) {
         </div>
       )}
 
-      {blacklistedCount > 0 && (
-        <button
-          onClick={async () => {
-            const idsToRemove = songs.filter(s => blacklist.has(s.id)).map(s => s.id);
-            await Promise.all(idsToRemove.map(id => removeFromBlacklist(id)));
-            setBlacklist(prev => {
-              const n = new Set(prev);
-              idsToRemove.forEach(id => n.delete(id));
-              return n;
-            });
-          }}
-          style={{ background: 'none', border: 'none', color: '#888', fontSize: 12, cursor: 'pointer', textDecoration: 'underline', textAlign: 'right' }}
-        >
-          {t('unblock_all')}
-        </button>
+          {blacklistedCount > 0 && (
+            <button
+              onClick={async () => {
+                const idsToRemove = songs.filter(s => blacklist.has(s.id)).map(s => s.id);
+                await Promise.all(idsToRemove.map(id => removeFromBlacklist(id)));
+                setBlacklist(prev => {
+                  const n = new Set(prev);
+                  idsToRemove.forEach(id => n.delete(id));
+                  return n;
+                });
+              }}
+              style={{ background: 'none', border: 'none', color: '#888', fontSize: 12, cursor: 'pointer', textDecoration: 'underline', textAlign: 'right' }}
+            >
+              {t('unblock_all')}
+            </button>
+          )}
+        </div>
       )}
     </div>
   );

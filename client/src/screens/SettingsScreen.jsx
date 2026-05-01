@@ -149,9 +149,7 @@ export default function SettingsScreen({ isAdmin = false }) {
 
           {/* Blacklist */}
           {playlists.some(p => p.type === 'local') && (
-            <div className="rounded-xl p-4 flex flex-col gap-3" style={{ background: '#2d2d30', border: '1px solid #3a3a3a' }}>
-              <AdminBlacklistSection playlists={playlists} />
-            </div>
+            <AdminBlacklistSection playlists={playlists} />
           )}
 
           {/* Email / SMTP */}
