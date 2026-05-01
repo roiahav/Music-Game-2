@@ -143,7 +143,7 @@ export default function App() {
           {/* Pending users (admin only, only when there's something pending) */}
           {isAdmin && pendingCount > 0 && (
             <button
-              onClick={() => { setUsersDefaultFilter('pending'); setScreen('solo'); setTab('users'); }}
+              onClick={() => { setUsersDefaultFilter('pending'); setScreen('solo'); setTab('settings'); }}
               title={`${pendingCount} משתמשים ממתינים לאישור`}
               style={topIconBtn}
             >
@@ -321,8 +321,9 @@ export default function App() {
   );
 
   // ── Solo ─────────────────────────────────────────────────────────────────────
+  // The admin "👥" tab was merged into Settings as a collapsible section so the
+  // top bar stays clean (just game vs settings).
   const tabs = [{ id: 'game', label: t('game_tab') }, { id: 'settings', label: '⚙️' }];
-  if (isAdmin) tabs.push({ id: 'users', label: '👥' });
 
   return (
     <div style={{ ...shell }}>
@@ -344,12 +345,12 @@ export default function App() {
       </div>
       <div className="flex-1 flex flex-col overflow-hidden">
         {tab === 'game' && <GameScreen />}
-        {tab === 'settings' && <div className="flex-1 overflow-y-auto"><SettingsScreen isAdmin={isAdmin} /></div>}
-        {tab === 'users' && isAdmin && (
+        {tab === 'settings' && (
           <div className="flex-1 overflow-y-auto">
-            <AdminUsersScreen
-              defaultFilter={usersDefaultFilter}
-              onFilterConsumed={() => setUsersDefaultFilter('all')}
+            <SettingsScreen
+              isAdmin={isAdmin}
+              usersDefaultFilter={usersDefaultFilter}
+              onUsersFilterConsumed={() => setUsersDefaultFilter('all')}
             />
           </div>
         )}

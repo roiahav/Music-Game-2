@@ -1,14 +1,15 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useSettingsStore } from '../store/settingsStore.js';
-import { addPlaylist, getPlaylists, getSettings as getSettingsApi, saveSettings, testEmailSettings, createInviteApi } from '../api/client.js';
+import { addPlaylist, getPlaylists, getSettings as getSettingsApi, saveSettings, testEmailSettings, createInviteApi, getUsers } from '../api/client.js';
 import { useLang } from '../i18n/useLang.js';
 import SpotifyConnectPanel from '../components/SpotifyConnectPanel.jsx';
 import SettingsPlaylistRow from '../components/SettingsPlaylistRow.jsx';
 import GameOptionsBar from '../components/GameOptionsBar.jsx';
 import FolderBrowser from '../components/FolderBrowser.jsx';
 import AdminBlacklistSection from '../components/AdminBlacklistSection.jsx';
+import AdminUsersScreen from '../screens/AdminUsersScreen.jsx';
 
-export default function SettingsScreen({ isAdmin = false }) {
+export default function SettingsScreen({ isAdmin = false, usersDefaultFilter = 'all', onUsersFilterConsumed }) {
   const { playlists, setPlaylists, game, saveGame } = useSettingsStore();
   const { t } = useLang();
   const [adding, setAdding] = useState(false);
@@ -16,8 +17,24 @@ export default function SettingsScreen({ isAdmin = false }) {
   const [showVictoryFolderBrowser, setShowVictoryFolderBrowser] = useState(false);
   const [playlistsOpen, setPlaylistsOpen] = useState(false);
   const [victoryOpen, setVictoryOpen] = useState(false);
+  const [usersOpen, setUsersOpen] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
   const previewAudioRef = useRef(null);
   const [previewing, setPreviewing] = useState(false);
+
+  // Auto-open the users section when navigated here with a non-default filter
+  // (e.g. the home-screen 📨 bell forwards us with usersDefaultFilter='pending')
+  useEffect(() => {
+    if (usersDefaultFilter && usersDefaultFilter !== 'all') setUsersOpen(true);
+  }, [usersDefaultFilter]);
+
+  // Refresh the pending-count badge whenever the panel re-mounts
+  useEffect(() => {
+    if (!isAdmin) return;
+    getUsers()
+      .then(list => setPendingCount(list.filter(u => u.approved === false).length))
+      .catch(() => {});
+  }, [isAdmin, usersOpen]);
 
   async function handleAddPlaylist() {
     setAdding(true);
@@ -270,6 +287,38 @@ export default function SettingsScreen({ isAdmin = false }) {
                   </div>
                 )}
                 {playlists.map(p => <SettingsPlaylistRow key={p.id} playlist={p} />)}
+              </div>
+            )}
+          </div>
+
+          {/* Users management — collapsible (admin-only) */}
+          <div style={{ background: '#2d2d30', border: '1px solid #3a3a3a', borderRadius: 14, overflow: 'hidden' }}>
+            <button
+              onClick={() => setUsersOpen(o => !o)}
+              style={{
+                width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                padding: '14px 16px', background: 'none', border: 'none', cursor: 'pointer', color: '#fff',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontWeight: 700, fontSize: 14 }}>👥 ניהול משתמשים</span>
+                {pendingCount > 0 && (
+                  <span style={{ fontSize: 11, color: '#fff', background: '#dc3545', padding: '2px 8px', borderRadius: 10, fontWeight: 800 }}>
+                    {pendingCount}
+                  </span>
+                )}
+              </div>
+              <span style={{ color: '#888', fontSize: 18 }}>{usersOpen ? '▲' : '▼'}</span>
+            </button>
+
+            {usersOpen && (
+              /* Negative left/right margin pulls AdminUsersScreen out of the parent's padding,
+                 since it has its own internal padding for cards/rows. */
+              <div style={{ padding: '0 0 12px' }}>
+                <AdminUsersScreen
+                  defaultFilter={usersDefaultFilter}
+                  onFilterConsumed={onUsersFilterConsumed}
+                />
               </div>
             )}
           </div>
