@@ -478,6 +478,8 @@ const ADMIN_ACTION_META = {
   clear_expiry:   { icon: '♾️', label: 'הסרת הגבלת זמן',     color: '#1db954' },
   invite_create:  { icon: '📨', label: 'יצירת הזמנה',         color: '#1db954' },
   approve:        { icon: '✅', label: 'אישור משתמש',         color: '#1db954' },
+  backup_export:  { icon: '💾', label: 'ייצוא גיבוי',          color: '#5bb8ff' },
+  backup_import:  { icon: '⬆️', label: 'שחזור מגיבוי',         color: '#e67e22' },
 };
 
 function ActivityTab() {

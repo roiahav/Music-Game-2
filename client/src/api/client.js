@@ -42,6 +42,12 @@ export const registerInviteApi = (token, data) => api.post(`/invites/${token}/re
 // User approval (admin)
 export const approveUserApi = (id) => api.post(`/users/${id}/approve`).then(r => r.data);
 
+// Backup / restore (admin)
+export const previewBackupApi = (data) => api.post('/backup/preview', data, { maxContentLength: Infinity, maxBodyLength: Infinity }).then(r => r.data);
+export const importBackupApi  = (data) => api.post('/backup/import',  data, { maxContentLength: Infinity, maxBodyLength: Infinity }).then(r => r.data);
+// For export we trigger a download via window.location instead of axios so
+// the browser handles the Content-Disposition response naturally.
+
 // Users (admin)
 export const getUsers = () => api.get('/users').then(r => r.data);
 export const createUserApi = (username, password, role) => api.post('/users', { username, password, role }).then(r => r.data);

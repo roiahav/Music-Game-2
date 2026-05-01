@@ -17,6 +17,7 @@ import browseRouter from './routes/browse.js';
 import blacklistRouter from './routes/blacklist.js';
 import favoritesRouter from './routes/favorites.js';
 import invitesRouter from './routes/invites.js';
+import backupRouter from './routes/backup.js';
 import { requireAuth, requireAdmin } from './middleware/auth.js';
 import { updateSpotifyTokens, getSettings } from './services/SettingsStore.js';
 import { lockExpiredUsers } from './services/UserStore.js';
@@ -88,6 +89,8 @@ app.use('/api/spotify', requireAdmin, spotifyRouter);
 app.use('/api/blacklist', requireAdmin, blacklistRouter);
 app.use('/api/favorites', requireAuth, favoritesRouter);
 app.use('/api/invites', invitesRouter); // mixed: GET/:token + POST/:token/register are public; admin endpoints require admin (handled per-route)
+// Backup bundle can be large (avatars are base64), bump body limit for this route only
+app.use('/api/backup', express.json({ limit: '50mb' }), backupRouter);
 
 // SPA fallback
 app.get('*', (req, res) => {
