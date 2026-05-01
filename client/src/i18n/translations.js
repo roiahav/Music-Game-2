@@ -54,6 +54,7 @@ export const T = {
   login_btn:      { he:'כניסה',            en:'Login',              ar:'دخول',                  ru:'Войти',                es:'Entrar' },
   logging_in:     { he:'מתחבר...',         en:'Logging in...',      ar:'جارٍ الدخول...',        ru:'Вход...',              es:'Entrando...' },
   login_error:    { he:'שגיאה בהתחברות',   en:'Login failed',       ar:'فشل تسجيل الدخول',      ru:'Ошибка входа',         es:'Error de inicio de sesión' },
+  remember_me:    { he:'זכור אותי',         en:'Remember me',         ar:'تذكرني',                ru:'Запомнить меня',        es:'Recuérdame' },
   // ── Game labels ──
   song:           { he:'שיר',              en:'Song',               ar:'أغنية',                 ru:'Песня',                es:'Canción' },
   artist:         { he:'זמר',              en:'Artist',             ar:'فنان',                  ru:'Артист',               es:'Artista' },
