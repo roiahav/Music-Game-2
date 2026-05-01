@@ -562,13 +562,32 @@ function UsersSection() {
 }
 
 // ─── Add user modal ──
+const EXPIRY_PRESETS = [
+  { label: '∞ ללא הגבלה', ms: null },
+  { label: '⏱ שעה',        ms: 60 * 60 * 1000 },
+  { label: '🌙 24 שעות',    ms: 24 * 60 * 60 * 1000 },
+  { label: '📅 שבוע',       ms: 7  * 24 * 60 * 60 * 1000 },
+  { label: '🗓 חודש',       ms: 30 * 24 * 60 * 60 * 1000 },
+];
+
 function AddUserModal({ onClose, onCreated }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPass, setConfirmPass] = useState('');
   const [role, setRole] = useState('user');
+  const [expiryPreset, setExpiryPreset] = useState(null);   // ms or null = no limit
+  const [customExpiry, setCustomExpiry] = useState('');     // datetime-local string; '' = none
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  // Compute the actual expiresAt timestamp from the picked preset / custom input
+  function computeExpiresAt() {
+    if (customExpiry) {
+      const ts = new Date(customExpiry).getTime();
+      return isNaN(ts) ? null : ts;
+    }
+    return expiryPreset ? Date.now() + expiryPreset : null;
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -576,10 +595,19 @@ function AddUserModal({ onClose, onCreated }) {
     if (password.length < 4) return setError('סיסמה חייבת להיות לפחות 4 תווים');
     if (password !== confirmPass) return setError('הסיסמאות אינן תואמות');
 
+    const expiresAt = computeExpiresAt();
+    if (expiresAt && expiresAt < Date.now()) {
+      return setError('זמן ההגבלה שבחרת כבר עבר');
+    }
+
     setSubmitting(true);
     setError('');
     try {
-      await createUserApi(username.trim(), password, role);
+      const created = await createUserApi(username.trim(), password, role);
+      // If a time limit was chosen, apply it via PATCH right after creation
+      if (expiresAt && created?.id) {
+        try { await updateUserApi(created.id, { expiresAt }); } catch {}
+      }
       onCreated?.();
     } catch (err) {
       setError(err.response?.data?.error || 'שגיאה ביצירת המשתמש');
@@ -630,6 +658,50 @@ function AddUserModal({ onClose, onCreated }) {
               <option value="user">👤 משתמש רגיל</option>
               <option value="admin">👑 מנהל</option>
             </select>
+          </div>
+
+          {/* Time limit picker */}
+          <div>
+            <label style={{ color: '#888', fontSize: 11, fontWeight: 700, display: 'block', marginBottom: 6 }}>
+              🕐 הגבלת זמן <span style={{ fontWeight: 400, color: '#666' }}>(אופציונלי — לחשבון אורח / ניסיון)</span>
+            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 6 }}>
+              {EXPIRY_PRESETS.map(p => {
+                const isSelected = !customExpiry && expiryPreset === p.ms;
+                return (
+                  <button
+                    key={p.label}
+                    type="button"
+                    onClick={() => { setExpiryPreset(p.ms); setCustomExpiry(''); }}
+                    style={{
+                      padding: '8px', borderRadius: 8,
+                      background: isSelected ? '#9b59b622' : 'transparent',
+                      border: `1px solid ${isSelected ? '#9b59b6' : '#444'}`,
+                      color: isSelected ? '#c39bd3' : '#aaa',
+                      fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                    }}
+                  >
+                    {p.label}
+                  </button>
+                );
+              })}
+            </div>
+            {/* Custom datetime — only shown when user clicks "תאריך מותאם" */}
+            <div style={{ marginTop: 8, display: 'flex', gap: 6, alignItems: 'center' }}>
+              <input
+                type="datetime-local"
+                value={customExpiry}
+                onChange={e => { setCustomExpiry(e.target.value); if (e.target.value) setExpiryPreset(null); }}
+                placeholder="תאריך מותאם"
+                style={{ ...inputStyle, flex: 1, padding: '7px 10px', fontSize: 12, colorScheme: 'dark', direction: 'ltr' }}
+              />
+              {customExpiry && (
+                <button type="button" onClick={() => setCustomExpiry('')}
+                  style={{ background: 'transparent', border: '1px solid #444', color: '#888', borderRadius: 8, padding: '7px 10px', fontSize: 11, cursor: 'pointer' }}>
+                  ✕
+                </button>
+              )}
+            </div>
           </div>
 
           {error && (
