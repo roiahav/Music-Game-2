@@ -1,8 +1,10 @@
 import { Router } from 'express';
-import { authenticate, completeProfile } from '../services/UserStore.js';
+import { authenticate, completeProfile, getAllUsers, resetPassword } from '../services/UserStore.js';
 import { createSession, deleteSession, getSession, getSessionData } from '../services/SessionStore.js';
 import { logLogin, logLogout } from '../services/ActivityLog.js';
 import { requireAuth } from '../middleware/auth.js';
+import { createResetToken, validateResetToken, consumeResetToken } from '../services/ResetTokenStore.js';
+import { sendResetEmail } from '../services/EmailService.js';
 
 const router = Router();
 
@@ -52,6 +54,59 @@ router.post('/complete-profile', requireAuth, (req, res) => {
   try {
     const updated = completeProfile(req.user.id, { firstName, lastName, email });
     res.json({ user: updated });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+/**
+ * POST /api/auth/forgot-password
+ * Body: { email }
+ * Finds the user with that email, generates a reset token, sends an email.
+ */
+router.post('/forgot-password', async (req, res) => {
+  const { email } = req.body;
+  if (!email?.trim()) return res.status(400).json({ error: 'כתובת מייל נדרשת' });
+
+  // Find user by email (case-insensitive)
+  const users = getAllUsers();
+  const user = users.find(u => u.email?.toLowerCase() === email.trim().toLowerCase());
+
+  // Always return 200 to prevent user enumeration — but only actually send if found
+  if (!user || !user.email) {
+    return res.json({ ok: true }); // silent — no hint whether email exists
+  }
+
+  try {
+    const token = createResetToken(user.id, user.email);
+    // Build reset URL from request host
+    const protocol = req.headers['x-forwarded-proto'] || 'http';
+    const host = req.headers['x-forwarded-host'] || req.get('host') || 'localhost:3000';
+    const resetUrl = `${protocol}://${host}/?reset_token=${token}`;
+    await sendResetEmail(user.email, user.firstName || '', resetUrl);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[forgot-password]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/**
+ * POST /api/auth/reset-password
+ * Body: { token, newPassword }
+ */
+router.post('/reset-password', (req, res) => {
+  const { token, newPassword } = req.body;
+  if (!token) return res.status(400).json({ error: 'טוקן חסר' });
+  if (!newPassword || newPassword.length < 4) return res.status(400).json({ error: 'סיסמה חייבת להיות לפחות 4 תווים' });
+
+  const entry = validateResetToken(token);
+  if (!entry) return res.status(400).json({ error: 'הקישור אינו בתוקף או שפג תוקפו. בקש קישור חדש.' });
+
+  try {
+    resetPassword(entry.userId, newPassword);
+    consumeResetToken(token);
+    res.json({ ok: true });
   } catch (e) {
     res.status(400).json({ error: e.message });
   }

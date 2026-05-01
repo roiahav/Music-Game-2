@@ -1,28 +1,53 @@
 import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { getSettings, saveSettings } from '../services/SettingsStore.js';
+import { testSmtp } from '../services/EmailService.js';
 
 const router = Router();
 
 // GET /api/settings
 router.get('/', (req, res) => {
   const s = getSettings();
-  // Don't expose tokens to client
-  const safe = { ...s, spotify: { clientId: s.spotify.clientId, clientSecret: s.spotify.clientSecret } };
+  // Don't expose OAuth tokens, but do send email config (minus password — show only whether set)
+  const safe = {
+    ...s,
+    spotify: { clientId: s.spotify.clientId, clientSecret: s.spotify.clientSecret },
+    email: {
+      ...(s.email || {}),
+      smtpPass: s.email?.smtpPass ? '••••••••' : '',  // mask password in GET
+    },
+  };
   res.json(safe);
 });
 
-// POST /api/settings — full replace (game options, spotify credentials)
+// POST /api/settings — full replace (game options, spotify credentials, email)
 router.post('/', (req, res) => {
   const current = getSettings();
-  const { game, spotify } = req.body;
+  const { game, spotify, email } = req.body;
   if (game) current.game = { ...current.game, ...game };
   if (spotify) {
     current.spotify.clientId = spotify.clientId ?? current.spotify.clientId;
     current.spotify.clientSecret = spotify.clientSecret ?? current.spotify.clientSecret;
   }
+  if (email) {
+    if (!current.email) current.email = {};
+    Object.assign(current.email, email);
+    // Don't overwrite password if masked placeholder sent
+    if (email.smtpPass === '••••••••') delete current.email.smtpPass;
+    if (email.smtpPass && email.smtpPass !== '••••••••') current.email.smtpPass = email.smtpPass;
+  }
   saveSettings(current);
   res.json({ ok: true });
+});
+
+// POST /api/settings/test-email — verify SMTP connection
+router.post('/test-email', async (req, res) => {
+  try {
+    await testSmtp();
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
 });
 
 // POST /api/settings/playlists — add or update a playlist

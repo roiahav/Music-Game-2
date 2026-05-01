@@ -29,6 +29,8 @@ export const loginApi = (username, password) => api.post('/auth/login', { userna
 export const logoutApi = () => api.post('/auth/logout');
 export const getMeApi = () => api.get('/auth/me').then(r => r.data);
 export const completeProfileApi = (data) => api.post('/auth/complete-profile', data).then(r => r.data);
+export const forgotPasswordApi = (email) => api.post('/auth/forgot-password', { email }).then(r => r.data);
+export const resetPasswordWithTokenApi = (token, newPassword) => api.post('/auth/reset-password', { token, newPassword }).then(r => r.data);
 
 // Users (admin)
 export const getUsers = () => api.get('/users').then(r => r.data);
@@ -51,6 +53,7 @@ export const getPlaylistSongs = id => api.get(`/playlists/${id}/songs`).then(r =
 // Settings
 export const getSettings = () => api.get('/settings').then(r => r.data);
 export const saveSettings = data => api.post('/settings', data);
+export const testEmailSettings = () => api.post('/settings/test-email').then(r => r.data);
 export const addPlaylist = data => api.post('/settings/playlists', data);
 export const updatePlaylist = data => api.post('/settings/playlists', data);
 export const deletePlaylist = id => api.delete(`/settings/playlists/${id}`);

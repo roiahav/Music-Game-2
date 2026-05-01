@@ -3,14 +3,18 @@ import { useAuthStore } from '../store/authStore.js';
 import { loginApi } from '../api/client.js';
 import { useLang } from '../i18n/useLang.js';
 import LangPicker from '../components/LangPicker.jsx';
+import ForgotPasswordScreen from './ForgotPasswordScreen.jsx';
 
 export default function LoginScreen() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showForgot, setShowForgot] = useState(false);
   const login = useAuthStore(s => s.login);
   const { t, dir } = useLang();
+
+  if (showForgot) return <ForgotPasswordScreen onBack={() => setShowForgot(false)} />;
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -88,6 +92,20 @@ export default function LoginScreen() {
           }}
         >
           {loading ? t('logging_in') : t('login_btn')}
+        </button>
+
+        {/* Forgot password link */}
+        <button
+          type="button"
+          onClick={() => setShowForgot(true)}
+          style={{
+            background: 'none', border: 'none', color: '#555',
+            fontSize: 13, cursor: 'pointer', padding: '8px 0 0',
+            textAlign: 'center', width: '100%',
+            textDecoration: 'underline', textUnderlineOffset: 3,
+          }}
+        >
+          {t('forgot_password')}
         </button>
       </form>
     </div>

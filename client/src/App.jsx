@@ -9,6 +9,7 @@ import MultiplayerScreen from './screens/MultiplayerScreen.jsx';
 import SoloTypingScreen from './screens/SoloTypingScreen.jsx';
 import LoginScreen from './screens/LoginScreen.jsx';
 import CompleteProfileScreen from './screens/CompleteProfileScreen.jsx';
+import ResetPasswordScreen from './screens/ResetPasswordScreen.jsx';
 import AdminUsersScreen from './screens/AdminUsersScreen.jsx';
 import FavoritesScreen from './screens/FavoritesScreen.jsx';
 import YearsGameScreen from './screens/YearsGameScreen.jsx';
@@ -37,6 +38,17 @@ export default function App() {
   }, [themeId]);
 
   useEffect(() => { if (token) load(); }, [token]);
+
+  // Password-reset link — handled before auth check so unauthenticated users can reset
+  const resetToken = new URLSearchParams(window.location.search).get('reset_token');
+  if (resetToken) {
+    return (
+      <ResetPasswordScreen
+        token={resetToken}
+        onDone={() => { logout(); window.location.href = '/'; }}
+      />
+    );
+  }
 
   if (!token) return <LoginScreen />;
 

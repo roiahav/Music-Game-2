@@ -22,6 +22,15 @@ const DEFAULT_SETTINGS = {
     victoryAudioFolder: '',
     victoryFolderEnabled: true,
   },
+  email: {
+    smtpHost: '',
+    smtpPort: 587,
+    smtpSecure: false,
+    smtpUser: '',
+    smtpPass: '',
+    fromName: 'Music Game',
+    fromEmail: '',
+  },
   blacklist: [],
 };
 
