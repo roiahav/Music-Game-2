@@ -322,8 +322,11 @@ export default function App() {
 
   // ── Solo ─────────────────────────────────────────────────────────────────────
   // The admin "👥" tab was merged into Settings as a collapsible section so the
-  // top bar stays clean (just game vs settings).
-  const tabs = [{ id: 'game', label: t('game_tab') }, { id: 'settings', label: '⚙️' }];
+  // top bar stays clean. When ON the settings tab we also hide the "game" tab
+  // so the header is uncluttered — user navigates back via the ⌂ home button.
+  const tabs = tab === 'settings'
+    ? [{ id: 'settings', label: '⚙️' }]
+    : [{ id: 'game', label: t('game_tab') }, { id: 'settings', label: '⚙️' }];
 
   return (
     <div style={{ ...shell }}>
