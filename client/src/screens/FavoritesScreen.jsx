@@ -38,11 +38,13 @@ export default function FavoritesScreen({ onExit }) {
   const [shuffleMode, setShuffleMode] = useState(false);
   const audioRef = useRef(null);
 
-  // ── drag-to-reorder (only in 'all' view) ──
-  const dragItem = useRef(null);
-  const dragOverItem = useRef(null);
+  // ── drag-to-reorder (touch + mouse via Pointer Events) ──
   const [dragIdx, setDragIdx] = useState(null);
   const [dragOverIdx, setDragOverIdx] = useState(null);
+  const [dragY, setDragY] = useState(null);     // finger Y for visual feedback
+  const dragStartY = useRef(0);
+  const DRAG_THRESHOLD = 5;                      // px before drag activates
+  const [dragActive, setDragActive] = useState(false);
 
   // ── debounce timer for reorder API call ──
   const reorderTimer = useRef(null);
@@ -142,67 +144,123 @@ export default function FavoritesScreen({ onExit }) {
     } catch {}
   }
 
-  // ── drag-to-reorder ──
-  function handleDragStart(e, idx) {
-    dragItem.current = idx;
-    dragOverItem.current = idx;
+  // ── drag-to-reorder (Pointer Events — works on touch + mouse) ──
+  function handlePointerDown(e, idx) {
+    if (!canDrag) return;
+    // capture pointer so we keep getting move/up events even outside the handle
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
     setDragIdx(idx);
-    e.dataTransfer.effectAllowed = 'move';
-    // Transparent drag image (we render our own highlight)
-    const ghost = document.createElement('div');
-    ghost.style.position = 'absolute';
-    ghost.style.top = '-9999px';
-    document.body.appendChild(ghost);
-    e.dataTransfer.setDragImage(ghost, 0, 0);
-    setTimeout(() => document.body.removeChild(ghost), 0);
-  }
-
-  function handleDragOver(e, idx) {
-    e.preventDefault();
-    if (idx === dragItem.current) return;
-    dragOverItem.current = idx;
     setDragOverIdx(idx);
+    setDragY(e.clientY);
+    setDragActive(false);            // not active until threshold passed
+    dragStartY.current = e.clientY;
   }
 
-  function handleDrop(e, idx) {
-    e.preventDefault();
-    const from = dragItem.current;
-    const to = idx;
-    if (from === null || from === to) return;
+  function handlePointerMove(e) {
+    if (dragIdx === null) return;
+    // activate drag once the user moved beyond the threshold (prevents accidental drags)
+    if (!dragActive && Math.abs(e.clientY - dragStartY.current) > DRAG_THRESHOLD) {
+      setDragActive(true);
+    }
+    if (!dragActive && Math.abs(e.clientY - dragStartY.current) <= DRAG_THRESHOLD) return;
 
-    setSongs(prev => {
-      const next = [...prev];
-      const [removed] = next.splice(from, 1);
-      next.splice(to, 0, removed);
-      // debounce API call
-      clearTimeout(reorderTimer.current);
-      reorderTimer.current = setTimeout(() => {
-        reorderFavorites(next.map(s => s.id)).catch(() => {});
-      }, 600);
-      return next;
-    });
-
-    // adjust currentIdx if the playing song moved
-    if (currentIdx !== null) {
-      const playingId = displayedSongs[currentIdx]?.id;
-      if (playingId) {
-        // recalculate after setSongs — just mark as unknown; will re-sync on next render
-        setCurrentIdx(null);
+    setDragY(e.clientY);
+    // Find the row under the pointer (since pointer capture means events
+    // don't fire on other elements, we use elementFromPoint instead)
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    const row = el?.closest('[data-row-idx]');
+    if (row) {
+      const overIdx = parseInt(row.dataset.rowIdx, 10);
+      if (!isNaN(overIdx) && overIdx !== dragOverIdx) {
+        setDragOverIdx(overIdx);
       }
     }
 
-    dragItem.current = null;
-    dragOverItem.current = null;
-    setDragIdx(null);
-    setDragOverIdx(null);
+    // Auto-scroll near top/bottom of viewport
+    const margin = 60;
+    if (e.clientY < margin) window.scrollBy(0, -8);
+    else if (e.clientY > window.innerHeight - margin) window.scrollBy(0, 8);
   }
 
-  function handleDragEnd() {
-    dragItem.current = null;
-    dragOverItem.current = null;
+  function commitDragReorder() {
+    if (dragIdx !== null && dragOverIdx !== null && dragIdx !== dragOverIdx && dragActive) {
+      const from = dragIdx;
+      const to = dragOverIdx;
+      setSongs(prev => {
+        const next = [...prev];
+        const [removed] = next.splice(from, 1);
+        next.splice(to, 0, removed);
+        clearTimeout(reorderTimer.current);
+        reorderTimer.current = setTimeout(() => {
+          reorderFavorites(next.map(s => s.id)).catch(() => {});
+        }, 600);
+        return next;
+      });
+      if (currentIdx !== null) setCurrentIdx(null);  // re-sync via effect
+    }
     setDragIdx(null);
     setDragOverIdx(null);
+    setDragY(null);
+    setDragActive(false);
   }
+
+  function handlePointerUp() { commitDragReorder(); }
+  function handlePointerCancel() {
+    setDragIdx(null);
+    setDragOverIdx(null);
+    setDragY(null);
+    setDragActive(false);
+  }
+
+  // ── Media Session API: lock-screen artwork + transport controls ──
+  useEffect(() => {
+    if (!('mediaSession' in navigator) || !current) return;
+
+    // Build an absolute URL — lock-screen art needs a fully-qualified URL
+    const cover = current.coverUrl
+      ? new URL(current.coverUrl, window.location.origin).href
+      : null;
+
+    navigator.mediaSession.metadata = new window.MediaMetadata({
+      title: current.title || (current.filePath?.split(/[\\/]/).pop() || ''),
+      artist: current.artist || '',
+      album: current.year ? String(current.year) : 'Music Game',
+      artwork: cover ? [
+        { src: cover, sizes: '96x96',  type: 'image/jpeg' },
+        { src: cover, sizes: '256x256', type: 'image/jpeg' },
+        { src: cover, sizes: '512x512', type: 'image/jpeg' },
+      ] : [],
+    });
+
+    navigator.mediaSession.setActionHandler('play',  () => audioRef.current?.play().catch(() => {}));
+    navigator.mediaSession.setActionHandler('pause', () => audioRef.current?.pause());
+    navigator.mediaSession.setActionHandler('previoustrack', handlePlayPrev);
+    navigator.mediaSession.setActionHandler('nexttrack',     handlePlayNext);
+    try {
+      navigator.mediaSession.setActionHandler('seekto', d => {
+        if (audioRef.current && d.seekTime != null) audioRef.current.currentTime = d.seekTime;
+      });
+    } catch {}
+  }, [current, handlePlayNext, handlePlayPrev]);
+
+  // Update playback state for lock screen play/pause icon
+  useEffect(() => {
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+    }
+  }, [isPlaying]);
+
+  // Update position on lock screen progress bar
+  useEffect(() => {
+    if (!('mediaSession' in navigator) || !duration) return;
+    try {
+      navigator.mediaSession.setPositionState({
+        duration,
+        playbackRate: 1,
+        position: Math.min(progress * duration, duration),
+      });
+    } catch {}
+  }, [progress, duration]);
 
   // ── recover currentIdx after reorder ──
   useEffect(() => {
@@ -333,42 +391,47 @@ export default function FavoritesScreen({ onExit }) {
 
         {displayedSongs.map((s, idx) => {
           const isActive = currentIdx === idx;
-          const isDragging = dragIdx === idx;
-          const isDragTarget = dragOverIdx === idx && dragIdx !== idx;
+          const isDragging = dragIdx === idx && dragActive;
+          const isDragTarget = dragOverIdx === idx && dragIdx !== idx && dragActive;
 
           return (
             <div
               key={s.id}
-              draggable={canDrag}
-              onDragStart={canDrag ? e => handleDragStart(e, idx) : undefined}
-              onDragOver={canDrag ? e => handleDragOver(e, idx) : undefined}
-              onDrop={canDrag ? e => handleDrop(e, idx) : undefined}
-              onDragEnd={canDrag ? handleDragEnd : undefined}
-              onClick={() => playSong(idx)}
+              data-row-idx={idx}
+              onClick={() => { if (!dragActive) playSong(idx); }}
               style={{
                 display: 'flex', alignItems: 'center', gap: 10,
                 padding: '10px 14px',
-                borderBottom: isDragTarget
-                  ? `2px solid ${accentColor}`
-                  : '1px solid var(--bg2)',
+                borderTop: isDragTarget && dragOverIdx < dragIdx ? `2px solid ${accentColor}` : '2px solid transparent',
+                borderBottom: isDragTarget && dragOverIdx > dragIdx ? `2px solid ${accentColor}` : '1px solid var(--bg2)',
                 background: isActive
                   ? `${accentColor}18`
                   : isDragging
                     ? 'var(--bg3, #333)'
                     : 'transparent',
                 cursor: 'pointer',
-                opacity: isDragging ? 0.5 : 1,
-                transition: 'background 0.12s',
+                opacity: isDragging ? 0.4 : 1,
+                transition: dragActive ? 'none' : 'background 0.12s',
                 userSelect: 'none',
               }}
             >
-              {/* Drag handle */}
+              {/* Drag handle — pointer events live HERE so the rest of the row stays clickable */}
               {canDrag && (
-                <span style={{
-                  fontSize: 18, color: 'var(--text2)', flexShrink: 0,
-                  cursor: 'grab', opacity: 0.5, lineHeight: 1,
-                  touchAction: 'none',
-                }}>
+                <span
+                  onPointerDown={e => handlePointerDown(e, idx)}
+                  onPointerMove={handlePointerMove}
+                  onPointerUp={handlePointerUp}
+                  onPointerCancel={handlePointerCancel}
+                  onClick={e => e.stopPropagation()}    /* don't play song when tapping handle */
+                  style={{
+                    fontSize: 22, color: 'var(--text2)', flexShrink: 0,
+                    cursor: isDragging ? 'grabbing' : 'grab', opacity: 0.6, lineHeight: 1,
+                    touchAction: 'none',                 // critical: stops the page scrolling on touch
+                    padding: '8px 6px', margin: '-8px -6px', // bigger touch target
+                    userSelect: 'none', WebkitUserSelect: 'none',
+                    WebkitTouchCallout: 'none',
+                  }}
+                >
                   ⠿
                 </span>
               )}

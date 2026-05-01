@@ -32,7 +32,7 @@
   },
   "blacklist": [],
   "email": {
-    "smtpHost": "",
+    "smtpHost": "smtp.gmail.com",
     "smtpPort": 587,
     "smtpSecure": false,
     "smtpUser": "musicgame2026@gmail.com",
