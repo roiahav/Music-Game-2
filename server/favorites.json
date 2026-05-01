@@ -1,25 +1,18 @@
 {
   "1": [
     {
-      "id": "db0fa345216f2501b6eadb81b9dd2134c98dcb7a",
-      "filePath": "C:\\Users\\oren\\Desktop\\mp3\\עברי\\מה שיבוא - שי המבר_ Ran Danker - Spotimate.app.mp3",
-      "title": "מה שיבוא",
-      "artist": "שי המבר, Ran Danker",
-      "year": "2025"
-    },
-    {
-      "id": "ba897f46c3b371cde03f96574811e2b23a71b4b9",
-      "filePath": "C:\\Users\\oren\\Desktop\\mp3\\עברי\\מדוע לא באת - Yermi Kaplan - Spotimate.app.mp3",
-      "title": "מדוע לא באת",
-      "artist": "ירמי קפלן",
-      "year": "1994"
-    },
-    {
       "id": "9b9f52412673e81f59f03937027200fe8523391a",
       "filePath": "C:\\Users\\oren\\Desktop\\mp3\\עברי\\הבלדה על אביר החופש ובת גלים - Karolina_ Uri Brauner Kinrot - Spotimate.app.mp3",
       "title": "הבלדה על אביר החופש ובת גלים",
       "artist": "Karolina, Uri Brauner Kinrot",
       "year": "2009"
+    },
+    {
+      "id": "db0fa345216f2501b6eadb81b9dd2134c98dcb7a",
+      "filePath": "C:\\Users\\oren\\Desktop\\mp3\\עברי\\מה שיבוא - שי המבר_ Ran Danker - Spotimate.app.mp3",
+      "title": "מה שיבוא",
+      "artist": "שי המבר, Ran Danker",
+      "year": "2025"
     },
     {
       "id": "0f80ce6f9fbcf073808033f3e20eee2e4d8a0caa",

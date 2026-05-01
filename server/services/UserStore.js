@@ -8,6 +8,14 @@ const DATA_DIR = join(__dirname, '..', 'data');
 const USERS_FILE = join(DATA_DIR, 'users.json');
 const AVATAR_DIR = join(DATA_DIR, 'avatars');
 
+/** Founder accounts that cannot be deleted by anyone (created by init()). */
+const PROTECTED_USERNAMES = ['אורן יהב', 'רותם יהב'];
+const PROTECTED_IDS = ['1', '2'];
+
+function isProtected(user) {
+  return PROTECTED_IDS.includes(user.id) || PROTECTED_USERNAMES.includes(user.username);
+}
+
 function hashPassword(password, salt) {
   return pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
 }
@@ -40,6 +48,7 @@ function publicFields(u) {
     firstName: u.firstName || '',
     lastName: u.lastName || '',
     email: u.email || '',
+    protected: isProtected(u),
   };
 }
 
@@ -127,6 +136,9 @@ export function deleteUser(userId) {
   const users = load();
   const idx = users.findIndex(u => u.id === userId);
   if (idx === -1) throw new Error('משתמש לא נמצא');
+  if (isProtected(users[idx])) {
+    throw new Error('לא ניתן למחוק משתמש זה — חשבון מערכת מוגן');
+  }
   users.splice(idx, 1);
   save(users);
 }

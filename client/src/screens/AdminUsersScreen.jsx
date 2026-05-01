@@ -184,11 +184,18 @@ function UsersTab() {
                     style={iconBtnStyle}
                     title="איפוס סיסמה"
                   >🔑</button>
-                  <button
-                    onClick={() => handleDelete(u.id, u.username)}
-                    style={{ ...iconBtnStyle, background: '#3a1010', border: '1px solid #dc354544', color: '#ff6b6b' }}
-                    title="מחיקת משתמש"
-                  >×</button>
+                  {u.protected ? (
+                    <span
+                      style={{ ...iconBtnStyle, background: '#1e1e1e', border: '1px solid #3a3a3a', color: '#888', cursor: 'default' }}
+                      title="משתמש מערכת מוגן — לא ניתן למחיקה"
+                    >🛡️</span>
+                  ) : (
+                    <button
+                      onClick={() => handleDelete(u.id, u.username)}
+                      style={{ ...iconBtnStyle, background: '#3a1010', border: '1px solid #dc354544', color: '#ff6b6b' }}
+                      title="מחיקת משתמש"
+                    >×</button>
+                  )}
                 </div>
 
                 {/* Row 2: permission toggles */}
