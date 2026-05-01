@@ -22,13 +22,6 @@
       "year": "2019"
     },
     {
-      "id": "9e8ce3f4f13b1f6931e6304f138261ccc538ae2b",
-      "filePath": "C:\\Users\\oren\\Desktop\\mp3\\עברי\\האיש ההוא - Yehudit Ravitz_ Ahuva Ozeri - Spotimate.app.mp3",
-      "title": "האיש ההוא",
-      "artist": "Yehudit Ravitz, Ahuva Ozeri",
-      "year": "2005"
-    },
-    {
       "id": "93fc8b20e4fc2d50384013245c0349b9ebb53767",
       "filePath": "C:\\Users\\oren\\Desktop\\mp3\\עברי\\איך אפשר - Jane Bordeaux - Spotimate.app.mp3",
       "title": "איך אפשר",
@@ -43,18 +36,18 @@
       "year": "1997"
     },
     {
+      "id": "9e8ce3f4f13b1f6931e6304f138261ccc538ae2b",
+      "filePath": "C:\\Users\\oren\\Desktop\\mp3\\עברי\\האיש ההוא - Yehudit Ravitz_ Ahuva Ozeri - Spotimate.app.mp3",
+      "title": "האיש ההוא",
+      "artist": "Yehudit Ravitz, Ahuva Ozeri",
+      "year": "2005"
+    },
+    {
       "id": "db0fa345216f2501b6eadb81b9dd2134c98dcb7a",
       "filePath": "C:\\Users\\oren\\Desktop\\mp3\\עברי\\מה שיבוא - שי המבר_ Ran Danker - Spotimate.app.mp3",
       "title": "מה שיבוא",
       "artist": "שי המבר, Ran Danker",
       "year": "2025"
-    },
-    {
-      "id": "e8985c5028df1074c308f5363703ff30651ce8ba",
-      "filePath": "C:\\Users\\oren\\Desktop\\mp3\\עברי\\ככה זה _לאהוב אותך_ - Berry Sakharof - Spotimate.app.mp3",
-      "title": "ככה זה (לאהוב אותך)",
-      "artist": "ברי סחרוף",
-      "year": "1998"
     },
     {
       "id": "abbf145cc7ccde689ee86202356287e30f41d1e4",
@@ -69,6 +62,13 @@
       "title": "מלך",
       "artist": "דנה ברגר",
       "year": "1994"
+    },
+    {
+      "id": "e8985c5028df1074c308f5363703ff30651ce8ba",
+      "filePath": "C:\\Users\\oren\\Desktop\\mp3\\עברי\\ככה זה _לאהוב אותך_ - Berry Sakharof - Spotimate.app.mp3",
+      "title": "ככה זה (לאהוב אותך)",
+      "artist": "ברי סחרוף",
+      "year": "1998"
     },
     {
       "id": "667d8d3e7f9caa1d3bb6fa8482bf59ea4eb59732",

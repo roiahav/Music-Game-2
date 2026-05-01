@@ -11,6 +11,7 @@ import LoginScreen from './screens/LoginScreen.jsx';
 import CompleteProfileScreen from './screens/CompleteProfileScreen.jsx';
 import ResetPasswordScreen from './screens/ResetPasswordScreen.jsx';
 import RegisterScreen from './screens/RegisterScreen.jsx';
+import AdminDashboardScreen from './screens/AdminDashboardScreen.jsx';
 import AdminUsersScreen from './screens/AdminUsersScreen.jsx';
 import FavoritesScreen from './screens/FavoritesScreen.jsx';
 import YearsGameScreen from './screens/YearsGameScreen.jsx';
@@ -89,6 +90,11 @@ export default function App() {
   // First-time login: ask for name + email + privacy consent
   if (!user?.profileCompleted) return <CompleteProfileScreen />;
 
+  // Desktop admin dashboard (full-screen takeover, ignores normal home/solo flow)
+  if (screen === 'admin-dashboard') {
+    return <AdminDashboardScreen onExit={() => { setScreen('home'); setTab('game'); }} />;
+  }
+
   const isAdmin = user?.role === 'admin';
   const theme = THEMES[themeId] || THEMES.dark;
 
@@ -148,6 +154,17 @@ export default function App() {
               }}>
                 {pendingCount}
               </span>
+            </button>
+          )}
+
+          {/* Desktop dashboard shortcut (admin only) */}
+          {isAdmin && (
+            <button
+              onClick={() => setScreen('admin-dashboard')}
+              title="ממשק ניהול דסקטופ"
+              style={topIconBtn}
+            >
+              <span style={{ fontSize: 20 }}>💻</span>
             </button>
           )}
 
