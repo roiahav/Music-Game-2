@@ -181,7 +181,11 @@ function endGame(io, room) {
   const victoryAudioUrl = victoryFilePath
     ? `/api/audio/${encodeURIComponent(victoryFilePath)}`
     : null;
-  io.to(room.code).emit('ygm:ended', { players: serializePlayers(room), victoryAudioUrl });
+  io.to(room.code).emit('ygm:ended', {
+    players: serializePlayers(room),
+    victoryAudioUrl,
+    victoryStartSeconds: Number(game.victoryStartSeconds) || 0,
+  });
 }
 
 // ── Main export ────────────────────────────────────────────────────────────────

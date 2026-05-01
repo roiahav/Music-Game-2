@@ -257,6 +257,7 @@ export default function MultiplayerScreen({ onExit }) {
 
   // Victory
   const [victoryAudioUrl, setVictoryAudioUrl] = useState('');
+  const [victoryStartSeconds, setVictoryStartSeconds] = useState(0);
   const victoryAudioRef = useRef(null);
 
   // Mute state (host broadcasts to non-host players)
@@ -408,12 +409,13 @@ export default function MultiplayerScreen({ onExit }) {
       // Audio keeps playing — do not pause here
     });
 
-    socket.on('mp:ended', ({ players: ps, victoryAudioUrl: vUrl }) => {
+    socket.on('mp:ended', ({ players: ps, victoryAudioUrl: vUrl, victoryStartSeconds: vStart }) => {
       setPlayers(ps);
       setView('results');
       if (audioRef.current) audioRef.current.pause();
       if (vUrl) {
         setVictoryAudioUrl(vUrl);
+        setVictoryStartSeconds(Number(vStart) || 0);
       }
     });
 
@@ -427,11 +429,19 @@ export default function MultiplayerScreen({ onExit }) {
   // Play victory audio when URL arrives and we're in results
   useEffect(() => {
     if (victoryAudioUrl && victoryAudioRef.current && view === 'results') {
-      victoryAudioRef.current.src = victoryAudioUrl;
-      victoryAudioRef.current.load();
-      victoryAudioRef.current.play().catch(() => {});
+      const el = victoryAudioRef.current;
+      el.src = victoryAudioUrl;
+      el.load();
+      // Seek to chorus once metadata is ready, then play
+      const startAt = Number(victoryStartSeconds) || 0;
+      const onReady = () => {
+        if (startAt > 0) try { el.currentTime = startAt; } catch {}
+        el.play().catch(() => {});
+        el.removeEventListener('loadedmetadata', onReady);
+      };
+      el.addEventListener('loadedmetadata', onReady);
     }
-  }, [victoryAudioUrl, view]);
+  }, [victoryAudioUrl, view, victoryStartSeconds]);
 
   // ── Handlers ──────────────────────────────────────────────────────────────
   function createRoom() {

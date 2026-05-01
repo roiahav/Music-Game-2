@@ -21,6 +21,7 @@ const DEFAULT_SETTINGS = {
     victoryAudioPath: '',
     victoryAudioFolder: '',
     victoryFolderEnabled: true,
+    victoryStartSeconds: 0,
   },
   email: {
     smtpHost: '',

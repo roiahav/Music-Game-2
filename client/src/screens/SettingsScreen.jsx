@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useSettingsStore } from '../store/settingsStore.js';
 import { addPlaylist, getPlaylists, getSettings as getSettingsApi, saveSettings, testEmailSettings } from '../api/client.js';
 import { useLang } from '../i18n/useLang.js';
@@ -15,6 +15,9 @@ export default function SettingsScreen({ isAdmin = false }) {
   const [showVictoryBrowser, setShowVictoryBrowser] = useState(false);
   const [showVictoryFolderBrowser, setShowVictoryFolderBrowser] = useState(false);
   const [playlistsOpen, setPlaylistsOpen] = useState(false);
+  const [victoryOpen, setVictoryOpen] = useState(false);
+  const previewAudioRef = useRef(null);
+  const [previewing, setPreviewing] = useState(false);
 
   async function handleAddPlaylist() {
     setAdding(true);
@@ -35,9 +38,28 @@ export default function SettingsScreen({ isAdmin = false }) {
 
       {isAdmin && (
         <>
-          {/* Victory song */}
-          <div className="rounded-xl p-4 flex flex-col gap-3" style={{ background: '#2d2d30', border: '1px solid #3a3a3a' }}>
-            <h3 className="font-bold text-sm">{t('victory_song')}</h3>
+          {/* Victory song (collapsible) */}
+          <div style={{ background: '#2d2d30', border: '1px solid #3a3a3a', borderRadius: 14, overflow: 'hidden' }}>
+            <button
+              onClick={() => setVictoryOpen(o => !o)}
+              style={{
+                width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                padding: '14px 16px', background: 'none', border: 'none', cursor: 'pointer', color: '#fff',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontWeight: 700, fontSize: 14 }}>🏆 {t('victory_song')}</span>
+                {(game.victoryAudioPath || game.victoryAudioFolder) && (
+                  <span style={{ fontSize: 11, color: '#1db954', background: '#1db95422', padding: '2px 8px', borderRadius: 10, border: '1px solid #1db95455', fontWeight: 700 }}>
+                    ✓
+                  </span>
+                )}
+              </div>
+              <span style={{ color: '#888', fontSize: 18 }}>{victoryOpen ? '▲' : '▼'}</span>
+            </button>
+
+          {victoryOpen && (
+          <div style={{ padding: '0 16px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
             <p style={{ color: '#888', fontSize: 12, margin: 0 }}>{t('victory_song_desc')}</p>
 
             {/* ── Folder (random) ── */}
@@ -123,6 +145,82 @@ export default function SettingsScreen({ isAdmin = false }) {
                 />
               )}
             </div>
+
+            {/* ── Start time (chorus picker) ── */}
+            <div style={{ background: '#1e1e1e', borderRadius: 10, padding: '12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <label style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>
+                ⏱ {t('victory_start_at')}
+              </label>
+              <p style={{ color: '#888', fontSize: 11, margin: 0 }}>
+                {t('victory_start_desc')}
+              </p>
+
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                {/* Numeric input */}
+                <input
+                  type="number"
+                  min="0"
+                  max="600"
+                  step="1"
+                  value={game.victoryStartSeconds || 0}
+                  onChange={e => saveGame({ victoryStartSeconds: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                  style={{
+                    width: 80, background: '#2d2d30', border: '1px solid #444',
+                    color: '#fff', borderRadius: 8, padding: '8px 10px',
+                    fontSize: 14, textAlign: 'center', direction: 'ltr',
+                  }}
+                />
+                <span style={{ color: '#aaa', fontSize: 13 }}>{t('seconds')}</span>
+
+                {/* Preview button */}
+                {(game.victoryAudioPath || game.victoryAudioFolder) && (
+                  <button
+                    onClick={() => {
+                      const path = game.victoryAudioPath;
+                      if (!path || !previewAudioRef.current) return;
+                      const el = previewAudioRef.current;
+                      if (previewing) {
+                        el.pause();
+                        setPreviewing(false);
+                        return;
+                      }
+                      el.src = `/api/audio/${encodeURIComponent(path)}`;
+                      el.load();
+                      const onReady = () => {
+                        const startAt = Math.max(0, parseInt(game.victoryStartSeconds, 10) || 0);
+                        if (startAt > 0) try { el.currentTime = startAt; } catch {}
+                        el.play().catch(() => {});
+                        setPreviewing(true);
+                        el.removeEventListener('loadedmetadata', onReady);
+                      };
+                      el.addEventListener('loadedmetadata', onReady);
+                    }}
+                    disabled={!game.victoryAudioPath}
+                    title={!game.victoryAudioPath ? t('victory_preview_need_file') : ''}
+                    style={{
+                      marginRight: 'auto',
+                      background: previewing ? '#dc3545' : '#1db954',
+                      border: 'none', color: '#fff', borderRadius: 8,
+                      padding: '8px 14px', fontSize: 12, fontWeight: 700,
+                      cursor: game.victoryAudioPath ? 'pointer' : 'not-allowed',
+                      opacity: game.victoryAudioPath ? 1 : 0.4,
+                    }}
+                  >
+                    {previewing ? '⏸ ' + t('stop') : '▶ ' + t('preview')}
+                  </button>
+                )}
+              </div>
+
+              {/* Hidden preview audio element */}
+              <audio
+                ref={previewAudioRef}
+                onEnded={() => setPreviewing(false)}
+                onPause={() => setPreviewing(false)}
+                style={{ display: 'none' }}
+              />
+            </div>
+          </div>
+          )}
           </div>
 
           {/* Playlists (collapsible — contains Spotify connection too) */}

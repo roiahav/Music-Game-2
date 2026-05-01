@@ -200,6 +200,7 @@ export default function YearsMultiplayerScreen({ onExit }) {
 
   // ── Victory ────────────────────────────────────────────────────────────────
   const [victoryAudioUrl, setVictoryAudioUrl] = useState('');
+  const [victoryStartSeconds, setVictoryStartSeconds] = useState(0);
 
   // ── Socket setup ───────────────────────────────────────────────────────────
   useEffect(() => {
@@ -270,9 +271,12 @@ export default function YearsMultiplayerScreen({ onExit }) {
       setPhase('round_end');
     });
 
-    socket.on('ygm:ended', ({ players, victoryAudioUrl: vUrl }) => {
+    socket.on('ygm:ended', ({ players, victoryAudioUrl: vUrl, victoryStartSeconds: vStart }) => {
       setPlayers(players);
-      if (vUrl) setVictoryAudioUrl(vUrl);
+      if (vUrl) {
+        setVictoryAudioUrl(vUrl);
+        setVictoryStartSeconds(Number(vStart) || 0);
+      }
       if (audioRef.current) audioRef.current.pause();
       setPhase('game_end');
     });
@@ -299,11 +303,18 @@ export default function YearsMultiplayerScreen({ onExit }) {
   // Play victory audio when game ends
   useEffect(() => {
     if (victoryAudioUrl && victoryAudioRef.current && phase === 'game_end') {
-      victoryAudioRef.current.src = victoryAudioUrl;
-      victoryAudioRef.current.load();
-      victoryAudioRef.current.play().catch(() => {});
+      const el = victoryAudioRef.current;
+      el.src = victoryAudioUrl;
+      el.load();
+      const startAt = Number(victoryStartSeconds) || 0;
+      const onReady = () => {
+        if (startAt > 0) try { el.currentTime = startAt; } catch {}
+        el.play().catch(() => {});
+        el.removeEventListener('loadedmetadata', onReady);
+      };
+      el.addEventListener('loadedmetadata', onReady);
     }
-  }, [victoryAudioUrl, phase]);
+  }, [victoryAudioUrl, phase, victoryStartSeconds]);
 
   // ── Actions ────────────────────────────────────────────────────────────────
   function handleCreate() {

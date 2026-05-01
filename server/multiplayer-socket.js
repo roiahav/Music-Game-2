@@ -125,6 +125,7 @@ function endGame(io, room) {
   io.to(room.code).emit('mp:ended', {
     players: serializePlayers(room),
     victoryAudioUrl,
+    victoryStartSeconds: Number(game.victoryStartSeconds) || 0,
   });
 }
 
