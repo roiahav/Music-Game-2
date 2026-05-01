@@ -51,25 +51,25 @@ export default function LoginScreen() {
 
       <form onSubmit={handleSubmit} style={{ width: '100%', maxWidth: 360, display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <label style={{ color: '#aaa', fontSize: 13, fontWeight: 600 }}>{t('username')}</label>
+          <label style={{ color: '#aaa', fontSize: 13, fontWeight: 600, textAlign: dir === 'rtl' ? 'right' : 'left' }}>{t('username')}</label>
           <input
             type="text"
             value={username}
             onChange={e => setUsername(e.target.value)}
             autoComplete="username"
-            style={inputStyle}
+            style={{ ...inputStyle, direction: dir, textAlign: dir === 'rtl' ? 'right' : 'left' }}
             placeholder={t('enter_username')}
           />
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <label style={{ color: '#aaa', fontSize: 13, fontWeight: 600 }}>{t('password')}</label>
+          <label style={{ color: '#aaa', fontSize: 13, fontWeight: 600, textAlign: dir === 'rtl' ? 'right' : 'left' }}>{t('password')}</label>
           <input
             type="password"
             value={password}
             onChange={e => setPassword(e.target.value)}
             autoComplete="current-password"
-            style={inputStyle}
+            style={{ ...inputStyle, direction: dir, textAlign: dir === 'rtl' ? 'right' : 'left' }}
             placeholder={t('enter_password')}
           />
         </div>
@@ -115,5 +115,5 @@ export default function LoginScreen() {
 const inputStyle = {
   background: '#2d2d30', border: '1px solid #3a3a3a', borderRadius: 12,
   color: '#fff', fontSize: 16, padding: '12px 14px', outline: 'none',
-  width: '100%', boxSizing: 'border-box', direction: 'ltr',
+  width: '100%', boxSizing: 'border-box',
 };
