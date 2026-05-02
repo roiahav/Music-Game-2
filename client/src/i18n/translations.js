@@ -247,7 +247,7 @@ export const T = {
   // ── Favorites ──
   fav_all:       { he:'הכל', en:'All', ar:'الكل', ru:'Все', es:'Todo' },
   fav_play_all:  { he:'▶ הפעל הכל', en:'▶ Play All', ar:'▶ تشغيل الكل', ru:'▶ Воспроизвести', es:'▶ Reproducir todo' },
-  fav_shuffle:   { he:'🔀 ערבב', en:'🔀 Shuffle', ar:'🔀 خلط', ru:'🔀 Перемешать', es:'🔀 Mezclar' },
+  fav_shuffle:   { he:'🔀 סדר אקראי', en:'🔀 Shuffle', ar:'🔀 خلط', ru:'🔀 Перемешать', es:'🔀 Mezclar' },
   fav_drag_tip:  { he:'החזק וגרור ⠿ לשינוי סדר', en:'Hold & drag ⠿ to reorder', ar:'اضغط واسحب ⠿ لإعادة الترتيب', ru:'Удерживайте и тяните ⠿ для сортировки', es:'Mantén y arrastra ⠿ para reordenar' },
   fav_filter_tip:{ he:'גרירה זמינה רק בתצוגת "הכל"', en:'Drag to reorder available in "All" view only', ar:'السحب متاح في عرض "الكل" فقط', ru:'Перетаскивание доступно только в режиме "Все"', es:'Arrastrar disponible solo en vista "Todo"' },
   songs_count:   { he:'{n} שירים', en:'{n} songs', ar:'{n} أغاني', ru:'{n} песен', es:'{n} canciones' },

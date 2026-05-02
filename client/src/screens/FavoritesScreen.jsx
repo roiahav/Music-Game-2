@@ -31,7 +31,10 @@ export default function FavoritesScreen({ onExit }) {
   const [activeFilter, setActiveFilter] = useState('all'); // 'all' | playlistId | 'none'
 
   // ── player ──
-  const [currentIdx, setCurrentIdx] = useState(null);  // index in *filtered* list
+  // Playback queue — separate from the displayed list so shuffle doesn't
+  // disturb the visual order. Defaults to displayedSongs when not shuffled.
+  const [playQueue, setPlayQueue] = useState([]);
+  const [currentIdx, setCurrentIdx] = useState(null);  // index in playQueue
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);          // 0–1
   const [duration, setDuration] = useState(0);
@@ -78,46 +81,50 @@ export default function FavoritesScreen({ onExit }) {
       : songs.filter(s => s.playlistId === activeFilter);
 
   // ── player helpers ──
-  const playSong = useCallback((idxInDisplay, displayList) => {
-    const list = displayList || displayedSongs;
-    const song = list[idxInDisplay];
+  // Always plays from playQueue. Pass `queueOverride` to swap the queue and
+  // start a fresh playback session (used by Play All / Shuffle / row click).
+  const playSong = useCallback((idxInQueue, queueOverride) => {
+    const list = queueOverride || playQueue;
+    const song = list[idxInQueue];
     if (!song || !audioRef.current) return;
+    if (queueOverride) setPlayQueue(queueOverride);
     audioRef.current.src = song.audioUrl || '';
     audioRef.current.load();
     audioRef.current.play().catch(() => {});
-    setCurrentIdx(idxInDisplay);
+    setCurrentIdx(idxInQueue);
     setIsPlaying(true);
-  }, [displayedSongs]);  // eslint-disable-line
+  }, [playQueue]);
 
-  const playAll = () => playSong(0, displayedSongs);
+  // Play the displayed list in its current visual order
+  const playAll = () => {
+    setShuffleMode(false);
+    playSong(0, displayedSongs);
+  };
 
+  // Play the displayed list in random order WITHOUT mutating the visible list.
+  // The shuffled order lives only in playQueue.
   const playShuffled = () => {
     const shuffled = shuffleArr(displayedSongs);
-    setSongs(prev => {
-      // Keep full list order but bubble shuffled to top when 'all'
-      if (activeFilter === 'all') return shuffled;
-      return prev;
-    });
     setShuffleMode(true);
     playSong(0, shuffled);
   };
 
   const handlePlayNext = useCallback(() => {
-    if (currentIdx === null) return;
-    const next = (currentIdx + 1) % displayedSongs.length;
+    if (currentIdx === null || playQueue.length === 0) return;
+    const next = (currentIdx + 1) % playQueue.length;
     playSong(next);
-  }, [currentIdx, displayedSongs, playSong]);
+  }, [currentIdx, playQueue, playSong]);
 
   const handlePlayPrev = useCallback(() => {
-    if (currentIdx === null) return;
+    if (currentIdx === null || playQueue.length === 0) return;
     // if >3 sec in, restart; else go to previous
     if (audioRef.current && audioRef.current.currentTime > 3) {
       audioRef.current.currentTime = 0;
       return;
     }
-    const prev = (currentIdx - 1 + displayedSongs.length) % displayedSongs.length;
+    const prev = (currentIdx - 1 + playQueue.length) % playQueue.length;
     playSong(prev);
-  }, [currentIdx, displayedSongs, playSong]);
+  }, [currentIdx, playQueue, playSong]);
 
   function togglePlayPause() {
     if (!audioRef.current) return;
@@ -137,10 +144,11 @@ export default function FavoritesScreen({ onExit }) {
     try {
       await removeFavorite(song.id);
       setSongs(prev => prev.filter(s => s.id !== song.id));
-      if (displayedSongs[currentIdx]?.id === song.id) {
+      if (current?.id === song.id) {
         setCurrentIdx(null);
         setIsPlaying(false);
       }
+      setPlayQueue(prev => prev.filter(s => s.id !== song.id));
     } catch {}
   }
 
@@ -225,7 +233,7 @@ export default function FavoritesScreen({ onExit }) {
   }
 
   // ── derived values ── (must be defined BEFORE the useEffects that depend on them)
-  const current = currentIdx !== null ? displayedSongs[currentIdx] : null;
+  const current = currentIdx !== null ? playQueue[currentIdx] : null;
   const accentColor = 'var(--accent)';
   // Drag works in any view (filtered or not). The reorder logic maps display
   // indices back to full-list indices so the saved order is always correct.
@@ -286,7 +294,7 @@ export default function FavoritesScreen({ onExit }) {
     if (currentIdx === null && isPlaying && audioRef.current?.src) {
       // try to find the song that was playing
       const src = audioRef.current.src;
-      const newIdx = displayedSongs.findIndex(s => s.audioUrl && src.endsWith(encodeURIComponent(s.filePath || '')));
+      const newIdx = playQueue.findIndex(s => s.audioUrl && src.endsWith(encodeURIComponent(s.filePath || '')));
       if (newIdx >= 0) setCurrentIdx(newIdx);
     }
   }, [songs]); // eslint-disable-line
@@ -405,7 +413,9 @@ export default function FavoritesScreen({ onExit }) {
         )}
 
         {displayedSongs.map((s, idx) => {
-          const isActive = currentIdx === idx;
+          // Highlight by song id so the active row stays correct even when
+          // playing from a shuffled queue (where idx doesn't match position)
+          const isActive = current?.id === s.id;
           const isDragging = dragIdx === idx && dragActive;
           const isDragTarget = dragOverIdx === idx && dragIdx !== idx && dragActive;
 
@@ -413,7 +423,13 @@ export default function FavoritesScreen({ onExit }) {
             <div
               key={s.id}
               data-row-idx={idx}
-              onClick={() => { if (!dragActive) playSong(idx); }}
+              onClick={() => {
+                if (dragActive) return;
+                // Tapping a row plays from that point through the displayed list
+                // in its visual order — exits shuffle mode
+                setShuffleMode(false);
+                playSong(idx, displayedSongs);
+              }}
               style={{
                 /* Grid handles min-content overflow far more reliably than flexbox.
                    The 1fr column shrinks to whatever's left after the auto columns,
