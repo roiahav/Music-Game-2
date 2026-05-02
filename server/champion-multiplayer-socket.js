@@ -319,6 +319,22 @@ export function setupChampionMultiplayer(io) {
       startNextSong(io, room);
     });
 
+    // ─── Mute / unmute all other players (host) ───
+    // socket.to(room) emits to everyone in the room EXCEPT the sender, so the
+    // host's own audio keeps playing while players' phones go silent.
+    socket.on('champ:mute_all', () => {
+      const code = socketToRoom.get(socket.id);
+      const room = rooms.get(code);
+      if (!room || socket.id !== room.hostSocketId) return;
+      socket.to(room.code).emit('champ:muted', { muted: true });
+    });
+    socket.on('champ:unmute_all', () => {
+      const code = socketToRoom.get(socket.id);
+      const room = rooms.get(code);
+      if (!room || socket.id !== room.hostSocketId) return;
+      socket.to(room.code).emit('champ:muted', { muted: false });
+    });
+
     // ─── End game early (host) ───
     socket.on('champ:end', () => {
       const code = socketToRoom.get(socket.id);

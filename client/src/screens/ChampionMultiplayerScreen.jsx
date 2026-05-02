@@ -55,6 +55,12 @@ export default function ChampionMultiplayerScreen({ onExit }) {
   const [revealData, setRevealData] = useState(null); // { song, results }
   const submitRef = useRef(null);
   const [showRules, setShowRules] = useState(false);
+  // Host-controlled mute state. Affects only OTHER players' audio.
+  const [allMuted, setAllMuted] = useState(false);
+  // Ref mirror so stale-closure socket listeners (set up in mount-time useEffect)
+  // can read the latest mute state when a new song loads
+  const allMutedRef = useRef(false);
+  useEffect(() => { allMutedRef.current = allMuted; }, [allMuted]);
 
   // Victory + game stats for end screen
   const [victoryAudioUrl, setVictoryAudioUrl] = useState('');
@@ -95,18 +101,27 @@ export default function ChampionMultiplayerScreen({ onExit }) {
       setPickedArtist(''); setPickedTitle(''); setPickedYear(null);
       setSubmitted(false); setRevealData(null); setPicker(null);
       setPhase('playing');
-      // Auto-play
+      // Auto-play, unless the host has muted us
       setTimeout(() => {
         const a = audioRef.current;
         if (!a || !audioUrl) return;
         a.src = audioUrl; a.load();
-        a.play().catch(() => {});
+        if (!allMutedRef.current) a.play().catch(() => {});
       }, 50);
     });
     socket.on('champ:reveal', (data) => {
       audioRef.current?.pause();
       setRevealData(data);
       setPhase('reveal');
+    });
+    socket.on('champ:muted', ({ muted }) => {
+      // Only non-host players receive this (server uses socket.to(room) which
+      // excludes the sender). Pause/resume our own audio element.
+      setAllMuted(muted);
+      const a = audioRef.current;
+      if (!a) return;
+      if (muted) a.pause();
+      else a.play().catch(() => {});
     });
     socket.on('champ:ended', ({ players, totalSongs, victoryAudioUrl: vUrl, victoryStartSeconds: vStart }) => {
       audioRef.current?.pause();
@@ -171,6 +186,15 @@ export default function ChampionMultiplayerScreen({ onExit }) {
   submitRef.current = handleSubmit;
   function nextSong() { socketRef.current?.emit('champ:next'); }
   function endNow()   { socketRef.current?.emit('champ:end'); }
+  function hostMuteToggle() {
+    if (allMuted) {
+      setAllMuted(false);
+      socketRef.current?.emit('champ:unmute_all');
+    } else {
+      setAllMuted(true);
+      socketRef.current?.emit('champ:mute_all');
+    }
+  }
   function togglePlayPause() {
     const a = audioRef.current;
     if (!a) return;
@@ -472,9 +496,20 @@ export default function ChampionMultiplayerScreen({ onExit }) {
           </div>
 
           {isHost && (
-            <button onClick={() => socketRef.current?.emit('champ:reveal')} style={secondaryBtn}>
-              💡 חשוף תשובה (עוקף ממתינים)
-            </button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={hostMuteToggle} style={{
+                flex: '0 0 auto', padding: '12px 16px', borderRadius: 12,
+                background: allMuted ? '#3a1010' : 'var(--bg2)',
+                color: allMuted ? '#ff6b6b' : 'var(--text)',
+                border: `1px solid ${allMuted ? '#dc3545' : 'var(--border)'}`,
+                fontSize: 18, cursor: 'pointer',
+              }} title={allMuted ? 'בטל השתקה לכל הטלפונים' : 'השתק את כל הטלפונים'}>
+                {allMuted ? '🔇' : '🔊'}
+              </button>
+              <button onClick={() => socketRef.current?.emit('champ:reveal')} style={{ ...secondaryBtn, flex: 1 }}>
+                💡 חשוף תשובה (עוקף ממתינים)
+              </button>
+            </div>
           )}
         </div>
 
