@@ -16,6 +16,8 @@ import AdminUsersScreen from './screens/AdminUsersScreen.jsx';
 import FavoritesScreen from './screens/FavoritesScreen.jsx';
 import YearsGameScreen from './screens/YearsGameScreen.jsx';
 import YearsMultiplayerScreen from './screens/YearsMultiplayerScreen.jsx';
+import ChampionGameScreen from './screens/ChampionGameScreen.jsx';
+import ChampionMultiplayerScreen from './screens/ChampionMultiplayerScreen.jsx';
 import { logoutApi, uploadAvatar, getAvatarUrl, getUsers } from './api/client.js';
 import { useLang } from './i18n/useLang.js';
 
@@ -263,6 +265,22 @@ export default function App() {
           </div>
         </button>
 
+        <button onClick={() => setScreen('champion')} style={modeCard('#FFD700', dir)}>
+          <span style={{ fontSize: 38 }}>🥇</span>
+          <div style={{ flex: 1, textAlign: dir === 'rtl' ? 'right' : 'left' }}>
+            <div style={{ color: '#000', fontSize: 17, fontWeight: 800 }}>אלוף הזיהויים</div>
+            <div style={{ color: '#5a4500', fontSize: 12, marginTop: 3 }}>זמר, שיר ושנה — 3 קוביות לכל שיר</div>
+          </div>
+        </button>
+
+        <button onClick={() => setScreen('champion-multi')} style={modeCard('#DAA520', dir)}>
+          <span style={{ fontSize: 38 }}>🏅</span>
+          <div style={{ flex: 1, textAlign: dir === 'rtl' ? 'right' : 'left' }}>
+            <div style={{ color: '#fff', fontSize: 17, fontWeight: 800 }}>אלוף הזיהויים — קבוצתי</div>
+            <div style={{ color: '#fff8c5', fontSize: 12, marginTop: 3 }}>מי שצובר הכי הרבה נקודות מנצח</div>
+          </div>
+        </button>
+
         <button onClick={() => setScreen('favorites')} style={modeCard('#e74c3c', dir)}>
           <span style={{ fontSize: 38 }}>❤️</span>
           <div style={{ flex: 1, textAlign: dir === 'rtl' ? 'right' : 'left' }}>
@@ -289,6 +307,24 @@ export default function App() {
     <div style={{ ...shell }}>
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         <YearsMultiplayerScreen onExit={() => setScreen('home')} />
+      </div>
+    </div>
+  );
+
+  // ── Champion of identifications (solo) ────────────────────────────────────────
+  if (screen === 'champion') return (
+    <div style={{ ...shell }}>
+      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <ChampionGameScreen onExit={() => setScreen('home')} />
+      </div>
+    </div>
+  );
+
+  // ── Champion of identifications (multiplayer) ────────────────────────────────
+  if (screen === 'champion-multi') return (
+    <div style={{ ...shell }}>
+      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <ChampionMultiplayerScreen onExit={() => setScreen('home')} />
       </div>
     </div>
   );

@@ -8,13 +8,6 @@
       "year": "2019"
     },
     {
-      "id": "9b9f52412673e81f59f03937027200fe8523391a",
-      "filePath": "C:\\Users\\oren\\Desktop\\mp3\\עברי\\הבלדה על אביר החופש ובת גלים - Karolina_ Uri Brauner Kinrot - Spotimate.app.mp3",
-      "title": "הבלדה על אביר החופש ובת גלים",
-      "artist": "Karolina, Uri Brauner Kinrot",
-      "year": "2009"
-    },
-    {
       "id": "58cded9984ddd9b839dc9978fbb6894a8d2d5a8e",
       "filePath": "C:\\Users\\oren\\Desktop\\mp3\\לועזי\\56. Inner Circle - Sweat (A La La La La Long).mp3",
       "title": "Sweat (A La La La La Long)",
@@ -22,18 +15,18 @@
       "year": "2019"
     },
     {
+      "id": "7013886ee42047d60ce23faf0a3606831db0a97c",
+      "filePath": "C:\\Users\\oren\\Desktop\\mp3\\עברי\\מלך - Dana Berger - Spotimate.app.mp3",
+      "title": "מלך",
+      "artist": "דנה ברגר",
+      "year": "1994"
+    },
+    {
       "id": "93fc8b20e4fc2d50384013245c0349b9ebb53767",
       "filePath": "C:\\Users\\oren\\Desktop\\mp3\\עברי\\איך אפשר - Jane Bordeaux - Spotimate.app.mp3",
       "title": "איך אפשר",
       "artist": "ג'יין בורדו",
       "year": "2014"
-    },
-    {
-      "id": "31c8af4ea6a0c854eded4d93aa4942e623e0d658",
-      "filePath": "C:\\Users\\oren\\Desktop\\mp3\\עברי\\Lo Yachol Lehorid Mimench Et HaEynaim _Can_t Take My Eyes Off Of You_ - Meir Ariel - Spotimate.app.mp3",
-      "title": "Lo Yachol Lehorid Mimench Et HaEynaim (Can't Take My Eyes Off Of You)",
-      "artist": "מאיר אריאל",
-      "year": "1997"
     },
     {
       "id": "9e8ce3f4f13b1f6931e6304f138261ccc538ae2b",
@@ -50,11 +43,11 @@
       "year": "2025"
     },
     {
-      "id": "7013886ee42047d60ce23faf0a3606831db0a97c",
-      "filePath": "C:\\Users\\oren\\Desktop\\mp3\\עברי\\מלך - Dana Berger - Spotimate.app.mp3",
-      "title": "מלך",
-      "artist": "דנה ברגר",
-      "year": "1994"
+      "id": "31c8af4ea6a0c854eded4d93aa4942e623e0d658",
+      "filePath": "C:\\Users\\oren\\Desktop\\mp3\\עברי\\Lo Yachol Lehorid Mimench Et HaEynaim _Can_t Take My Eyes Off Of You_ - Meir Ariel - Spotimate.app.mp3",
+      "title": "Lo Yachol Lehorid Mimench Et HaEynaim (Can't Take My Eyes Off Of You)",
+      "artist": "מאיר אריאל",
+      "year": "1997"
     },
     {
       "id": "abbf145cc7ccde689ee86202356287e30f41d1e4",
@@ -90,6 +83,36 @@
       "title": "איש לא שומע",
       "artist": "Assaf Gold",
       "year": "2023"
+    },
+    {
+      "id": "274dd7ff8f4aef8654527fcbeebfa7b5eecc8f35",
+      "filePath": "C:\\Users\\oren\\Desktop\\mp3\\עברי\\חמימות חולפת - Dana Berger - Spotimate.app.mp3",
+      "title": "חמימות חולפת",
+      "artist": "דנה ברגר",
+      "year": "1998"
+    },
+    {
+      "id": "f384de40efa495c7594e241160ea735a79ba7f33",
+      "filePath": "C:\\Users\\oren\\Desktop\\mp3\\עברי\\אל תדאג - Aviv Geffen - Spotimate.app.mp3",
+      "title": "אל תדאג",
+      "artist": "אביב גפן",
+      "year": "1993"
+    },
+    {
+      "id": "3035d61e0c9375aad565685c7e26dfb43b20db8e",
+      "filePath": "C:\\Users\\oren\\Desktop\\mp3\\עברי\\ימי ראשית הקיץ - Josie Katz - Spotimate.app.mp3",
+      "title": "ימי ראשית הקיץ",
+      "artist": "Josie Katz",
+      "year": "2010"
+    }
+  ],
+  "1777567580605": [
+    {
+      "id": "3329cc7d2ad0bfe55fa544b7cbd44f86537c23da",
+      "filePath": "C:\\Users\\oren\\Desktop\\mp3\\עברי\\עכשיו קרוב - Idan Raichel - Spotimate.app.mp3",
+      "title": "עכשיו קרוב",
+      "artist": "עידן רייכל",
+      "year": "2013"
     }
   ]
 }
