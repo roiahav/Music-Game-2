@@ -652,13 +652,6 @@ export default function FavoritesScreen({ onExit }) {
                 {isPlaying ? '⏸' : '▶'}
               </button>
               <button onClick={handlePlayNext} style={iconBtn}>⏭</button>
-              <button
-                onClick={() => setShuffleMode(v => !v)}
-                style={{ ...iconBtn, color: shuffleMode ? accentColor : 'var(--text2)' }}
-                title="Shuffle"
-              >
-                🔀
-              </button>
             </div>
           </div>
         </div>
