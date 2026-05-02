@@ -33,6 +33,15 @@ const DEFAULT_SETTINGS = {
     fromEmail: '',
   },
   blacklist: [],
+  // Per-game admin controls for the home screen:
+  //   order:        explicit display order (game ids); missing ids fall back to defaults
+  //   hidden:       game ids hidden from EVERYONE (admins still see them)
+  //   allowedUsers: { gameId: [userId, ...] } — non-empty array = only those users see it
+  games: {
+    order: [],
+    hidden: [],
+    allowedUsers: {},
+  },
   inviteTemplates: [
     {
       id: 'tmpl-default',

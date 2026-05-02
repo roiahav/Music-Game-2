@@ -20,6 +20,7 @@ import ChampionGameScreen from './screens/ChampionGameScreen.jsx';
 import ChampionMultiplayerScreen from './screens/ChampionMultiplayerScreen.jsx';
 import { logoutApi, uploadAvatar, getAvatarUrl, getUsers } from './api/client.js';
 import { useLang } from './i18n/useLang.js';
+import { getVisibleGames } from './games-config.js';
 
 const shell = {
   display: 'flex', flexDirection: 'column', height: '100dvh',
@@ -47,6 +48,7 @@ export default function App() {
   const [pendingCount, setPendingCount] = useState(0);
   const [usersDefaultFilter, setUsersDefaultFilter] = useState('all');
   const load = useSettingsStore(s => s.load);
+  const gamesConfig = useSettingsStore(s => s.games);
   const { token, user, login, logout } = useAuthStore();
   const { themeId, setTheme } = useThemeStore();
   const fileInputRef = useRef(null);
@@ -223,72 +225,32 @@ export default function App() {
         ))}
       </div>
 
-      {/* Mode cards */}
+      {/* Mode cards — driven by games-config + admin settings (order, hidden, restrictions) */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%', padding: '0 24px 28px' }}>
-        <button onClick={() => { setScreen('solo'); setTab('game'); }} style={modeCard('#007ACC', dir)}>
-          <span style={{ fontSize: 38 }}>🎧</span>
-          <div style={{ flex: 1, textAlign: dir === 'rtl' ? 'right' : 'left' }}>
-            <div style={{ color: '#fff', fontSize: 17, fontWeight: 800 }}>{t('solo_game')}</div>
-            <div style={{ color: '#a8d4f5', fontSize: 12, marginTop: 3 }}>{t('solo_desc')}</div>
-          </div>
-        </button>
-
-        <button onClick={() => setScreen('multiplayer')} style={modeCard('#1db954', dir)}>
-          <span style={{ fontSize: 38 }}>🎮</span>
-          <div style={{ flex: 1, textAlign: dir === 'rtl' ? 'right' : 'left' }}>
-            <div style={{ color: '#fff', fontSize: 17, fontWeight: 800 }}>{t('group_game')}</div>
-            <div style={{ color: '#a8f5c4', fontSize: 12, marginTop: 3 }}>{t('group_desc')}</div>
-          </div>
-        </button>
-
-        <button onClick={() => setScreen('solo-typing')} style={modeCard('#9b59b6', dir)}>
-          <span style={{ fontSize: 38 }}>🎤</span>
-          <div style={{ flex: 1, textAlign: dir === 'rtl' ? 'right' : 'left' }}>
-            <div style={{ color: '#fff', fontSize: 17, fontWeight: 800 }}>{t('free_guess')}</div>
-            <div style={{ color: '#d7b8f5', fontSize: 12, marginTop: 3 }}>{t('free_desc')}</div>
-          </div>
-        </button>
-
-        <button onClick={() => setScreen('years')} style={modeCard('#f39c12', dir)}>
-          <span style={{ fontSize: 38 }}>📅</span>
-          <div style={{ flex: 1, textAlign: dir === 'rtl' ? 'right' : 'left' }}>
-            <div style={{ color: '#fff', fontSize: 17, fontWeight: 800 }}>{t('years_game')}</div>
-            <div style={{ color: '#fde8b0', fontSize: 12, marginTop: 3 }}>{t('years_desc')}</div>
-          </div>
-        </button>
-
-        <button onClick={() => setScreen('years-multi')} style={modeCard('#e67e22', dir)}>
-          <span style={{ fontSize: 38 }}>🏆</span>
-          <div style={{ flex: 1, textAlign: dir === 'rtl' ? 'right' : 'left' }}>
-            <div style={{ color: '#fff', fontSize: 17, fontWeight: 800 }}>{t('ygm_game')}</div>
-            <div style={{ color: '#fdd5b0', fontSize: 12, marginTop: 3 }}>{t('ygm_desc')}</div>
-          </div>
-        </button>
-
-        <button onClick={() => setScreen('champion')} style={modeCard('#C9A227', dir)}>
-          <span style={{ fontSize: 38 }}>🥇</span>
-          <div style={{ flex: 1, textAlign: dir === 'rtl' ? 'right' : 'left' }}>
-            <div style={{ color: '#fff', fontSize: 17, fontWeight: 800 }}>אלוף הזיהויים</div>
-            <div style={{ color: '#fff5c5', fontSize: 12, marginTop: 3 }}>זמר, שיר ושנה — 3 קוביות לכל שיר</div>
-          </div>
-        </button>
-
-        <button onClick={() => setScreen('champion-multi')} style={modeCard('#DAA520', dir)}>
-          <span style={{ fontSize: 38 }}>🏅</span>
-          <div style={{ flex: 1, textAlign: dir === 'rtl' ? 'right' : 'left' }}>
-            <div style={{ color: '#fff', fontSize: 17, fontWeight: 800 }}>אלוף הזיהויים — קבוצתי</div>
-            <div style={{ color: '#fff8c5', fontSize: 12, marginTop: 3 }}>מי שצובר הכי הרבה נקודות מנצח</div>
-          </div>
-        </button>
-
-        <button onClick={() => setScreen('favorites')} style={modeCard('#e74c3c', dir)}>
-          <span style={{ fontSize: 38 }}>❤️</span>
-          <div style={{ flex: 1, textAlign: dir === 'rtl' ? 'right' : 'left' }}>
-            <div style={{ color: '#fff', fontSize: 17, fontWeight: 800 }}>{t('my_favorites')}</div>
-            <div style={{ color: '#f5a8a8', fontSize: 12, marginTop: 3 }}>{t('favorites_desc')}</div>
-          </div>
-        </button>
-
+        {getVisibleGames(gamesConfig, user).map(g => {
+          const labelMap = {
+            'solo': t('solo_game'),
+            'multiplayer': t('group_game'),
+            'solo-typing': t('free_guess'),
+            'years': t('years_game'),
+            'years-multi': t('ygm_game'),
+            'favorites': t('my_favorites'),
+          };
+          const descText = g.descKey ? t(g.descKey) : (g.descRaw || '');
+          return (
+            <button
+              key={g.id}
+              onClick={() => { setScreen(g.screen); if (g.tab) setTab(g.tab); }}
+              style={modeCard(g.bg, dir)}
+            >
+              <span style={{ fontSize: 38 }}>{g.icon}</span>
+              <div style={{ flex: 1, textAlign: dir === 'rtl' ? 'right' : 'left' }}>
+                <div style={{ color: '#fff', fontSize: 17, fontWeight: 800 }}>{labelMap[g.id] || g.label}</div>
+                <div style={{ color: g.subColor || '#fff', fontSize: 12, marginTop: 3 }}>{descText}</div>
+              </div>
+            </button>
+          );
+        })}
       </div>
     </div>
   );

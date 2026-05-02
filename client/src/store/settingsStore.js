@@ -13,6 +13,7 @@ export const useSettingsStore = create((set, get) => ({
   game: { ...DEFAULT_GAME, ...getLocalGame() },
   spotify: { clientId: '', clientSecret: '' },
   spotifyStatus: { connected: false },
+  games: { order: [], hidden: [], allowedUsers: {} },
   loaded: false,
 
   async load() {
@@ -26,10 +27,20 @@ export const useSettingsStore = create((set, get) => ({
       const serverGame = { ...DEFAULT_GAME, ...(s.game || {}) };
       // Merge: local prefs (timer/shuffle chosen by user) take priority
       const localPrefs = getLocalGame();
-      set({ game: { ...serverGame, ...localPrefs }, spotify: s.spotify || {}, loaded: true });
+      set({
+        game: { ...serverGame, ...localPrefs },
+        spotify: s.spotify || {},
+        games: s.games || { order: [], hidden: [], allowedUsers: {} },
+        loaded: true,
+      });
     } catch {
       set({ loaded: true });
     }
+  },
+
+  async saveGamesConfig(games) {
+    set({ games });
+    try { await saveSettings({ games }); } catch {}
   },
 
   async saveGame(game) {
