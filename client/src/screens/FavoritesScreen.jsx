@@ -1,6 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { getFavorites, removeFavorite, reorderFavorites } from '../api/client.js';
 import { useLang } from '../i18n/useLang.js';
+import { getJSON, setJSON } from '../utils/safeStorage.js';
+
+// localStorage key for resume-on-reopen
+const RESUME_KEY = 'mg_fav_resume';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 function fmtTime(sec) {
@@ -52,10 +56,39 @@ export default function FavoritesScreen({ onExit }) {
   // ── debounce timer for reorder API call ──
   const reorderTimer = useRef(null);
 
-  // ── load ──
+  // ── load + resume last-played song ──
   useEffect(() => {
     getFavorites()
-      .then(data => setSongs(data))
+      .then(data => {
+        setSongs(data);
+        // Restore last-played song if we have one. The audio is loaded and
+        // seeked but NOT auto-played — browsers block autoplay on fresh
+        // navigation, and showing the user a paused row at the right spot
+        // lets them tap ▶ to continue exactly where they left off.
+        try {
+          const saved = getJSON(RESUME_KEY, null);
+          if (saved && saved.songId && Array.isArray(data)) {
+            const song = data.find(s => s.id === saved.songId);
+            if (song) {
+              setPlayQueue(data);
+              const idxInData = data.indexOf(song);
+              setCurrentIdx(idxInData >= 0 ? idxInData : 0);
+              if (audioRef.current && song.audioUrl) {
+                audioRef.current.src = song.audioUrl;
+                audioRef.current.load();
+                const t = Number(saved.currentTime) || 0;
+                if (t > 0) {
+                  const onMeta = () => {
+                    try { audioRef.current.currentTime = t; } catch {}
+                    audioRef.current.removeEventListener('loadedmetadata', onMeta);
+                  };
+                  audioRef.current.addEventListener('loadedmetadata', onMeta);
+                }
+              }
+            }
+          }
+        } catch {}
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
@@ -306,6 +339,24 @@ export default function FavoritesScreen({ onExit }) {
       navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
     }
   }, [isPlaying]);
+
+  // Persist last-played song + position so the user resumes here on re-entry.
+  // Only saves while audio has actually started — prevents the restore-on-mount
+  // path from overwriting the saved position with 0 before the user hits play.
+  useEffect(() => {
+    if (!current) return;
+    const save = () => {
+      const t = audioRef.current?.currentTime || 0;
+      // Skip writes for fresh-loaded songs (t≈0) unless audio is actively
+      // playing — protects the seek-target during cold-restore on mount
+      if (t === 0 && !isPlaying) return;
+      setJSON(RESUME_KEY, { songId: current.id, currentTime: t });
+    };
+    if (isPlaying) save();
+    if (!isPlaying) return;
+    const id = setInterval(save, 3000);
+    return () => { clearInterval(id); save(); };
+  }, [current, isPlaying]);
 
   // Update position on lock screen progress bar
   useEffect(() => {
