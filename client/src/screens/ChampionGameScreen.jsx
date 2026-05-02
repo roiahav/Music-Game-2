@@ -48,6 +48,9 @@ export default function ChampionGameScreen({ onExit }) {
   // Picker modal: null | 'artist' | 'title' | 'year'
   const [picker, setPicker] = useState(null);
 
+  // Rules modal — shown when the user taps the "?" link at the bottom
+  const [showRules, setShowRules] = useState(false);
+
   // Submitted reveal state
   const [submitted, setSubmitted] = useState(false);
 
@@ -187,19 +190,6 @@ export default function ChampionGameScreen({ onExit }) {
         <TopBar onExit={onExit} title={`🏆 אלוף הזיהויים`} />
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '20px 16px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {/* Rules card */}
-          <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 14, padding: 16 }}>
-            <h3 style={{ margin: '0 0 12px', color: 'var(--text)', fontSize: 15, fontWeight: 800 }}>איך משחקים?</h3>
-            <ul style={{ margin: 0, padding: '0 18px 0 0', color: 'var(--text2)', fontSize: 13, lineHeight: 1.8 }}>
-              <li>🎵 השמיע שיר רנדומלי מהפלייליסט שתבחר</li>
-              <li>👆 לחץ על קוביית "זמר" / "שיר" / "שנה" כדי לבחור</li>
-              <li>📝 בזמר ובשיר — חיפוש עם אוטו-השלמה</li>
-              <li>📅 בשנה — בחר עשור ואז שנה</li>
-              <li>✅ לחץ "שלח תשובות" — נכון יהפוך לירוק, לא נכון לאדום</li>
-              <li>🏆 כל קוביה נכונה = נקודה</li>
-            </ul>
-          </div>
-
           <PlaylistSelector
             playlists={playlists}
             selectedIds={selectedPlaylistIds}
@@ -291,7 +281,21 @@ export default function ChampionGameScreen({ onExit }) {
                 ? (allSongs.length === 0 ? 'אין שירים מתאימים בפלייליסט' : decadeFilter.size === 0 ? 'בחר לפחות עשור אחד' : 'אין שירים בעשורים הנבחרים')
                 : `▶ התחל — ${filteredSongs.length} שירים`}
           </button>
+
+          {/* Rules shortcut — opens the help modal */}
+          <button
+            onClick={() => setShowRules(true)}
+            style={{
+              alignSelf: 'center', background: 'none', border: 'none',
+              color: 'var(--text2)', fontSize: 13, cursor: 'pointer',
+              textDecoration: 'underline', padding: '4px 8px',
+            }}
+          >
+            ❓ איך משחקים?
+          </button>
         </div>
+
+        {showRules && <ChampionRulesModal onClose={() => setShowRules(false)} />}
       </div>
     );
   }
@@ -743,6 +747,38 @@ function StatCell({ icon, label, value, color }) {
       </div>
       <div style={{ color, fontSize: 22, fontWeight: 900, lineHeight: 1 }}>{value}</div>
     </div>
+  );
+}
+
+// ─── Rules modal — bottom sheet shown when the user taps "❓ איך משחקים?" ───
+function ChampionRulesModal({ onClose }) {
+  return (
+    <>
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 50 }} />
+      <div style={{
+        position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 51,
+        background: 'var(--bg)', borderRadius: '20px 20px 0 0',
+        maxWidth: 480, margin: '0 auto',
+        maxHeight: '80dvh', display: 'flex', flexDirection: 'column',
+        direction: 'rtl',
+      }}>
+        <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ color: 'var(--text)', fontWeight: 800, fontSize: 16 }}>❓ איך משחקים?</span>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text2)', fontSize: 22, cursor: 'pointer', padding: 0 }}>✕</button>
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 24px' }}>
+          <ul style={{ margin: 0, padding: '0 18px 0 0', color: 'var(--text2)', fontSize: 14, lineHeight: 1.9 }}>
+            <li>🎵 השמיע שיר רנדומלי מהפלייליסט שתבחר</li>
+            <li>👆 לחץ על קוביית "זמר" / "שיר" / "שנה" כדי לבחור</li>
+            <li>📝 בזמר ובשיר — חיפוש עם אוטו-השלמה</li>
+            <li>📅 בשנה — בחר עשור ואז שנה</li>
+            <li>✅ לחץ "שלח תשובות" — נכון יהפוך לירוק, לא נכון לאדום</li>
+            <li>🏆 כל קוביה נכונה = 1 נקודה</li>
+            <li>💎 כל הקוביות נכונות = +5 בונוס (סך 8 לסיבוב מושלם)</li>
+          </ul>
+        </div>
+      </div>
+    </>
   );
 }
 

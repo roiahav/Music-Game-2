@@ -55,6 +55,7 @@ export default function ChampionMultiplayerScreen({ onExit }) {
   const [submitted, setSubmitted] = useState(false);
   const [revealData, setRevealData] = useState(null); // { song, results }
   const submitRef = useRef(null);
+  const [showRules, setShowRules] = useState(false);
 
   // Victory + game stats for end screen
   const [victoryAudioUrl, setVictoryAudioUrl] = useState('');
@@ -184,19 +185,6 @@ export default function ChampionMultiplayerScreen({ onExit }) {
       <div style={shell(dir)}>
         <TopBar onExit={onExit} title="🥇 אלוף הזיהויים — קבוצתי" />
         <div style={{ flex: 1, overflowY: 'auto', padding: '20px 16px 28px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {/* Rules */}
-          <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 14, padding: 16 }}>
-            <h3 style={{ margin: '0 0 12px', color: 'var(--text)', fontSize: 15, fontWeight: 800 }}>איך משחקים?</h3>
-            <ul style={{ margin: 0, padding: '0 18px 0 0', color: 'var(--text2)', fontSize: 13, lineHeight: 1.8 }}>
-              <li>🎵 המנהל פותח חדר ובוחר פלייליסט וכמות שירים</li>
-              <li>👥 שחקנים מצטרפים בקוד החדר</li>
-              <li>🎧 כולם שומעים את אותו שיר באותו זמן</li>
-              <li>✏️ כל שחקן בוחר זמר, שיר ושנה מהקוביות</li>
-              <li>✅ נקודה לכל קובייה נכונה (3 לסיבוב מושלם)</li>
-              <li>🏆 מי שצובר הכי הרבה נקודות — מנצח!</li>
-            </ul>
-          </div>
-
           <input value={playerName} onChange={e => setPlayerName(e.target.value)} placeholder="שמך" style={inputStyle} />
 
           {!mode ? (
@@ -223,7 +211,19 @@ export default function ChampionMultiplayerScreen({ onExit }) {
           )}
 
           {error && <div style={errorBox}>{error}</div>}
+
+          <button
+            onClick={() => setShowRules(true)}
+            style={{
+              alignSelf: 'center', background: 'none', border: 'none',
+              color: 'var(--text2)', fontSize: 13, cursor: 'pointer',
+              textDecoration: 'underline', padding: '4px 8px', marginTop: 4,
+            }}
+          >
+            ❓ איך משחקים?
+          </button>
         </div>
+        {showRules && <ChampionMpRulesModal onClose={() => setShowRules(false)} />}
       </div>
     );
   }
@@ -355,7 +355,19 @@ export default function ChampionMultiplayerScreen({ onExit }) {
             </div>
           )}
           {error && <div style={errorBox}>{error}</div>}
+
+          <button
+            onClick={() => setShowRules(true)}
+            style={{
+              alignSelf: 'center', background: 'none', border: 'none',
+              color: 'var(--text2)', fontSize: 13, cursor: 'pointer',
+              textDecoration: 'underline', padding: '4px 8px', marginTop: 4,
+            }}
+          >
+            ❓ איך משחקים?
+          </button>
         </div>
+        {showRules && <ChampionMpRulesModal onClose={() => setShowRules(false)} />}
       </div>
     );
   }
@@ -747,6 +759,38 @@ function YearPickerModal({ onSelect, onClose }) {
 }
 
 function decadeLabel(d) { return d < 2000 ? `שנות ה-${String(d).slice(2)}` : `שנות ה-${d}`; }
+
+// ─── Rules modal — bottom sheet shown when the user taps "❓ איך משחקים?" ───
+function ChampionMpRulesModal({ onClose }) {
+  return (
+    <>
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 50 }} />
+      <div style={{
+        position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 51,
+        background: 'var(--bg)', borderRadius: '20px 20px 0 0',
+        maxWidth: 480, margin: '0 auto',
+        maxHeight: '80dvh', display: 'flex', flexDirection: 'column',
+        direction: 'rtl',
+      }}>
+        <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ color: 'var(--text)', fontWeight: 800, fontSize: 16 }}>❓ איך משחקים?</span>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text2)', fontSize: 22, cursor: 'pointer', padding: 0 }}>✕</button>
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 24px' }}>
+          <ul style={{ margin: 0, padding: '0 18px 0 0', color: 'var(--text2)', fontSize: 14, lineHeight: 1.9 }}>
+            <li>🎵 המנהל פותח חדר ובוחר פלייליסט וכמות שירים</li>
+            <li>👥 שחקנים מצטרפים בקוד החדר</li>
+            <li>🎧 כולם שומעים את אותו שיר באותו זמן</li>
+            <li>✏️ כל שחקן בוחר זמר, שיר ושנה מהקוביות</li>
+            <li>✅ נקודה לכל קובייה נכונה</li>
+            <li>💎 כל הקוביות נכונות בסיבוב = +5 בונוס (סך 8)</li>
+            <li>🏆 מי שצובר הכי הרבה נקודות — מנצח!</li>
+          </ul>
+        </div>
+      </div>
+    </>
+  );
+}
 
 function MiniStat({ icon, label, value, color }) {
   return (

@@ -18,9 +18,9 @@
   "spotify": {
     "clientId": "145f4229038948c68315a05e468afd50",
     "clientSecret": "3fd6cfaba1944a318df2b72e94502f0d",
-    "accessToken": "BQDZXaDGanY0yEfvaxn5O4VamkoxNoodEZx33AJNb1BKjgrpGZcvWqj_GrXB7Gb-hZFMxCpQe0Y9og7tIRhMnrR--t8wnSreyn4X2lFoNtUZo7z5k-YhaG0XCLh_c8YqnTjVJrn1gGrtvb-pWaBocLfbOU4SgBSfcctTulSJwmT5OAiJecDFmgVkqIHqBztyA10E2znV5YevbF3tSe97Ruhy_0y6fzaYfU1YS3TfTkgw27rztupxSARdXbf6Lrwt_1-hGC0wxbIr6sjbVuFXbka5Sg",
+    "accessToken": "BQACSdFJwwo2N2XNRIzadqTtpWqVFT16_4Coi6svqyq24Xjjo3u1-yb6OmndR0Ajo8FG8RgvIFUReIsFbWUoL6iNAcatFsqA2Ow5F2iZZFXn-AddQiWtjvx-bHABQh4ktwT9P5va7BRTjeDbMj3_WcpSy-xSDyXE1K95eFINywT8teSluIvy0J66fgCDqQQYDHf6-WesZSP3HHoDmtK3Ta1kb1TXgg2Cya-RO9XxCKtVGQFTqS33ykRfavFFakksWtZsgWoeGXsCPXHhfdi_5QrjyQ",
     "refreshToken": "AQB9Y43PWr1I-UeMLoyhOsxwmaHDZn9LAXludbkaQjCbjo7jNeUzBfduNgxrfwonVuPGFk-DjEDeLh5xLs3aClX5zmwfUe6PGlNzQRQS-dpXMHFWXRHcSnGFEJfJvV-f0t4",
-    "tokenExpiresAt": 1777699404055
+    "tokenExpiresAt": 1777713672408
   },
   "game": {
     "shuffle": true,
@@ -57,8 +57,8 @@
     "order": [
       "champion",
       "champion-multi",
-      "solo",
       "multiplayer",
+      "solo",
       "solo-typing",
       "years",
       "years-multi",
