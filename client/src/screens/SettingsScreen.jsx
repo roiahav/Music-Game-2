@@ -4,7 +4,6 @@ import { addPlaylist, getPlaylists, getSettings as getSettingsApi, saveSettings,
 import { useLang } from '../i18n/useLang.js';
 import SpotifyConnectPanel from '../components/SpotifyConnectPanel.jsx';
 import SettingsPlaylistRow from '../components/SettingsPlaylistRow.jsx';
-import GameOptionsBar from '../components/GameOptionsBar.jsx';
 import FolderBrowser from '../components/FolderBrowser.jsx';
 import AdminBlacklistSection from '../components/AdminBlacklistSection.jsx';
 import AdminUsersScreen, { ActivityTab } from '../screens/AdminUsersScreen.jsx';
@@ -217,10 +216,6 @@ export default function SettingsScreen({ isAdmin = false, usersDefaultFilter = '
             )}
           </div>
         )}
-      </div>
-
-      <div style={{ order: -1 }}>
-        <GameOptionsBar />
       </div>
 
       {isAdmin && (
