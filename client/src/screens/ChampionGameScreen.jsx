@@ -60,6 +60,12 @@ export default function ChampionGameScreen({ onExit }) {
   const carModeRef = useRef(false);
   const currentSongRef = useRef(null);
   const submittedRef = useRef(false);
+  // Mic stream held with echo-cancellation constraints so the playing song
+  // doesn't bleed back into recognition.
+  const micStreamRef = useRef(null);
+  // Voice match handlers stored in a ref so the long-lived recognition
+  // listener always invokes the LATEST closures (queue/songIdx are fresh).
+  const voiceHandlersRef = useRef({ onCorrect: null, onWrong: null });
 
   // Submitted reveal state
   const [submitted, setSubmitted] = useState(false);
@@ -85,6 +91,16 @@ export default function ChampionGameScreen({ onExit }) {
   useEffect(() => { currentSongRef.current = currentSong; }, [currentSong]);
   useEffect(() => { submittedRef.current = submitted; }, [submitted]);
 
+  // Trigger SpeechSynthesis voice list to populate. Some browsers load voices
+  // asynchronously and getVoices() returns [] on the first call.
+  useEffect(() => {
+    if (!('speechSynthesis' in window)) return;
+    const fire = () => window.speechSynthesis.getVoices();
+    fire();
+    window.speechSynthesis.addEventListener?.('voiceschanged', fire);
+    return () => window.speechSynthesis.removeEventListener?.('voiceschanged', fire);
+  }, []);
+
   // Hard teardown on unmount — even if carMode is still true when the user
   // navigates away, this kills the mic + cancels any pending TTS.
   useEffect(() => {
@@ -93,6 +109,8 @@ export default function ChampionGameScreen({ onExit }) {
       try { recognitionRef.current?.abort(); } catch {}
       recognitionRef.current = null;
       try { window.speechSynthesis.cancel(); } catch {}
+      try { micStreamRef.current?.getTracks().forEach(t => t.stop()); } catch {}
+      micStreamRef.current = null;
     };
   }, []);
 
@@ -104,6 +122,7 @@ export default function ChampionGameScreen({ onExit }) {
     try { recognitionRef.current?.stop(); } catch {}
     try { recognitionRef.current?.abort(); } catch {}
     try { window.speechSynthesis.cancel(); } catch {}
+    releaseMic();
     onExit?.();
   }
 
@@ -147,18 +166,51 @@ export default function ChampionGameScreen({ onExit }) {
   }
 
   // Speak a string in Hebrew. Returns a promise that resolves when speech ends.
+  // Picking a he-IL voice explicitly is required on most browsers — setting
+  // utterance.lang alone often falls back to the default (English) voice.
   function speak(text) {
     return new Promise(resolve => {
       try {
         const u = new SpeechSynthesisUtterance(text);
         u.lang = 'he-IL';
         u.rate = 1.0;
+        // Find a Hebrew voice from the available list. Voices populate async,
+        // so if the list is empty we just rely on lang + the OS picking one.
+        const voices = window.speechSynthesis.getVoices();
+        const hebrewVoice =
+          voices.find(v => v.lang === 'he-IL') ||
+          voices.find(v => v.lang?.toLowerCase().startsWith('he')) ||
+          null;
+        if (hebrewVoice) u.voice = hebrewVoice;
         u.onend = () => resolve();
         u.onerror = () => resolve();
         window.speechSynthesis.cancel();
         window.speechSynthesis.speak(u);
       } catch { resolve(); }
     });
+  }
+
+  // Acquire the mic with echo-cancellation enabled so the song playing
+  // through the speakers doesn't get fed back into recognition. Held alive
+  // for the duration of car mode — the SpeechRecognition API on most
+  // browsers honors the active constraints when starting its own pipeline.
+  async function acquireCleanMic() {
+    if (micStreamRef.current) return micStreamRef.current;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation:  true,
+          noiseSuppression:  true,
+          autoGainControl:   true,
+        },
+      });
+      micStreamRef.current = stream;
+      return stream;
+    } catch { return null; }
+  }
+  function releaseMic() {
+    try { micStreamRef.current?.getTracks().forEach(t => t.stop()); } catch {}
+    micStreamRef.current = null;
   }
 
   // Set up the SpeechRecognition listener once when carMode turns on, and
@@ -172,55 +224,61 @@ export default function ChampionGameScreen({ onExit }) {
       setCarMode(false);
       return;
     }
-    const rec = new SR();
-    rec.lang = 'he-IL';
-    rec.continuous = true;
-    rec.interimResults = true;
-    recognitionRef.current = rec;
+    let cancelled = false;
 
-    rec.onresult = (ev) => {
-      // Walk every result so far for the latest spoken text
-      let transcript = '';
-      for (let i = ev.resultIndex; i < ev.results.length; i++) {
-        transcript += ev.results[i][0].transcript + ' ';
-      }
-      setVoiceTranscript(transcript);
+    // Pre-warm the mic with echoCancellation BEFORE starting recognition so
+    // the music playing through the speakers doesn't echo into the mic.
+    acquireCleanMic().then(() => {
+      if (cancelled) return;
+      const rec = new SR();
+      rec.lang = 'he-IL';
+      rec.continuous = true;
+      rec.interimResults = true;
+      recognitionRef.current = rec;
 
-      const song = currentSongRef.current;
-      if (!song || submittedRef.current) return;
+      rec.onresult = (ev) => {
+        let transcript = '';
+        for (let i = ev.resultIndex; i < ev.results.length; i++) {
+          transcript += ev.results[i][0].transcript + ' ';
+        }
+        setVoiceTranscript(transcript);
 
-      const artistOk = looseContains(transcript, song.artist);
-      const titleOk  = looseContains(transcript, song.title);
+        const song = currentSongRef.current;
+        if (!song || submittedRef.current) return;
 
-      // Explicit "שלח" voice command: submit whatever was said so far. If the
-      // transcript matches → correct flow; otherwise reveal the answer.
-      if (containsSubmitWord(transcript)) {
-        try { rec.stop(); } catch {}
-        if (artistOk || titleOk) handleVoiceCorrect(song);
-        else handleVoiceWrong(song);
-        return;
-      }
+        const artistOk = looseContains(transcript, song.artist);
+        const titleOk  = looseContains(transcript, song.title);
 
-      // Auto-match: as soon as the player says the artist OR title, count it
-      if (artistOk || titleOk) {
-        try { rec.stop(); } catch {}
-        handleVoiceCorrect(song);
-      }
-    };
-    rec.onend = () => {
-      // Auto-restart while still in car mode and not currently submitting
-      setVoiceListening(false);
-      if (carModeRef.current && !submittedRef.current) {
-        setTimeout(() => { try { rec.start(); setVoiceListening(true); } catch {} }, 200);
-      }
-    };
-    rec.onerror = () => { /* ignore — onend will retry */ };
+        // Explicit "שלח" voice command — submit whatever was said so far
+        if (containsSubmitWord(transcript)) {
+          try { rec.stop(); } catch {}
+          if (artistOk || titleOk) voiceHandlersRef.current.onCorrect?.(song);
+          else                     voiceHandlersRef.current.onWrong?.(song);
+          return;
+        }
 
-    try { rec.start(); setVoiceListening(true); } catch {}
+        // Auto-match: artist OR title detected anywhere in the transcript
+        if (artistOk || titleOk) {
+          try { rec.stop(); } catch {}
+          voiceHandlersRef.current.onCorrect?.(song);
+        }
+      };
+      rec.onend = () => {
+        setVoiceListening(false);
+        if (carModeRef.current && !submittedRef.current) {
+          setTimeout(() => { try { rec.start(); setVoiceListening(true); } catch {} }, 200);
+        }
+      };
+      rec.onerror = () => { /* ignore — onend will retry */ };
+
+      try { rec.start(); setVoiceListening(true); } catch {}
+    });
 
     return () => {
-      try { rec.stop(); } catch {}
+      cancelled = true;
+      try { recognitionRef.current?.stop(); } catch {}
       recognitionRef.current = null;
+      releaseMic();
       setVoiceListening(false);
       window.speechSynthesis.cancel();
     };
@@ -246,6 +304,14 @@ export default function ChampionGameScreen({ onExit }) {
       nextSong();
     }, 300);
   }
+
+  // Always store the latest version of the voice handlers in a ref, so the
+  // long-lived recognition listener (set up once when carMode toggles on)
+  // dispatches into closures with fresh queue/songIdx state.
+  voiceHandlersRef.current = {
+    onCorrect: (song) => handleVoiceCorrect(song),
+    onWrong:   (song) => handleVoiceWrong(song),
+  };
 
   // Match handler — plays chime, announces details, auto-advances
   async function handleVoiceCorrect(song, _correct) {
