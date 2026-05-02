@@ -18,9 +18,9 @@
   "spotify": {
     "clientId": "145f4229038948c68315a05e468afd50",
     "clientSecret": "3fd6cfaba1944a318df2b72e94502f0d",
-    "accessToken": "BQBUiNvCWVLFiucz8Ue84SxzvYqXvRuLHupYKoi0tSszZXD1o32Qkbx07lP0Ya8HWrvMZKxlFI1vLNX8Um6cM21sj4deh3Gl-tYcsmSxxAVNZaERAddz_FOlgYWTke91L0CYWDztMHAnbCaMFvNV5M-b98-3DjgrPbCQCYmqGU-grJB55nQEbWeGr-UGiThO438MWWPuTCkqAcs8iHjSmAJHacliw305GOfzYMq15_HpD-rtKZhVpqt9Hr1MjmPOnv4lG8mWr8vk_IecceztMvzIfQ",
+    "accessToken": "BQDZXaDGanY0yEfvaxn5O4VamkoxNoodEZx33AJNb1BKjgrpGZcvWqj_GrXB7Gb-hZFMxCpQe0Y9og7tIRhMnrR--t8wnSreyn4X2lFoNtUZo7z5k-YhaG0XCLh_c8YqnTjVJrn1gGrtvb-pWaBocLfbOU4SgBSfcctTulSJwmT5OAiJecDFmgVkqIHqBztyA10E2znV5YevbF3tSe97Ruhy_0y6fzaYfU1YS3TfTkgw27rztupxSARdXbf6Lrwt_1-hGC0wxbIr6sjbVuFXbka5Sg",
     "refreshToken": "AQB9Y43PWr1I-UeMLoyhOsxwmaHDZn9LAXludbkaQjCbjo7jNeUzBfduNgxrfwonVuPGFk-DjEDeLh5xLs3aClX5zmwfUe6PGlNzQRQS-dpXMHFWXRHcSnGFEJfJvV-f0t4",
-    "tokenExpiresAt": 1777644687137
+    "tokenExpiresAt": 1777699404055
   },
   "game": {
     "shuffle": true,

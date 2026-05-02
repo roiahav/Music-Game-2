@@ -1359,11 +1359,18 @@ const tplBtnStyle = (bg) => ({
 
 // ─── Games management panel ──────────────────────────────────────────────────
 // Lets admin hide/show, reorder and per-user-restrict each home-screen game.
+const GAMES_MGMT_OPEN_KEY = 'mg_settings_games_mgmt_open';
+
 function GamesManagementPanel() {
   const gamesConfig = useSettingsStore(s => s.games);
   const saveGamesConfig = useSettingsStore(s => s.saveGamesConfig);
 
-  const [open, setOpen] = useState(false);
+  // Default OPEN so admins can immediately see the home-screen reorder UI
+  const [open, setOpen] = useState(() => {
+    const saved = getJSON(GAMES_MGMT_OPEN_KEY, null);
+    return saved === null ? true : !!saved;
+  });
+  useEffect(() => { setJSON(GAMES_MGMT_OPEN_KEY, open); }, [open]);
   const [users, setUsers] = useState([]);
   const [expandedGameId, setExpandedGameId] = useState(null);
 
