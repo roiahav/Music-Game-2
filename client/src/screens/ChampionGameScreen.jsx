@@ -51,19 +51,6 @@ export default function ChampionGameScreen({ onExit }) {
   // Rules modal — shown when the user taps the "?" link at the bottom
   const [showRules, setShowRules] = useState(false);
 
-  // Car mode — voice recognition: player speaks the artist or title and the
-  // app announces correct answer + auto-advances. Hands-free for driving.
-  const [carMode, setCarMode] = useState(false);
-  const [voiceListening, setVoiceListening] = useState(false);
-  const [voiceTranscript, setVoiceTranscript] = useState('');
-  const recognitionRef = useRef(null);
-  const carModeRef = useRef(false);
-  const currentSongRef = useRef(null);
-  const submittedRef = useRef(false);
-  // Voice match handlers stored in a ref so the long-lived recognition
-  // listener always invokes the LATEST closures (queue/songIdx are fresh).
-  const voiceHandlersRef = useRef({ onCorrect: null, onWrong: null });
-
   // Submitted reveal state
   const [submitted, setSubmitted] = useState(false);
 
@@ -83,43 +70,6 @@ export default function ChampionGameScreen({ onExit }) {
   // the latest version (with current picks) rather than a stale one
   const handleSubmitRef = useRef(null);
 
-  // Keep refs in sync for the long-lived recognition listener
-  useEffect(() => { carModeRef.current = carMode; }, [carMode]);
-  useEffect(() => { currentSongRef.current = currentSong; }, [currentSong]);
-  useEffect(() => { submittedRef.current = submitted; }, [submitted]);
-
-  // Trigger SpeechSynthesis voice list to populate. Some browsers load voices
-  // asynchronously and getVoices() returns [] on the first call.
-  useEffect(() => {
-    if (!('speechSynthesis' in window)) return;
-    const fire = () => window.speechSynthesis.getVoices();
-    fire();
-    window.speechSynthesis.addEventListener?.('voiceschanged', fire);
-    return () => window.speechSynthesis.removeEventListener?.('voiceschanged', fire);
-  }, []);
-
-  // Hard teardown on unmount — even if carMode is still true when the user
-  // navigates away, this kills the mic + cancels any pending TTS.
-  useEffect(() => {
-    return () => {
-      try { recognitionRef.current?.stop(); } catch {}
-      try { recognitionRef.current?.abort(); } catch {}
-      recognitionRef.current = null;
-      try { window.speechSynthesis.cancel(); } catch {}
-    };
-  }, []);
-
-  // Wrap the home-button handler so we explicitly stop the mic before unmount
-  function exitGame() {
-    // Sync the ref FIRST so the recognition.onend handler doesn't auto-restart
-    carModeRef.current = false;
-    setCarMode(false);
-    try { recognitionRef.current?.stop(); } catch {}
-    try { recognitionRef.current?.abort(); } catch {}
-    try { window.speechSynthesis.cancel(); } catch {}
-    onExit?.();
-  }
-
   // Songs that match the chosen decade filter. All decades selected by default.
   const filteredSongs = useMemo(() => {
     return allSongs.filter(s => decadeFilter.has(decadeOf(s.year)));
@@ -136,170 +86,6 @@ export default function ChampionGameScreen({ onExit }) {
   // pickers match what's actually playable
   const allArtists = useMemo(() => uniqueSorted(filteredSongs.map(s => (s.artist || '').trim()).filter(Boolean)), [filteredSongs]);
   const allTitles  = useMemo(() => uniqueSorted(filteredSongs.map(s => (s.title  || '').trim()).filter(Boolean)), [filteredSongs]);
-
-  // ─── Car mode: speech recognition + TTS ─────────────────────────────────
-  // Plays a quick chime via Web Audio (no asset needed)
-  function playSuccessChime() {
-    try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const now = ctx.currentTime;
-      const notes = [880, 1320]; // simple two-note "ding"
-      notes.forEach((freq, i) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'sine'; osc.frequency.value = freq;
-        gain.gain.setValueAtTime(0.0001, now + i * 0.12);
-        gain.gain.exponentialRampToValueAtTime(0.4, now + i * 0.12 + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.12 + 0.28);
-        osc.connect(gain).connect(ctx.destination);
-        osc.start(now + i * 0.12);
-        osc.stop(now + i * 0.12 + 0.3);
-      });
-      setTimeout(() => ctx.close().catch(() => {}), 800);
-    } catch {}
-  }
-
-  // Speak a string in Hebrew. Returns a promise that resolves when speech ends.
-  // Picking a he-IL voice explicitly is required on most browsers — setting
-  // utterance.lang alone often falls back to the default (English) voice.
-  function speak(text) {
-    return new Promise(resolve => {
-      try {
-        const u = new SpeechSynthesisUtterance(text);
-        u.lang = 'he-IL';
-        u.rate = 1.0;
-        // Find a Hebrew voice from the available list. Voices populate async,
-        // so if the list is empty we just rely on lang + the OS picking one.
-        const voices = window.speechSynthesis.getVoices();
-        const hebrewVoice =
-          voices.find(v => v.lang === 'he-IL') ||
-          voices.find(v => v.lang?.toLowerCase().startsWith('he')) ||
-          null;
-        if (hebrewVoice) u.voice = hebrewVoice;
-        u.onend = () => resolve();
-        u.onerror = () => resolve();
-        window.speechSynthesis.cancel();
-        window.speechSynthesis.speak(u);
-      } catch { resolve(); }
-    });
-  }
-
-  // Set up the SpeechRecognition listener once when carMode turns on, and
-  // tear it down when off. SR manages its own mic pipeline; we deliberately
-  // DON'T pre-acquire via getUserMedia — holding an unused mic stream causes
-  // mobile Chrome to flip into communication-mode, which lowers media volume
-  // and creates the feedback/static the user reported.
-  useEffect(() => {
-    if (!carMode) return;
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) {
-      alert('הדפדפן שלך לא תומך בזיהוי קולי. נסה Chrome.');
-      setCarMode(false);
-      return;
-    }
-    const rec = new SR();
-    rec.lang = 'he-IL';
-    rec.continuous = true;
-    rec.interimResults = true;
-    recognitionRef.current = rec;
-
-    rec.onresult = (ev) => {
-      let transcript = '';
-      for (let i = ev.resultIndex; i < ev.results.length; i++) {
-        transcript += ev.results[i][0].transcript + ' ';
-      }
-      setVoiceTranscript(transcript);
-
-      const song = currentSongRef.current;
-      if (!song || submittedRef.current) return;
-
-      const artistOk = looseContains(transcript, song.artist);
-      const titleOk  = looseContains(transcript, song.title);
-
-      // Explicit "שלח" voice command — submit whatever was said so far
-      if (containsSubmitWord(transcript)) {
-        try { rec.stop(); } catch {}
-        if (artistOk || titleOk) voiceHandlersRef.current.onCorrect?.(song);
-        else                     voiceHandlersRef.current.onWrong?.(song);
-        return;
-      }
-
-      // Auto-match: artist OR title detected anywhere in the transcript
-      if (artistOk || titleOk) {
-        try { rec.stop(); } catch {}
-        voiceHandlersRef.current.onCorrect?.(song);
-      }
-    };
-    rec.onend = () => {
-      setVoiceListening(false);
-      if (carModeRef.current && !submittedRef.current) {
-        setTimeout(() => { try { rec.start(); setVoiceListening(true); } catch {} }, 200);
-      }
-    };
-    rec.onerror = () => { /* ignore — onend will retry */ };
-
-    try { rec.start(); setVoiceListening(true); } catch {}
-
-    return () => {
-      try { recognitionRef.current?.stop(); } catch {}
-      recognitionRef.current = null;
-      setVoiceListening(false);
-      window.speechSynthesis.cancel();
-    };
-  }, [carMode]); // eslint-disable-line
-
-  // Wrong handler — used when the player says "שלח" but didn't say the artist
-  // or title. Reveals the right answer and advances.
-  async function handleVoiceWrong(song) {
-    if (submittedRef.current) return;
-    submittedRef.current = true;
-    setSubmitted(true);
-    audioRef.current?.pause();
-    setScore(s => ({
-      points:        s.points,
-      correctFields: s.correctFields,
-      songsPlayed:   s.songsPlayed + 1,
-      perfectRounds: s.perfectRounds,
-    }));
-    await new Promise(r => setTimeout(r, 200));
-    await speak(`התשובה הנכונה: השיר ${song.title} של ${song.artist} משנת ${song.year}`);
-    setTimeout(() => {
-      submittedRef.current = false;
-      nextSong();
-    }, 300);
-  }
-
-  // Always store the latest version of the voice handlers in a ref, so the
-  // long-lived recognition listener (set up once when carMode toggles on)
-  // dispatches into closures with fresh queue/songIdx state.
-  voiceHandlersRef.current = {
-    onCorrect: (song) => handleVoiceCorrect(song),
-    onWrong:   (song) => handleVoiceWrong(song),
-  };
-
-  // Match handler — plays chime, announces details, auto-advances
-  async function handleVoiceCorrect(song, _correct) {
-    if (submittedRef.current) return;
-    submittedRef.current = true;
-    setSubmitted(true);
-    audioRef.current?.pause();
-    playSuccessChime();
-    // Score: count this as a perfect round (artist + title + year all "found")
-    setScore(s => ({
-      points:        s.points        + 8, // 3 fields + 5 bonus
-      correctFields: s.correctFields + 3,
-      songsPlayed:   s.songsPlayed   + 1,
-      perfectRounds: s.perfectRounds + 1,
-    }));
-    // Wait a beat for the chime, then announce
-    await new Promise(r => setTimeout(r, 400));
-    await speak(`כל הכבוד! השיר ${song.title} של ${song.artist} משנת ${song.year}`);
-    // Auto-advance
-    setTimeout(() => {
-      submittedRef.current = false;
-      nextSong();
-    }, 300);
-  }
 
   // Load songs when playlists change
   useEffect(() => {
@@ -334,13 +120,6 @@ export default function ChampionGameScreen({ onExit }) {
     setPickedArtist(''); setPickedTitle(''); setPickedYear(null);
     setSubmitted(false);
     setPicker(null);
-    setVoiceTranscript('');
-    // In car mode, restart recognition for the new song so transcripts from the
-    // previous round don't leak into the new match check
-    if (carModeRef.current && recognitionRef.current) {
-      try { recognitionRef.current.stop(); } catch {}
-      // onend will auto-restart it
-    }
     // Auto-play after a tick so the audio element is ready
     setTimeout(() => {
       const a = audioRef.current;
@@ -408,7 +187,7 @@ export default function ChampionGameScreen({ onExit }) {
   if (phase === 'idle') {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg)', direction: dir }}>
-        <TopBar onExit={exitGame} title={`🏆 אלוף הזיהויים`} />
+        <TopBar onExit={onExit} title={`🏆 אלוף הזיהויים`} />
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '20px 16px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
           <PlaylistSelector
@@ -420,35 +199,6 @@ export default function ChampionGameScreen({ onExit }) {
               setSelectedPlaylistIds(next);
             }}
           />
-
-          {/* Car mode — voice recognition toggle */}
-          <div>
-            <button
-              onClick={() => setCarMode(v => !v)}
-              style={{
-                width: '100%', display: 'flex', alignItems: 'center', gap: 12,
-                padding: '12px 14px', borderRadius: 12,
-                background: carMode ? 'var(--accent)' : 'var(--bg2)',
-                color: carMode ? '#fff' : 'var(--text)',
-                border: `1.5px solid ${carMode ? 'var(--accent)' : 'var(--border)'}`,
-                fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                boxShadow: carMode ? `0 2px 12px var(--accent-alpha)` : 'none',
-                transition: 'all 0.15s',
-              }}
-            >
-              <span style={{ fontSize: 22 }}>{carMode ? '🎙️' : '🚗'}</span>
-              <div style={{ flex: 1, textAlign: 'right' }}>
-                <div style={{ fontWeight: 800 }}>
-                  {carMode ? 'מצב רכב פעיל — דבר את התשובה' : 'מצב רכב (ידיים חופשיות)'}
-                </div>
-                <div style={{ fontSize: 11, opacity: 0.85, marginTop: 2 }}>
-                  {carMode
-                    ? 'אומר את שם הזמר או השיר, המערכת תזהה ותכריז את התשובה'
-                    : 'הפעל זיהוי קולי במקום לבחור עם האצבעות'}
-                </div>
-              </div>
-            </button>
-          </div>
 
           {/* Timer per song */}
           <div>
@@ -565,7 +315,7 @@ export default function ChampionGameScreen({ onExit }) {
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg)', direction: dir }}>
-        <TopBar onExit={exitGame} title="🏆 סוף המשחק" />
+        <TopBar onExit={onExit} title="🏆 סוף המשחק" />
         <div style={{ flex: 1, overflowY: 'auto', padding: '24px 16px 32px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18 }}>
 
           {/* Winner highlight */}
@@ -634,7 +384,7 @@ export default function ChampionGameScreen({ onExit }) {
 
           <div style={{ width: '100%', maxWidth: 360, display: 'flex', flexDirection: 'column', gap: 10 }}>
             <button onClick={startGame} style={{ ...primaryBtn, fontSize: 16, padding: '14px' }}>🔁 שחק שוב</button>
-            <button onClick={exitGame} style={secondaryBtn}>← חזרה למסך הבית</button>
+            <button onClick={onExit} style={secondaryBtn}>← חזרה למסך הבית</button>
           </div>
         </div>
       </div>
@@ -645,7 +395,7 @@ export default function ChampionGameScreen({ onExit }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg)', direction: dir }}>
       <TopBar
-        onExit={exitGame}
+        onExit={onExit}
         title="🏆 אלוף הזיהויים"
         right={`${songIdx + 1}/${queue.length} · ⭐ ${score.points}`}
       />
@@ -663,30 +413,6 @@ export default function ChampionGameScreen({ onExit }) {
 
       {/* Main content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-
-        {/* Car mode listening indicator */}
-        {carMode && !submitted && (
-          <div style={{
-            background: voiceListening ? 'var(--accent-alpha)' : 'var(--bg2)',
-            border: `1.5px solid ${voiceListening ? 'var(--accent)' : 'var(--border)'}`,
-            borderRadius: 12, padding: '10px 14px',
-            display: 'flex', alignItems: 'center', gap: 10,
-          }}>
-            <span style={{ fontSize: 22, color: voiceListening ? 'var(--accent)' : 'var(--text2)' }}>
-              {voiceListening ? '🎙️' : '🔇'}
-            </span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ color: voiceListening ? 'var(--accent)' : 'var(--text2)', fontSize: 13, fontWeight: 800 }}>
-                {voiceListening ? 'מקשיב... דבר עכשיו' : 'מאתחל...'}
-              </div>
-              {voiceTranscript && (
-                <div style={{ color: 'var(--text)', fontSize: 12, marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  «{voiceTranscript.trim()}»
-                </div>
-              )}
-            </div>
-          </div>
-        )}
 
         {/* Cover (always hidden — this is "guess the song" not "see the song") */}
         <div style={{ display: 'flex', justifyContent: 'center' }}>
@@ -1049,7 +775,6 @@ function ChampionRulesModal({ onClose }) {
             <li>✅ לחץ "שלח תשובות" — נכון יהפוך לירוק, לא נכון לאדום</li>
             <li>🏆 כל קוביה נכונה = 1 נקודה</li>
             <li>💎 כל הקוביות נכונות = +5 בונוס (סך 8 לסיבוב מושלם)</li>
-            <li>🚗 במצב רכב — אומרים בקול את הזמר/השיר. אמרו "שלח" כדי לבדוק את התשובה</li>
           </ul>
         </div>
       </div>
@@ -1064,46 +789,6 @@ function uniqueSorted(arr) {
 
 function isMatch(a, b) {
   return (a || '').trim().toLowerCase() === (b || '').trim().toLowerCase();
-}
-
-// Voice trigger words for explicit submit — handles both Hebrew and a few
-// English fallbacks the recognizer may surface. Matched as whole words at
-// the END of the transcript so earlier mentions of "שלחתי" don't fire.
-const SUBMIT_WORDS = ['שלח', 'שלחי', 'שלחו', 'אישור', 'בדוק', 'submit', 'send'];
-function containsSubmitWord(transcript) {
-  if (!transcript) return false;
-  const norm = String(transcript)
-    .toLowerCase()
-    .replace(/[֑-ׇ]/g, '')
-    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-  if (!norm) return false;
-  // Only fire if the trigger appears within the LAST 3 spoken words —
-  // protects against re-triggering on accumulated transcripts
-  const tail = norm.split(' ').slice(-3).join(' ');
-  return SUBMIT_WORDS.some(w => new RegExp(`(^|\\s)${w}(\\s|$)`).test(tail));
-}
-
-// Fuzzy match for voice recognition — strips punctuation/diacritics and
-// checks whether the (longer) transcript contains the (shorter) target,
-// or whether all target words appear in the transcript regardless of order.
-function looseContains(transcript, target) {
-  if (!transcript || !target) return false;
-  const norm = s => String(s)
-    .toLowerCase()
-    .replace(/[֑-ׇ]/g, '')              // strip Hebrew diacritics
-    .replace(/[^\p{L}\p{N}\s]/gu, ' ')            // strip punctuation
-    .replace(/\s+/g, ' ')
-    .trim();
-  const t = norm(transcript);
-  const g = norm(target);
-  if (!t || !g) return false;
-  if (t.includes(g)) return true;
-  // Last-resort: every word of the target must show up somewhere in the transcript
-  const words = g.split(' ').filter(w => w.length >= 2);
-  if (words.length === 0) return false;
-  return words.every(w => t.includes(w));
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
