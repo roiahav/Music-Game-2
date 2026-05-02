@@ -48,8 +48,13 @@ export default function ChampionGameScreen({ onExit }) {
   // Submitted reveal state
   const [submitted, setSubmitted] = useState(false);
 
-  // Score
-  const [score, setScore] = useState({ correct: 0, total: 0 });
+  // Score: points = base (1 per correct field) + bonuses (5 for all-three perfect)
+  const [score, setScore] = useState({
+    points:         0,   // total earned
+    correctFields:  0,   // count of individual correct fields (max 3 per song)
+    songsPlayed:    0,
+    perfectRounds:  0,   // songs where artist+title+year were all correct → +5 bonus
+  });
 
   // Audio
   const audioRef = useRef(null);
@@ -86,7 +91,7 @@ export default function ChampionGameScreen({ onExit }) {
     const shuffled = shuffle(allSongs);
     setQueue(shuffled);
     setSongIdx(0);
-    setScore({ correct: 0, total: 0 });
+    setScore({ points: 0, correctFields: 0, songsPlayed: 0, perfectRounds: 0 });
     loadSong(shuffled[0]);
     setPhase('playing');
   }
@@ -123,7 +128,15 @@ export default function ChampionGameScreen({ onExit }) {
     const titleOk  = isMatch(pickedTitle,  currentSong.title);
     const yearOk   = String(pickedYear || '') === String(currentSong.year);
     const correctCount = (artistOk ? 1 : 0) + (titleOk ? 1 : 0) + (yearOk ? 1 : 0);
-    setScore(s => ({ correct: s.correct + correctCount, total: s.total + 3 }));
+    const allThree = correctCount === 3;
+    // 1 point per correct field; +5 BONUS if all three correct → 8 max per song
+    const earnedPoints = correctCount + (allThree ? 5 : 0);
+    setScore(s => ({
+      points:        s.points        + earnedPoints,
+      correctFields: s.correctFields + correctCount,
+      songsPlayed:   s.songsPlayed   + 1,
+      perfectRounds: s.perfectRounds + (allThree ? 1 : 0),
+    }));
     setSubmitted(true);
     setPicker(null);
   }
@@ -221,20 +234,24 @@ export default function ChampionGameScreen({ onExit }) {
   }
 
   if (phase === 'done') {
-    const pct = score.total > 0 ? Math.round((score.correct / score.total) * 100) : 0;
-    // Crown medal based on accuracy
+    const totalFields = score.songsPlayed * 3;
+    const pct = totalFields > 0 ? Math.round((score.correctFields / totalFields) * 100) : 0;
+    const maxPoints = score.songsPlayed * 8; // 3 base + 5 bonus per song
+    // Medal based on point efficiency (compares actual points to max)
+    const efficiency = maxPoints > 0 ? Math.round((score.points / maxPoints) * 100) : 0;
     const medal =
-      pct >= 90 ? { icon: '🥇', label: 'אלוף הזיהויים!', color: '#FFD700' } :
-      pct >= 70 ? { icon: '🥈', label: 'מומחה מוזיקה',     color: '#C0C0C0' } :
-      pct >= 50 ? { icon: '🥉', label: 'יודע דבר או שניים', color: '#CD7F32' } :
-                  { icon: '🎵', label: 'יש לאן לשפר',        color: '#5bb8ff' };
+      efficiency >= 90 ? { icon: '🥇', label: 'אלוף הזיהויים!',     color: '#FFD700' } :
+      efficiency >= 70 ? { icon: '🥈', label: 'מומחה מוזיקה',        color: '#C0C0C0' } :
+      efficiency >= 50 ? { icon: '🥉', label: 'יודע דבר או שניים',   color: '#CD7F32' } :
+                          { icon: '🎵', label: 'יש לאן לשפר',         color: '#5bb8ff' };
+    const bonusPoints = score.perfectRounds * 5;
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg)', direction: dir }}>
         <TopBar onExit={onExit} title="🏆 סוף המשחק" />
         <div style={{ flex: 1, overflowY: 'auto', padding: '24px 16px 32px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18 }}>
 
-          {/* Winner highlight (like multiplayer's results card) */}
+          {/* Winner highlight */}
           <div style={{
             width: '100%', maxWidth: 360, textAlign: 'center',
             background: 'linear-gradient(135deg, var(--bg2) 0%, var(--bg3, #1a1a2e) 100%)',
@@ -258,23 +275,44 @@ export default function ChampionGameScreen({ onExit }) {
             <div style={{ color: 'var(--text)', fontSize: 22, fontWeight: 900 }}>
               {user?.username || 'אתה'}
             </div>
-            <div style={{ color: medal.color, fontSize: 36, fontWeight: 900, marginTop: 14, lineHeight: 1 }}>
-              {score.correct}
+            <div style={{ color: medal.color, fontSize: 42, fontWeight: 900, marginTop: 14, lineHeight: 1 }}>
+              {score.points}
             </div>
-            <div style={{ color: 'var(--text2)', fontSize: 12, marginTop: 4 }}>מתוך {score.total} נקודות</div>
-            <div style={{
-              marginTop: 14, padding: '6px 14px', display: 'inline-block',
-              background: `${medal.color}22`, color: medal.color,
-              borderRadius: 16, fontSize: 14, fontWeight: 800,
-            }}>
-              {pct}% דיוק
+            <div style={{ color: 'var(--text2)', fontSize: 13, marginTop: 4 }}>נקודות</div>
+            {bonusPoints > 0 && (
+              <div style={{
+                marginTop: 10, display: 'inline-block',
+                background: '#1db95433', border: '1px solid #1db954', color: '#1db954',
+                fontSize: 12, fontWeight: 800,
+                padding: '4px 12px', borderRadius: 20,
+              }}>
+                💎 +{bonusPoints} בונוס מ-{score.perfectRounds} סיבובים מושלמים
+              </div>
+            )}
+          </div>
+
+          {/* Stats grid — songs played, accuracy, perfect rounds */}
+          <div style={{ width: '100%', maxWidth: 360 }}>
+            <div style={{ color: 'var(--text2)', fontSize: 11, fontWeight: 700, marginBottom: 8, textAlign: 'center' }}>
+              📊 סטטיסטיקה
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <StatCell icon="🎵" label="שירים שיחקת"     value={score.songsPlayed}   color="#5bb8ff" />
+              <StatCell icon="✅" label="תשובות נכונות"   value={`${score.correctFields}/${totalFields}`} color="#1db954" />
+              <StatCell icon="💎" label="סיבובים מושלמים" value={score.perfectRounds} color="#FFD700" />
+              <StatCell icon="🎯" label="דיוק"            value={`${pct}%`}           color="#9b59b6" />
             </div>
           </div>
 
-          {/* Stats breakdown */}
-          <div style={{ width: '100%', maxWidth: 360, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <StatCell icon="🎵" label="שירים" value={queue.length} color="#5bb8ff" />
-            <StatCell icon="⭐" label="נקודות" value={score.correct} color="#1db954" />
+          {/* Scoring rules reminder */}
+          <div style={{
+            width: '100%', maxWidth: 360,
+            background: 'var(--bg2)', border: '1px solid var(--border)',
+            borderRadius: 10, padding: '10px 14px',
+            color: 'var(--text2)', fontSize: 11, lineHeight: 1.6,
+          }}>
+            <span style={{ color: 'var(--text)' }}>חישוב הניקוד:</span> 1 נקודה לכל קובייה נכונה (זמר/שיר/שנה),
+            ו-<strong style={{ color: '#1db954' }}>+5 בונוס</strong> אם כל השלוש נכונות יחד (סיבוב מושלם).
           </div>
 
           <div style={{ width: '100%', maxWidth: 360, display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -292,7 +330,7 @@ export default function ChampionGameScreen({ onExit }) {
       <TopBar
         onExit={onExit}
         title="🏆 אלוף הזיהויים"
-        right={`${songIdx + 1}/${queue.length} · ⭐ ${score.correct}`}
+        right={`${songIdx + 1}/${queue.length} · ⭐ ${score.points}`}
       />
 
       {/* Per-song timer (hidden when no timer or already submitted) */}

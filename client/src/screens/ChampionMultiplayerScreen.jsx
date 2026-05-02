@@ -53,9 +53,10 @@ export default function ChampionMultiplayerScreen({ onExit }) {
   const [revealData, setRevealData] = useState(null); // { song, results }
   const submitRef = useRef(null);
 
-  // Victory
+  // Victory + game stats for end screen
   const [victoryAudioUrl, setVictoryAudioUrl] = useState('');
   const [victoryStartSeconds, setVictoryStartSeconds] = useState(0);
+  const [endedTotalSongs, setEndedTotalSongs] = useState(0);
 
   const socketRef = useRef(null);
   const audioRef = useRef(null);
@@ -104,9 +105,10 @@ export default function ChampionMultiplayerScreen({ onExit }) {
       setRevealData(data);
       setPhase('reveal');
     });
-    socket.on('champ:ended', ({ players, victoryAudioUrl: vUrl, victoryStartSeconds: vStart }) => {
+    socket.on('champ:ended', ({ players, totalSongs, victoryAudioUrl: vUrl, victoryStartSeconds: vStart }) => {
       audioRef.current?.pause();
       setPlayers(players);
+      if (typeof totalSongs === 'number') setEndedTotalSongs(totalSongs);
       if (vUrl) {
         setVictoryAudioUrl(vUrl);
         setVictoryStartSeconds(Number(vStart) || 0);
@@ -427,8 +429,20 @@ export default function ChampionMultiplayerScreen({ onExit }) {
           )}
 
           {myResult && (
-            <div style={{ textAlign: 'center', color: 'var(--accent)', fontSize: 22, fontWeight: 800 }}>
-              +{myResult.earned} נקודות
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ color: 'var(--accent)', fontSize: 24, fontWeight: 900 }}>
+                +{myResult.earned} נקודות
+              </div>
+              {myResult.bonus > 0 && (
+                <div style={{
+                  display: 'inline-block', marginTop: 8,
+                  background: '#1db95433', border: '1px solid #1db954', color: '#1db954',
+                  padding: '5px 14px', borderRadius: 20,
+                  fontSize: 13, fontWeight: 800,
+                }}>
+                  💎 סיבוב מושלם! +{myResult.bonus} בונוס
+                </div>
+              )}
             </div>
           )}
 
@@ -494,6 +508,21 @@ export default function ChampionMultiplayerScreen({ onExit }) {
             </div>
           )}
 
+          {/* My stats card */}
+          {me && (
+            <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 12, padding: '12px 14px' }}>
+              <div style={{ color: 'var(--text2)', fontSize: 11, fontWeight: 700, marginBottom: 8, textAlign: 'center' }}>
+                📊 הסטטיסטיקה שלך
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <MiniStat icon="🎵" label="שירים" value={endedTotalSongs || me.songsAnswered} color="#5bb8ff" />
+                <MiniStat icon="✅" label="תשובות נכונות" value={`${me.correctFields || 0}/${(endedTotalSongs || me.songsAnswered || 0) * 3}`} color="#1db954" />
+                <MiniStat icon="💎" label="סיבובים מושלמים" value={me.perfectRounds || 0} color="#FFD700" />
+                <MiniStat icon="⭐" label="נקודות" value={me.score} color="var(--accent)" />
+              </div>
+            </div>
+          )}
+
           {/* Full ranking */}
           <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 12, padding: '8px 14px' }}>
             {sorted.map((p, i) => {
@@ -506,11 +535,27 @@ export default function ChampionMultiplayerScreen({ onExit }) {
                 }}>
                   <span style={{ fontSize: 22, minWidth: 32, textAlign: 'center' }}>{medal}</span>
                   <AvatarCircle userId={p.userId} name={p.name} size={36} />
-                  <span style={{ color: 'var(--text)', fontSize: 16, flex: 1, fontWeight: 600 }}>{p.name}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ color: 'var(--text)', fontSize: 16, fontWeight: 600 }}>{p.name}</div>
+                    {p.perfectRounds > 0 && (
+                      <div style={{ color: '#FFD700', fontSize: 10, marginTop: 2 }}>
+                        💎 {p.perfectRounds} מושלמים
+                      </div>
+                    )}
+                  </div>
                   <span style={{ color: 'var(--accent)', fontSize: 18, fontWeight: 800 }}>{p.score}</span>
                 </div>
               );
             })}
+          </div>
+
+          {/* Scoring rules reminder */}
+          <div style={{
+            background: 'var(--bg2)', border: '1px solid var(--border)',
+            borderRadius: 10, padding: '8px 12px',
+            color: 'var(--text2)', fontSize: 11, lineHeight: 1.6, textAlign: 'center',
+          }}>
+            1 נקודה לכל קובייה נכונה · <strong style={{ color: '#1db954' }}>+5 בונוס</strong> על סיבוב מושלם
           </div>
 
           <button onClick={() => { victoryRef.current?.pause(); onExit(); }} style={primaryBtn}>
@@ -653,6 +698,21 @@ function YearPickerModal({ onSelect, onClose }) {
 }
 
 function decadeLabel(d) { return d < 2000 ? `שנות ה-${String(d).slice(2)}` : `שנות ה-${d}`; }
+
+function MiniStat({ icon, label, value, color }) {
+  return (
+    <div style={{
+      background: 'var(--bg)', border: `1px solid ${color}33`, borderRight: `3px solid ${color}`,
+      borderRadius: 10, padding: '10px 12px', textAlign: 'right',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+        <span style={{ color: 'var(--text2)', fontSize: 10, fontWeight: 700 }}>{label}</span>
+        <span style={{ fontSize: 14 }}>{icon}</span>
+      </div>
+      <div style={{ color, fontSize: 18, fontWeight: 900, lineHeight: 1 }}>{value}</div>
+    </div>
+  );
+}
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const shell = (dir) => ({ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg)', direction: dir });

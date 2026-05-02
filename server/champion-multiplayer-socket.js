@@ -20,8 +20,10 @@ function pickRandomVictorySong(folder) {
 const rooms = new Map();
 const socketToRoom = new Map();
 
-// 1 point per correct field (artist / title / year) — max 3 per round
+// 1 point per correct field (artist / title / year) — base max 3 per round.
+// +5 BONUS when all three are correct in the same round → max 8 per round.
 const FIELD_POINTS = 1;
+const PERFECT_BONUS = 5;
 
 // ── Helpers ──
 function shuffle(arr) {
@@ -45,6 +47,9 @@ function serializePlayers(room) {
       name: p.name,
       userId: p.userId,
       score: p.score,
+      perfectRounds: p.perfectRounds || 0,
+      correctFields: p.correctFields || 0,
+      songsAnswered: p.songsAnswered || 0,
       isHost: p.socketId === room.hostSocketId,
       submitted: !!p.submission,
     }));
@@ -133,13 +138,22 @@ function revealSong(io, room) {
     const artistOk = isMatch(s.artist, song.artist);
     const titleOk  = isMatch(s.title,  song.title);
     const yearOk   = String(s.year || '') === String(song.year);
-    const earned = (artistOk ? FIELD_POINTS : 0) + (titleOk ? FIELD_POINTS : 0) + (yearOk ? FIELD_POINTS : 0);
+    const correctCount = (artistOk ? 1 : 0) + (titleOk ? 1 : 0) + (yearOk ? 1 : 0);
+    const allThree = correctCount === 3;
+    const base    = correctCount * FIELD_POINTS;
+    const bonus   = allThree ? PERFECT_BONUS : 0;
+    const earned  = base + bonus;
     p.score += earned;
+    p.correctFields = (p.correctFields || 0) + correctCount;
+    p.songsAnswered = (p.songsAnswered || 0) + 1;
+    if (allThree) p.perfectRounds = (p.perfectRounds || 0) + 1;
     results.push({
       socketId: p.socketId,
       name: p.name,
       submission: s,
       correct: { artist: artistOk, title: titleOk, year: yearOk },
+      base,
+      bonus,
       earned,
     });
   }
@@ -159,6 +173,7 @@ function endGame(io, room) {
   const victoryAudioUrl = victoryFile ? `/api/audio/${encodeURIComponent(victoryFile)}` : null;
   io.to(room.code).emit('champ:ended', {
     players: serializePlayers(room),
+    totalSongs: room.totalSongs || 0,
     victoryAudioUrl,
     victoryStartSeconds: Number(game.victoryStartSeconds) || 0,
   });
@@ -241,8 +256,15 @@ export function setupChampionMultiplayer(io) {
       room.status = 'playing';
       room.autocomplete = { artists, titles };
       room.timerSec = Math.max(0, Math.min(600, Number(timerSec) || 0));
+      room.totalSongs = queue.length;
       // Reset scores
-      for (const p of room.players.values()) { p.score = 0; p.submission = null; }
+      for (const p of room.players.values()) {
+        p.score = 0;
+        p.submission = null;
+        p.correctFields = 0;
+        p.perfectRounds = 0;
+        p.songsAnswered = 0;
+      }
 
       io.to(room.code).emit('champ:started', { total: queue.length, autocomplete: { artists, titles }, timerSec: room.timerSec });
       startNextSong(io, room);
