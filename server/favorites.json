@@ -1,18 +1,18 @@
 {
   "1": [
     {
-      "id": "d2d7bc0e3aaf831c9d1fd87bd7160863ac602baf",
-      "filePath": "C:\\Users\\oren\\Desktop\\mp3\\לועזי\\70. Tasmin Archer - Sleeping Satellite.mp3",
-      "title": "Sleeping Satellite",
-      "artist": "Tasmin Archer",
-      "year": "2019"
-    },
-    {
       "id": "93fc8b20e4fc2d50384013245c0349b9ebb53767",
       "filePath": "C:\\Users\\oren\\Desktop\\mp3\\עברי\\איך אפשר - Jane Bordeaux - Spotimate.app.mp3",
       "title": "איך אפשר",
       "artist": "ג'יין בורדו",
       "year": "2014"
+    },
+    {
+      "id": "d2d7bc0e3aaf831c9d1fd87bd7160863ac602baf",
+      "filePath": "C:\\Users\\oren\\Desktop\\mp3\\לועזי\\70. Tasmin Archer - Sleeping Satellite.mp3",
+      "title": "Sleeping Satellite",
+      "artist": "Tasmin Archer",
+      "year": "2019"
     },
     {
       "id": "58cded9984ddd9b839dc9978fbb6894a8d2d5a8e",
@@ -22,25 +22,11 @@
       "year": "2019"
     },
     {
-      "id": "7013886ee42047d60ce23faf0a3606831db0a97c",
-      "filePath": "C:\\Users\\oren\\Desktop\\mp3\\עברי\\מלך - Dana Berger - Spotimate.app.mp3",
-      "title": "מלך",
-      "artist": "דנה ברגר",
-      "year": "1994"
-    },
-    {
       "id": "9e8ce3f4f13b1f6931e6304f138261ccc538ae2b",
       "filePath": "C:\\Users\\oren\\Desktop\\mp3\\עברי\\האיש ההוא - Yehudit Ravitz_ Ahuva Ozeri - Spotimate.app.mp3",
       "title": "האיש ההוא",
       "artist": "Yehudit Ravitz, Ahuva Ozeri",
       "year": "2005"
-    },
-    {
-      "id": "db0fa345216f2501b6eadb81b9dd2134c98dcb7a",
-      "filePath": "C:\\Users\\oren\\Desktop\\mp3\\עברי\\מה שיבוא - שי המבר_ Ran Danker - Spotimate.app.mp3",
-      "title": "מה שיבוא",
-      "artist": "שי המבר, Ran Danker",
-      "year": "2025"
     },
     {
       "id": "31c8af4ea6a0c854eded4d93aa4942e623e0d658",
@@ -71,13 +57,6 @@
       "year": "2025"
     },
     {
-      "id": "09753ca66db74945125bc06d4b4a89f281eea2b8",
-      "filePath": "C:\\Users\\oren\\Desktop\\mp3\\לועזי\\72. Babylon Zoo - Spaceman.mp3",
-      "title": "Spaceman",
-      "artist": "Babylon Zoo",
-      "year": "2019"
-    },
-    {
       "id": "5be790d22bc77b3a1845a60e3b28bd00be5482a1",
       "filePath": "C:\\Users\\oren\\Desktop\\mp3\\עברי\\איש לא שומע - Assaf Gold - Spotimate.app.mp3",
       "title": "איש לא שומע",
@@ -97,13 +76,6 @@
       "title": "אל תדאג",
       "artist": "אביב גפן",
       "year": "1993"
-    },
-    {
-      "id": "3035d61e0c9375aad565685c7e26dfb43b20db8e",
-      "filePath": "C:\\Users\\oren\\Desktop\\mp3\\עברי\\ימי ראשית הקיץ - Josie Katz - Spotimate.app.mp3",
-      "title": "ימי ראשית הקיץ",
-      "artist": "Josie Katz",
-      "year": "2010"
     },
     {
       "id": "fde100c1320c66c52cc2fdf4f3fc4b719af0e5bf",

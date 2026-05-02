@@ -101,11 +101,41 @@ export default function FavoritesScreen({ onExit }) {
     playSong(0, displayedSongs);
   };
 
-  // Play the displayed list in random order WITHOUT mutating the visible list.
-  // The shuffled order lives only in playQueue.
-  const playShuffled = () => {
-    const shuffled = shuffleArr(displayedSongs);
+  // Toggle shuffle mode.
+  // - OFF → ON:  reshuffle and either start a new random session, or just
+  //              swap the queue under the currently-playing song so it
+  //              continues into the random order without interrupting audio.
+  // - ON  → OFF: rebuild the queue in the displayed order, keeping the
+  //              current song aligned so 'next' continues from there.
+  const toggleShuffle = () => {
+    if (shuffleMode) {
+      // Turn shuffle off — switch back to natural order without interrupting
+      setShuffleMode(false);
+      const playingId = current?.id;
+      if (playingId) {
+        const newIdx = displayedSongs.findIndex(s => s.id === playingId);
+        if (newIdx >= 0) {
+          setPlayQueue(displayedSongs);
+          setCurrentIdx(newIdx);
+          return;
+        }
+      }
+      setPlayQueue(displayedSongs);
+      return;
+    }
+    // Turn shuffle ON
     setShuffleMode(true);
+    if (current && isPlaying) {
+      // Reshuffle the rest, keeping the current song at position 0 so audio
+      // doesn't restart
+      const others = displayedSongs.filter(s => s.id !== current.id);
+      const shuffled = [current, ...shuffleArr(others)];
+      setPlayQueue(shuffled);
+      setCurrentIdx(0);
+      return;
+    }
+    // Nothing playing — start a fresh shuffled session
+    const shuffled = shuffleArr(displayedSongs);
     playSong(0, shuffled);
   };
 
@@ -342,11 +372,17 @@ export default function FavoritesScreen({ onExit }) {
             }}>
               {t('fav_play_all')}
             </button>
-            <button onClick={playShuffled} style={{
-              flex: 1, background: 'var(--bg2)', color: 'var(--text)', border: '1px solid var(--border)',
-              borderRadius: 22, padding: '10px 0', fontWeight: 700, fontSize: 14,
+            <button onClick={toggleShuffle} style={{
+              flex: 1,
+              background: shuffleMode ? accentColor : 'var(--bg2)',
+              color:      shuffleMode ? '#fff'        : 'var(--text)',
+              border: `1px solid ${shuffleMode ? accentColor : 'var(--border)'}`,
+              borderRadius: 22, padding: '10px 0',
+              fontWeight: shuffleMode ? 800 : 700, fontSize: 14,
               cursor: 'pointer',
-            }}>
+              boxShadow: shuffleMode ? `0 2px 12px ${accentColor}55` : 'none',
+              transition: 'all 0.15s',
+            }} title={shuffleMode ? 'בטל סדר אקראי' : 'הפעל סדר אקראי'}>
               {t('fav_shuffle')}
             </button>
           </div>
