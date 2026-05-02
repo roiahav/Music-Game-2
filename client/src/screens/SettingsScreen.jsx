@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useSettingsStore } from '../store/settingsStore.js';
 import { addPlaylist, getPlaylists, getSettings as getSettingsApi, saveSettings, testEmailSettings, createInviteApi, getUsers } from '../api/client.js';
 import { useLang } from '../i18n/useLang.js';
