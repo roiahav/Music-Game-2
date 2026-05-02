@@ -2,7 +2,6 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { io as ioClient } from 'socket.io-client';
 import { useSettingsStore } from '../store/settingsStore.js';
 import { useAuthStore } from '../store/authStore.js';
-import PlaylistSelector from '../components/PlaylistSelector.jsx';
 import TimerBar from '../components/TimerBar.jsx';
 import { AvatarCircle } from '../App.jsx';
 import { useLang } from '../i18n/useLang.js';
@@ -257,15 +256,43 @@ export default function ChampionMultiplayerScreen({ onExit }) {
 
           {isHost && (
             <>
-              <PlaylistSelector
-                playlists={playlists}
-                selectedIds={selectedPlaylistIds}
-                onToggle={id => {
-                  const next = new Set(selectedPlaylistIds);
-                  next.has(id) ? next.delete(id) : next.add(id);
-                  setSelectedPlaylistIds(next);
-                }}
-              />
+              <div>
+                <div style={{ color: 'var(--text2)', fontSize: 12, marginBottom: 8, fontWeight: 700 }}>
+                  🎵 בחר פלייליסט {selectedPlaylistIds.size > 0 && (
+                    <span style={{ color: 'var(--accent)', fontWeight: 800 }}>· {selectedPlaylistIds.size} נבחרו</span>
+                  )}
+                </div>
+                {playlists.length === 0 ? (
+                  <div style={{ color: '#888', fontSize: 12, textAlign: 'center', padding: '12px', background: 'var(--bg2)', borderRadius: 10, border: '1px dashed var(--border)' }}>
+                    אין פלייליסטים — הוסף בהגדרות
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {playlists.map(p => {
+                      const sel = selectedPlaylistIds.has(p.id);
+                      return (
+                        <button
+                          key={p.id}
+                          onClick={() => {
+                            const next = new Set(selectedPlaylistIds);
+                            next.has(p.id) ? next.delete(p.id) : next.add(p.id);
+                            setSelectedPlaylistIds(next);
+                          }}
+                          style={{
+                            padding: '8px 14px', borderRadius: 18,
+                            background: sel ? 'var(--accent)' : 'var(--bg2)',
+                            color: sel ? '#fff' : 'var(--text2)',
+                            border: `1.5px solid ${sel ? 'var(--accent)' : 'var(--border)'}`,
+                            fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                          }}
+                        >
+                          {p.type === 'spotify' ? '🟢 ' : ''}{p.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
 
               <div>
                 <div style={{ color: 'var(--text2)', fontSize: 12, marginBottom: 8, fontWeight: 700 }}>כמות שירים במשחק</div>
