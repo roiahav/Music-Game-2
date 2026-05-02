@@ -52,5 +52,19 @@
       "name": "הזמנה לשחק",
       "body": "שלום {firstName}!\nהוזמנת ל-Music Game 🎵\n\n👉 הירשם כאן: {url}"
     }
-  ]
+  ],
+  "games": {
+    "order": [
+      "champion",
+      "champion-multi",
+      "solo",
+      "multiplayer",
+      "solo-typing",
+      "years",
+      "years-multi",
+      "favorites"
+    ],
+    "hidden": [],
+    "allowedUsers": {}
+  }
 }

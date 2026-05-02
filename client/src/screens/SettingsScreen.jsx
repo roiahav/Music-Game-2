@@ -12,6 +12,7 @@ import { getJSON, setJSON } from '../utils/safeStorage.js';
 import { GAMES, DEFAULT_GAME_ORDER } from '../games-config.js';
 
 const SECTION_ORDER_KEY = 'mg_settings_section_order';
+const SECTION_LOCK_KEY  = 'mg_settings_section_locked';
 const DEFAULT_SECTION_ORDER = ['games-mgmt', 'victory', 'playlists', 'users', 'activity-log', 'blacklist', 'email', 'invite', 'invite-templates'];
 
 // Labels rendered inside the floating ghost during drag, so the user can see
@@ -53,6 +54,20 @@ export default function SettingsScreen({ isAdmin = false, usersDefaultFilter = '
     return [...valid, ...missing];
   });
 
+  // Lock state — when true, drag handles are hidden so the user can't
+  // accidentally reorder sections. Default ON so dragging is opt-in.
+  const [sectionsLocked, setSectionsLocked] = useState(() => {
+    const saved = getJSON(SECTION_LOCK_KEY, null);
+    return saved === null ? true : !!saved;
+  });
+  function toggleLocked() {
+    setSectionsLocked(v => {
+      const next = !v;
+      setJSON(SECTION_LOCK_KEY, next);
+      return next;
+    });
+  }
+
   // Drag state — same Pointer Events pattern as FavoritesScreen
   const [dragIdx, setDragIdx] = useState(null);
   const [dragOverIdx, setDragOverIdx] = useState(null);
@@ -67,6 +82,7 @@ export default function SettingsScreen({ isAdmin = false, usersDefaultFilter = '
   }
 
   function handlePointerDown(e, idx) {
+    if (sectionsLocked) return; // hard-block when the order is locked
     try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
     setDragIdx(idx);
     setDragOverIdx(idx);
@@ -123,6 +139,7 @@ export default function SettingsScreen({ isAdmin = false, usersDefaultFilter = '
     return {
       idx,
       order: idx + 1,            // +1 so GameOptionsBar (no order) stays at 0 visually
+      locked: sectionsLocked,
       isDragging: isThisDragging,
       isDragOver: isThisOver,
       isDragMovingDown: dragIdx !== null && dragOverIdx > dragIdx,
@@ -171,16 +188,34 @@ export default function SettingsScreen({ isAdmin = false, usersDefaultFilter = '
         />
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', order: -2 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', order: -2, gap: 6 }}>
         <h2 className="text-lg font-bold">{t('settings')}</h2>
         {isAdmin && (
-          <button
-            onClick={resetOrder}
-            style={{ background: 'none', border: 'none', color: '#666', fontSize: 11, cursor: 'pointer', textDecoration: 'underline' }}
-            title="החזרת סדר ההגדרות לברירת מחדל"
-          >
-            ↻ אפס סדר
-          </button>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <button
+              onClick={toggleLocked}
+              title={sectionsLocked ? 'הסר נעילה ואפשר שינוי סדר' : 'נעל את סדר ההגדרות'}
+              style={{
+                background: sectionsLocked ? '#1db95422' : '#3a1010',
+                border: `1px solid ${sectionsLocked ? '#1db954' : '#dc3545'}`,
+                color:  sectionsLocked ? '#1db954' : '#ff6b6b',
+                borderRadius: 16, padding: '4px 12px',
+                fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {sectionsLocked ? '🔒 נעול' : '🔓 פתוח'}
+            </button>
+            {!sectionsLocked && (
+              <button
+                onClick={resetOrder}
+                style={{ background: 'none', border: 'none', color: '#666', fontSize: 11, cursor: 'pointer', textDecoration: 'underline' }}
+                title="החזרת סדר ההגדרות לברירת מחדל"
+              >
+                ↻ אפס סדר
+              </button>
+            )}
+          </div>
         )}
       </div>
 
@@ -1619,7 +1654,7 @@ function GamesManagementPanel() {
 // flex-column parent renders cards in the user's chosen order. The dragged
 // card becomes a "ghost slot" (faded + diagonal stripes) and the actual visual
 // gets rendered as a floating ghost via SettingsDragGhost.
-function DraggableCard({ idx, order, handlers, isDragging, isDragOver, isDragMovingDown, children }) {
+function DraggableCard({ idx, order, locked, handlers, isDragging, isDragOver, isDragMovingDown, children }) {
   return (
     <div
       data-section-idx={idx}
@@ -1637,26 +1672,29 @@ function DraggableCard({ idx, order, handlers, isDragging, isDragOver, isDragMov
         ...(isDragOver && !isDragMovingDown ? { boxShadow: 'inset 0  3px 0 var(--accent), 0 0 0 2px var(--accent-alpha)' } : {}),
       }}
     >
-      {/* Wide drag handle bar — easier to grab than a single icon between tight cards */}
-      <div
-        {...handlers}
-        style={{
-          height: 22,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: '#555', fontSize: 16, letterSpacing: 4,
-          cursor: 'grab',
-          touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none',
-          marginBottom: 4, marginTop: -2,
-          background: 'transparent',
-          borderRadius: 8,
-          transition: 'background 0.12s, color 0.12s',
-        }}
-        onPointerEnter={e => { e.currentTarget.style.background = 'var(--bg2)'; e.currentTarget.style.color = '#888'; }}
-        onPointerLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#555'; }}
-        title="גרור לשינוי סדר"
-      >
-        ⠿⠿⠿
-      </div>
+      {/* Drag handle — only rendered when sections are unlocked. When locked,
+          we collapse the spacer entirely so cards sit flush with no orphan grip. */}
+      {!locked && (
+        <div
+          {...handlers}
+          style={{
+            height: 22,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: '#555', fontSize: 16, letterSpacing: 4,
+            cursor: 'grab',
+            touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none',
+            marginBottom: 4, marginTop: -2,
+            background: 'transparent',
+            borderRadius: 8,
+            transition: 'background 0.12s, color 0.12s',
+          }}
+          onPointerEnter={e => { e.currentTarget.style.background = 'var(--bg2)'; e.currentTarget.style.color = '#888'; }}
+          onPointerLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#555'; }}
+          title="גרור לשינוי סדר"
+        >
+          ⠿⠿⠿
+        </div>
+      )}
       {children}
     </div>
   );
