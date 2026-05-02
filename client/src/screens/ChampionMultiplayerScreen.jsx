@@ -40,6 +40,8 @@ export default function ChampionMultiplayerScreen({ onExit }) {
   );
   const [songCount, setSongCount] = useState(10);
   const [timerSec, setTimerSec] = useState(0);
+  // Year filter — set of decade-start years (e.g. {1990, 2000}). Empty = no filter.
+  const [decadeFilter, setDecadeFilter] = useState(new Set());
 
   // Game
   const [autocomplete, setAutocomplete] = useState({ artists: [], titles: [] });
@@ -150,6 +152,7 @@ export default function ChampionMultiplayerScreen({ onExit }) {
       playlistIds: [...selectedPlaylistIds],
       songCount,
       timerSec,
+      decades: [...decadeFilter],
     });
   }
   function handleSubmit() {
@@ -262,6 +265,50 @@ export default function ChampionMultiplayerScreen({ onExit }) {
                   setSelectedPlaylistIds(next);
                 }}
               />
+
+              {/* Year filter — multi-select decade chips. Empty = all years */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <span style={{ color: 'var(--text2)', fontSize: 12, fontWeight: 700 }}>📅 סינון לפי שנים</span>
+                  {decadeFilter.size > 0 && (
+                    <button
+                      onClick={() => setDecadeFilter(new Set())}
+                      style={{ background: 'none', border: 'none', color: 'var(--text2)', fontSize: 11, cursor: 'pointer', textDecoration: 'underline' }}
+                    >
+                      ✕ נקה
+                    </button>
+                  )}
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {DECADES.map(d => {
+                    const active = decadeFilter.has(d);
+                    return (
+                      <button
+                        key={d}
+                        onClick={() => {
+                          const next = new Set(decadeFilter);
+                          next.has(d) ? next.delete(d) : next.add(d);
+                          setDecadeFilter(next);
+                        }}
+                        style={{
+                          padding: '8px 12px', borderRadius: 18,
+                          background: active ? 'var(--accent)' : 'var(--bg2)',
+                          color: active ? '#fff' : 'var(--text2)',
+                          border: `1.5px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
+                          fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                        }}
+                      >
+                        {decadeLabel(d)}
+                      </button>
+                    );
+                  })}
+                </div>
+                {decadeFilter.size === 0 && (
+                  <div style={{ color: 'var(--text2)', fontSize: 11, marginTop: 6 }}>
+                    ללא סינון — כל השנים
+                  </div>
+                )}
+              </div>
 
               <div>
                 <div style={{ color: 'var(--text2)', fontSize: 12, marginBottom: 8, fontWeight: 700 }}>כמות שירים במשחק</div>

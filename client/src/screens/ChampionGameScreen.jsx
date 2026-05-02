@@ -31,6 +31,8 @@ export default function ChampionGameScreen({ onExit }) {
     playlists[0] ? new Set([playlists[0].id]) : new Set()
   );
   const [timerSec, setTimerSec] = useState(0);
+  // Year filter — set of decade-start years (e.g. {1990, 2000}). Empty = no filter.
+  const [decadeFilter, setDecadeFilter] = useState(new Set());
   const [allSongs, setAllSongs] = useState([]);
   const [queue, setQueue] = useState([]);          // remaining songs in order
   const [currentSong, setCurrentSong] = useState(null);
@@ -64,9 +66,23 @@ export default function ChampionGameScreen({ onExit }) {
   // the latest version (with current picks) rather than a stale one
   const handleSubmitRef = useRef(null);
 
-  // Unique sorted lists for autocomplete (computed once per loaded playlist)
-  const allArtists = useMemo(() => uniqueSorted(allSongs.map(s => (s.artist || '').trim()).filter(Boolean)), [allSongs]);
-  const allTitles  = useMemo(() => uniqueSorted(allSongs.map(s => (s.title  || '').trim()).filter(Boolean)), [allSongs]);
+  // Songs that match the chosen decade filter (empty filter = no restriction)
+  const filteredSongs = useMemo(() => {
+    if (decadeFilter.size === 0) return allSongs;
+    return allSongs.filter(s => decadeFilter.has(decadeOf(s.year)));
+  }, [allSongs, decadeFilter]);
+
+  // Decades that actually have songs in the loaded playlist (so we don't show
+  // empty options the user could pick to make the playlist 0-songs)
+  const availableDecades = useMemo(() => {
+    const set = new Set(allSongs.map(s => decadeOf(s.year)).filter(Boolean));
+    return DECADES.filter(d => set.has(d));
+  }, [allSongs]);
+
+  // Unique sorted lists for autocomplete — derived from FILTERED songs so the
+  // pickers match what's actually playable
+  const allArtists = useMemo(() => uniqueSorted(filteredSongs.map(s => (s.artist || '').trim()).filter(Boolean)), [filteredSongs]);
+  const allTitles  = useMemo(() => uniqueSorted(filteredSongs.map(s => (s.title  || '').trim()).filter(Boolean)), [filteredSongs]);
 
   // Load songs when playlists change
   useEffect(() => {
@@ -87,8 +103,8 @@ export default function ChampionGameScreen({ onExit }) {
 
   // Start a new game
   function startGame() {
-    if (allSongs.length === 0) return;
-    const shuffled = shuffle(allSongs);
+    if (filteredSongs.length === 0) return;
+    const shuffled = shuffle(filteredSongs);
     setQueue(shuffled);
     setSongIdx(0);
     setScore({ points: 0, correctFields: 0, songsPlayed: 0, perfectRounds: 0 });
@@ -194,6 +210,50 @@ export default function ChampionGameScreen({ onExit }) {
             }}
           />
 
+          {/* Year filter — decade chips (empty selection = all years) */}
+          {availableDecades.length > 0 && (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <span style={{ color: 'var(--text2)', fontSize: 12, fontWeight: 700 }}>📅 סינון לפי שנים</span>
+                {decadeFilter.size > 0 && (
+                  <button
+                    onClick={() => setDecadeFilter(new Set())}
+                    style={{ background: 'none', border: 'none', color: 'var(--text2)', fontSize: 11, cursor: 'pointer', textDecoration: 'underline' }}
+                  >
+                    ✕ נקה
+                  </button>
+                )}
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {availableDecades.map(d => {
+                  const active = decadeFilter.has(d);
+                  return (
+                    <button
+                      key={d}
+                      onClick={() => {
+                        const next = new Set(decadeFilter);
+                        next.has(d) ? next.delete(d) : next.add(d);
+                        setDecadeFilter(next);
+                      }}
+                      style={{
+                        padding: '8px 14px', borderRadius: 18,
+                        background: active ? 'var(--accent)' : 'var(--bg2)',
+                        color: active ? '#fff' : 'var(--text2)',
+                        border: `1.5px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
+                        fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                      }}
+                    >
+                      {decadeLabel(d)}
+                    </button>
+                  );
+                })}
+              </div>
+              <div style={{ color: 'var(--text2)', fontSize: 11, marginTop: 6 }}>
+                {decadeFilter.size === 0 ? 'ללא סינון — כל השנים' : `${filteredSongs.length} שירים תואמים`}
+              </div>
+            </div>
+          )}
+
           {/* Timer per song */}
           <div>
             <div style={{ color: 'var(--text2)', fontSize: 12, marginBottom: 8, fontWeight: 700 }}>⏱ טיימר לכל שיר</div>
@@ -214,19 +274,19 @@ export default function ChampionGameScreen({ onExit }) {
 
           <button
             onClick={startGame}
-            disabled={loading || allSongs.length === 0}
+            disabled={loading || filteredSongs.length === 0}
             style={{
               ...primaryBtn,
-              background: loading || allSongs.length === 0 ? 'var(--bg2)' : 'var(--accent)',
-              opacity: loading || allSongs.length === 0 ? 0.5 : 1,
+              background: loading || filteredSongs.length === 0 ? 'var(--bg2)' : 'var(--accent)',
+              opacity: loading || filteredSongs.length === 0 ? 0.5 : 1,
               fontSize: 16, padding: '14px',
             }}
           >
             {loading
               ? '...'
-              : allSongs.length === 0
-                ? 'אין שירים מתאימים בפלייליסט'
-                : `▶ התחל — ${allSongs.length} שירים`}
+              : filteredSongs.length === 0
+                ? (allSongs.length === 0 ? 'אין שירים מתאימים בפלייליסט' : 'אין שירים בעשורים הנבחרים')
+                : `▶ התחל — ${filteredSongs.length} שירים`}
           </button>
         </div>
       </div>
@@ -659,6 +719,12 @@ function YearPickerModal({ onSelect, onClose }) {
 function decadeLabel(d) {
   if (d < 2000) return `שנות ה-${String(d).slice(2)}`;
   return `שנות ה-${d}`;
+}
+
+function decadeOf(year) {
+  const n = Number(year);
+  if (!n || isNaN(n)) return null;
+  return Math.floor(n / 10) * 10;
 }
 
 // ─── StatCell — small stat tile used on the end screen ───────────────────────

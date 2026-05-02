@@ -228,14 +228,29 @@ export function setupChampionMultiplayer(io) {
     });
 
     // ─── Start game (host) ───
-    socket.on('champ:start', async ({ playlistIds, songCount, timerSec }) => {
+    socket.on('champ:start', async ({ playlistIds, songCount, timerSec, decades }) => {
       const code = socketToRoom.get(socket.id);
       const room = rooms.get(code);
       if (!room || socket.id !== room.hostSocketId) return;
 
-      const allSongs = await loadSongs(playlistIds || []);
-      if (allSongs.length === 0) {
+      const loaded = await loadSongs(playlistIds || []);
+      if (loaded.length === 0) {
         return socket.emit('champ:error', { message: 'אין שירים בפלייליסט שנבחר' });
+      }
+
+      // Year filter — empty/missing = no restriction. decades is an array of
+      // decade-start years (e.g. [1990, 2000]); a song matches if its year falls
+      // in any of them.
+      const decadeSet = new Set((decades || []).map(d => Number(d)).filter(Boolean));
+      const allSongs = decadeSet.size === 0
+        ? loaded
+        : loaded.filter(s => {
+            const y = Number(s.year);
+            if (!y) return false;
+            return decadeSet.has(Math.floor(y / 10) * 10);
+          });
+      if (allSongs.length === 0) {
+        return socket.emit('champ:error', { message: 'אין שירים בעשורים הנבחרים' });
       }
       const N = Math.min(Number(songCount) || 10, allSongs.length);
       const queue = shuffle(allSongs).slice(0, N);
