@@ -109,6 +109,7 @@ function startNextSong(io, room) {
     audioUrl: song.audioUrl,
     index: room.songIdx + 1,
     total: room.queue.length,
+    timerSec: room.timerSec || 0,
   });
   emitRoomUpdate(io, room);
 }
@@ -212,7 +213,7 @@ export function setupChampionMultiplayer(io) {
     });
 
     // ─── Start game (host) ───
-    socket.on('champ:start', async ({ playlistIds, songCount }) => {
+    socket.on('champ:start', async ({ playlistIds, songCount, timerSec }) => {
       const code = socketToRoom.get(socket.id);
       const room = rooms.get(code);
       if (!room || socket.id !== room.hostSocketId) return;
@@ -239,10 +240,11 @@ export function setupChampionMultiplayer(io) {
       room.songIdx = 0;
       room.status = 'playing';
       room.autocomplete = { artists, titles };
+      room.timerSec = Math.max(0, Math.min(600, Number(timerSec) || 0));
       // Reset scores
       for (const p of room.players.values()) { p.score = 0; p.submission = null; }
 
-      io.to(room.code).emit('champ:started', { total: queue.length, autocomplete: { artists, titles } });
+      io.to(room.code).emit('champ:started', { total: queue.length, autocomplete: { artists, titles }, timerSec: room.timerSec });
       startNextSong(io, room);
     });
 

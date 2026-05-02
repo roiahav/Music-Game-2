@@ -3,11 +3,13 @@ import { io as ioClient } from 'socket.io-client';
 import { useSettingsStore } from '../store/settingsStore.js';
 import { useAuthStore } from '../store/authStore.js';
 import PlaylistSelector from '../components/PlaylistSelector.jsx';
+import TimerBar from '../components/TimerBar.jsx';
 import { AvatarCircle } from '../App.jsx';
 import { useLang } from '../i18n/useLang.js';
 
 const SERVER = import.meta.env.VITE_SERVER_URL || '';
 const DECADES = [1950, 1960, 1970, 1980, 1990, 2000, 2010, 2020];
+const TIMER_OPTIONS = [0, 15, 30, 45, 60];
 const SONG_COUNT_OPTIONS = [
   { value: 5,  label: '5 שירים' },
   { value: 10, label: '10 שירים' },
@@ -37,16 +39,19 @@ export default function ChampionMultiplayerScreen({ onExit }) {
     playlists[0] ? new Set([playlists[0].id]) : new Set()
   );
   const [songCount, setSongCount] = useState(10);
+  const [timerSec, setTimerSec] = useState(0);
 
   // Game
   const [autocomplete, setAutocomplete] = useState({ artists: [], titles: [] });
   const [currentSong, setCurrentSong] = useState(null);
+  const [gameTimerSec, setGameTimerSec] = useState(0);
   const [pickedArtist, setPickedArtist] = useState('');
   const [pickedTitle, setPickedTitle]   = useState('');
   const [pickedYear, setPickedYear]     = useState(null);
   const [picker, setPicker] = useState(null); // 'artist' | 'title' | 'year'
   const [submitted, setSubmitted] = useState(false);
   const [revealData, setRevealData] = useState(null); // { song, results }
+  const submitRef = useRef(null);
 
   // Victory
   const [victoryAudioUrl, setVictoryAudioUrl] = useState('');
@@ -76,11 +81,13 @@ export default function ChampionMultiplayerScreen({ onExit }) {
     socket.on('champ:room_update', ({ players, code }) => {
       setPlayers(players); if (code) setRoomCode(code);
     });
-    socket.on('champ:started', ({ autocomplete }) => {
+    socket.on('champ:started', ({ autocomplete, timerSec: t }) => {
       setAutocomplete(autocomplete || { artists: [], titles: [] });
+      setGameTimerSec(Number(t) || 0);
     });
-    socket.on('champ:song', ({ songId, audioUrl, index, total }) => {
+    socket.on('champ:song', ({ songId, audioUrl, index, total, timerSec: t }) => {
       setCurrentSong({ id: songId, audioUrl, index, total });
+      if (t != null) setGameTimerSec(Number(t) || 0);
       setPickedArtist(''); setPickedTitle(''); setPickedYear(null);
       setSubmitted(false); setRevealData(null); setPicker(null);
       setPhase('playing');
@@ -140,6 +147,7 @@ export default function ChampionMultiplayerScreen({ onExit }) {
     socketRef.current?.emit('champ:start', {
       playlistIds: [...selectedPlaylistIds],
       songCount,
+      timerSec,
     });
   }
   function handleSubmit() {
@@ -150,8 +158,11 @@ export default function ChampionMultiplayerScreen({ onExit }) {
       year: pickedYear,
     });
     setSubmitted(true);
+    setPicker(null);
     audioRef.current?.pause();
   }
+  // Always-fresh ref for the timer's onExpire callback
+  submitRef.current = handleSubmit;
   function nextSong() { socketRef.current?.emit('champ:next'); }
   function endNow()   { socketRef.current?.emit('champ:end'); }
   function togglePlayPause() {
@@ -265,6 +276,23 @@ export default function ChampionMultiplayerScreen({ onExit }) {
                 </div>
               </div>
 
+              <div>
+                <div style={{ color: 'var(--text2)', fontSize: 12, marginBottom: 8, fontWeight: 700 }}>⏱ טיימר לכל שיר</div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {TIMER_OPTIONS.map(sec => (
+                    <button key={sec} onClick={() => setTimerSec(sec)} style={{
+                      flex: 1, padding: '10px 0', borderRadius: 12,
+                      background: timerSec === sec ? 'var(--accent)' : 'var(--bg2)',
+                      color: timerSec === sec ? '#fff' : 'var(--text2)',
+                      border: `1.5px solid ${timerSec === sec ? 'var(--accent)' : 'var(--border)'}`,
+                      fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                    }}>
+                      {sec === 0 ? 'ללא' : `${sec}s`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <button onClick={startGame} disabled={players.length < 1} style={{ ...primaryBtn, fontSize: 16, padding: '14px' }}>
                 ▶ התחל משחק
               </button>
@@ -287,7 +315,18 @@ export default function ChampionMultiplayerScreen({ onExit }) {
       <div style={shell(dir)}>
         <TopBar onExit={onExit} title="🥇 אלוף הזיהויים" right={`${currentSong.index}/${currentSong.total} · ⭐ ${me?.score || 0}`} />
 
-        <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {/* Per-song timer (auto-submits on expiry) */}
+      {gameTimerSec > 0 && !submitted && (
+        <div style={{ flexShrink: 0, marginTop: 8 }}>
+          <TimerBar
+            seconds={gameTimerSec}
+            songId={`champ-mp-${currentSong.index}`}
+            onExpire={() => submitRef.current?.()}
+          />
+        </div>
+      )}
+
+      <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
           {/* Hidden cover during play */}
           <div style={{ display: 'flex', justifyContent: 'center' }}>
             <div style={{ width: 'min(120px, 30vw)', aspectRatio: '1 / 1', borderRadius: 16, background: 'linear-gradient(135deg, #3a3a3a, #2a2a2a)', border: '2px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -420,33 +459,64 @@ export default function ChampionMultiplayerScreen({ onExit }) {
     );
   }
 
-  // ─── DONE ───
+  // ─── DONE — winner display matches the regular multiplayer results screen ───
   if (phase === 'done') {
-    const winner = [...players].sort((a, b) => b.score - a.score)[0];
+    const sorted = [...players].sort((a, b) => b.score - a.score);
+    const winner = sorted[0];
     return (
       <div style={shell(dir)}>
-        <TopBar onExit={onExit} title="🏁 סוף המשחק" />
-        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 16px 28px', display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'center' }}>
-          <div style={{ fontSize: 64 }}>🏆</div>
-          <div style={{ textAlign: 'center', background: 'linear-gradient(135deg, #1db954, #0a8c3a)', borderRadius: 16, padding: '20px 28px', minWidth: 240 }}>
-            <div style={{ color: '#fff', fontSize: 13, fontWeight: 700, opacity: 0.8 }}>המנצח</div>
-            <AvatarCircle userId={winner?.userId} name={winner?.name} size={90} />
-            <div style={{ color: '#fff', fontSize: 22, fontWeight: 900, marginTop: 8 }}>{winner?.name}</div>
-            <div style={{ color: '#fff', fontSize: 16, fontWeight: 700, opacity: 0.9 }}>{winner?.score} נקודות</div>
-          </div>
-          <div style={{ width: '100%', maxWidth: 380 }}>
-            {[...players].sort((a, b) => b.score - a.score).map((p, i) => (
-              <div key={p.socketId} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: 'var(--bg2)', borderRadius: 10, marginBottom: 6 }}>
-                <span style={{ width: 28, textAlign: 'center' }}>{i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`}</span>
-                <AvatarCircle userId={p.userId} name={p.name} size={28} />
-                <span style={{ flex: 1, color: 'var(--text)', fontWeight: 600 }}>{p.name}</span>
-                <span style={{ color: 'var(--accent)', fontWeight: 800 }}>{p.score}</span>
-              </div>
-            ))}
-          </div>
-          <button onClick={() => { victoryRef.current?.pause(); onExit(); }} style={secondaryBtn}>← חזרה למסך הבית</button>
-        </div>
         <audio ref={victoryRef} preload="auto" />
+        <TopBar onExit={onExit} title="🏁 תוצאות" />
+        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 16px 28px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+          {/* Winner highlight — same pattern as the regular multiplayer */}
+          {winner && (
+            <div style={{
+              textAlign: 'center',
+              background: '#1a2a1a',
+              border: '2px solid #1db954',
+              borderRadius: 14,
+              padding: '20px 16px',
+            }}>
+              <div style={{ fontSize: 44, marginBottom: 8 }}>🥇</div>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
+                <AvatarCircle
+                  userId={winner.userId}
+                  name={winner.name}
+                  size={90}
+                  style={{ border: '3px solid #1db954' }}
+                />
+              </div>
+              <div style={{ color: '#1db954', fontSize: 22, fontWeight: 900 }}>{winner.name}</div>
+              <div style={{ color: '#fff', fontSize: 28, fontWeight: 700, marginTop: 4 }}>
+                {winner.score} נקודות
+              </div>
+            </div>
+          )}
+
+          {/* Full ranking */}
+          <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 12, padding: '8px 14px' }}>
+            {sorted.map((p, i) => {
+              const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
+              return (
+                <div key={p.socketId} style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  padding: '10px 0',
+                  borderBottom: i < sorted.length - 1 ? '1px solid var(--border)' : 'none',
+                }}>
+                  <span style={{ fontSize: 22, minWidth: 32, textAlign: 'center' }}>{medal}</span>
+                  <AvatarCircle userId={p.userId} name={p.name} size={36} />
+                  <span style={{ color: 'var(--text)', fontSize: 16, flex: 1, fontWeight: 600 }}>{p.name}</span>
+                  <span style={{ color: 'var(--accent)', fontSize: 18, fontWeight: 800 }}>{p.score}</span>
+                </div>
+              );
+            })}
+          </div>
+
+          <button onClick={() => { victoryRef.current?.pause(); onExit(); }} style={primaryBtn}>
+            ← חזרה למסך הבית
+          </button>
+        </div>
       </div>
     );
   }

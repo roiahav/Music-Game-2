@@ -1,11 +1,15 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useSettingsStore } from '../store/settingsStore.js';
+import { useAuthStore } from '../store/authStore.js';
 import { getPlaylistSongs } from '../api/client.js';
 import PlaylistSelector from '../components/PlaylistSelector.jsx';
+import TimerBar from '../components/TimerBar.jsx';
+import { AvatarCircle } from '../App.jsx';
 import { useLang } from '../i18n/useLang.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const DECADES = [1950, 1960, 1970, 1980, 1990, 2000, 2010, 2020];
+const TIMER_OPTIONS = [0, 15, 30, 45, 60];
 
 function shuffle(arr) {
   const a = [...arr];
@@ -19,12 +23,14 @@ function shuffle(arr) {
 // ─── Solo Champion Game ───────────────────────────────────────────────────────
 export default function ChampionGameScreen({ onExit }) {
   const { dir } = useLang();
+  const { user } = useAuthStore();
   const { playlists } = useSettingsStore();
 
   const [phase, setPhase] = useState('idle'); // idle | playing | done
   const [selectedPlaylistIds, setSelectedPlaylistIds] = useState(
     playlists[0] ? new Set([playlists[0].id]) : new Set()
   );
+  const [timerSec, setTimerSec] = useState(0);
   const [allSongs, setAllSongs] = useState([]);
   const [queue, setQueue] = useState([]);          // remaining songs in order
   const [currentSong, setCurrentSong] = useState(null);
@@ -48,6 +54,10 @@ export default function ChampionGameScreen({ onExit }) {
   // Audio
   const audioRef = useRef(null);
   const [audioPlaying, setAudioPlaying] = useState(false);
+
+  // Always-fresh ref for handleSubmit so TimerBar's captured onExpire calls
+  // the latest version (with current picks) rather than a stale one
+  const handleSubmitRef = useRef(null);
 
   // Unique sorted lists for autocomplete (computed once per loaded playlist)
   const allArtists = useMemo(() => uniqueSorted(allSongs.map(s => (s.artist || '').trim()).filter(Boolean)), [allSongs]);
@@ -115,7 +125,10 @@ export default function ChampionGameScreen({ onExit }) {
     const correctCount = (artistOk ? 1 : 0) + (titleOk ? 1 : 0) + (yearOk ? 1 : 0);
     setScore(s => ({ correct: s.correct + correctCount, total: s.total + 3 }));
     setSubmitted(true);
+    setPicker(null);
   }
+  // Keep the ref in sync so TimerBar's captured onExpire always sees the latest
+  handleSubmitRef.current = handleSubmit;
 
   function togglePlayPause() {
     const a = audioRef.current;
@@ -168,6 +181,24 @@ export default function ChampionGameScreen({ onExit }) {
             }}
           />
 
+          {/* Timer per song */}
+          <div>
+            <div style={{ color: 'var(--text2)', fontSize: 12, marginBottom: 8, fontWeight: 700 }}>⏱ טיימר לכל שיר</div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {TIMER_OPTIONS.map(sec => (
+                <button key={sec} onClick={() => setTimerSec(sec)} style={{
+                  flex: 1, padding: '10px 0', borderRadius: 12,
+                  background: timerSec === sec ? 'var(--accent)' : 'var(--bg2)',
+                  color: timerSec === sec ? '#fff' : 'var(--text2)',
+                  border: `1.5px solid ${timerSec === sec ? 'var(--accent)' : 'var(--border)'}`,
+                  fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                }}>
+                  {sec === 0 ? 'ללא' : `${sec}s`}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <button
             onClick={startGame}
             disabled={loading || allSongs.length === 0}
@@ -191,19 +222,65 @@ export default function ChampionGameScreen({ onExit }) {
 
   if (phase === 'done') {
     const pct = score.total > 0 ? Math.round((score.correct / score.total) * 100) : 0;
+    // Crown medal based on accuracy
+    const medal =
+      pct >= 90 ? { icon: '🥇', label: 'אלוף הזיהויים!', color: '#FFD700' } :
+      pct >= 70 ? { icon: '🥈', label: 'מומחה מוזיקה',     color: '#C0C0C0' } :
+      pct >= 50 ? { icon: '🥉', label: 'יודע דבר או שניים', color: '#CD7F32' } :
+                  { icon: '🎵', label: 'יש לאן לשפר',        color: '#5bb8ff' };
+
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg)', direction: dir }}>
-        <TopBar onExit={onExit} title="🏆 אלוף הזיהויים" />
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, gap: 16 }}>
-          <div style={{ fontSize: 64 }}>🏆</div>
-          <h2 style={{ color: 'var(--text)', margin: 0, fontSize: 22, fontWeight: 800 }}>סוף המשחק!</h2>
-          <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 14, padding: '20px 28px', textAlign: 'center', minWidth: 220 }}>
-            <div style={{ color: 'var(--accent)', fontSize: 42, fontWeight: 900, lineHeight: 1 }}>{score.correct}</div>
-            <div style={{ color: 'var(--text2)', fontSize: 13, marginTop: 4 }}>מתוך {score.total}</div>
-            <div style={{ color: 'var(--text)', fontSize: 18, fontWeight: 700, marginTop: 12 }}>{pct}% דיוק</div>
+        <TopBar onExit={onExit} title="🏆 סוף המשחק" />
+        <div style={{ flex: 1, overflowY: 'auto', padding: '24px 16px 32px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18 }}>
+
+          {/* Winner highlight (like multiplayer's results card) */}
+          <div style={{
+            width: '100%', maxWidth: 360, textAlign: 'center',
+            background: 'linear-gradient(135deg, var(--bg2) 0%, var(--bg3, #1a1a2e) 100%)',
+            border: `3px solid ${medal.color}`,
+            borderRadius: 18, padding: '24px 20px',
+            boxShadow: `0 6px 24px ${medal.color}33`,
+          }}>
+            <div style={{ fontSize: 56, marginBottom: 8 }}>{medal.icon}</div>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 14 }}>
+              <AvatarCircle
+                userId={user?.id}
+                hasAvatar={user?.hasAvatar}
+                name={user?.username || 'שחקן'}
+                size={84}
+                style={{ border: `3px solid ${medal.color}` }}
+              />
+            </div>
+            <div style={{ color: medal.color, fontSize: 14, fontWeight: 800, marginBottom: 4 }}>
+              {medal.label}
+            </div>
+            <div style={{ color: 'var(--text)', fontSize: 22, fontWeight: 900 }}>
+              {user?.username || 'אתה'}
+            </div>
+            <div style={{ color: medal.color, fontSize: 36, fontWeight: 900, marginTop: 14, lineHeight: 1 }}>
+              {score.correct}
+            </div>
+            <div style={{ color: 'var(--text2)', fontSize: 12, marginTop: 4 }}>מתוך {score.total} נקודות</div>
+            <div style={{
+              marginTop: 14, padding: '6px 14px', display: 'inline-block',
+              background: `${medal.color}22`, color: medal.color,
+              borderRadius: 16, fontSize: 14, fontWeight: 800,
+            }}>
+              {pct}% דיוק
+            </div>
           </div>
-          <button onClick={startGame} style={{ ...primaryBtn, fontSize: 16 }}>🔁 שחק שוב</button>
-          <button onClick={onExit} style={secondaryBtn}>← חזרה</button>
+
+          {/* Stats breakdown */}
+          <div style={{ width: '100%', maxWidth: 360, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <StatCell icon="🎵" label="שירים" value={queue.length} color="#5bb8ff" />
+            <StatCell icon="⭐" label="נקודות" value={score.correct} color="#1db954" />
+          </div>
+
+          <div style={{ width: '100%', maxWidth: 360, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <button onClick={startGame} style={{ ...primaryBtn, fontSize: 16, padding: '14px' }}>🔁 שחק שוב</button>
+            <button onClick={onExit} style={secondaryBtn}>← חזרה למסך הבית</button>
+          </div>
         </div>
       </div>
     );
@@ -217,6 +294,17 @@ export default function ChampionGameScreen({ onExit }) {
         title="🏆 אלוף הזיהויים"
         right={`${songIdx + 1}/${queue.length} · ⭐ ${score.correct}`}
       />
+
+      {/* Per-song timer (hidden when no timer or already submitted) */}
+      {timerSec > 0 && !submitted && (
+        <div style={{ flexShrink: 0, marginTop: 8 }}>
+          <TimerBar
+            seconds={timerSec}
+            songId={`champ-${songIdx}`}
+            onExpire={() => handleSubmitRef.current?.()}
+          />
+        </div>
+      )}
 
       {/* Main content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -533,6 +621,22 @@ function YearPickerModal({ onSelect, onClose }) {
 function decadeLabel(d) {
   if (d < 2000) return `שנות ה-${String(d).slice(2)}`;
   return `שנות ה-${d}`;
+}
+
+// ─── StatCell — small stat tile used on the end screen ───────────────────────
+function StatCell({ icon, label, value, color }) {
+  return (
+    <div style={{
+      background: 'var(--bg2)', border: `1px solid ${color}33`, borderLeft: `3px solid ${color}`,
+      borderRadius: 12, padding: '14px 16px', textAlign: 'right',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+        <span style={{ color: 'var(--text2)', fontSize: 11, fontWeight: 700 }}>{label}</span>
+        <span style={{ fontSize: 16 }}>{icon}</span>
+      </div>
+      <div style={{ color, fontSize: 22, fontWeight: 900, lineHeight: 1 }}>{value}</div>
+    </div>
+  );
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
