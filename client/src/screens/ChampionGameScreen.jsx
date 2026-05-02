@@ -280,11 +280,9 @@ export default function ChampionGameScreen({ onExit }) {
           {!submitted ? (
             <button
               onClick={handleSubmit}
-              disabled={!pickedArtist && !pickedTitle && !pickedYear}
               style={{
                 background: '#1db954', color: '#000', border: 'none', borderRadius: 14,
                 fontSize: 16, fontWeight: 900, cursor: 'pointer',
-                opacity: (!pickedArtist && !pickedTitle && !pickedYear) ? 0.4 : 1,
                 boxShadow: '0 4px 16px rgba(29, 185, 84, 0.4)',
                 padding: '16px 12px',
               }}

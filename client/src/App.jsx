@@ -265,11 +265,11 @@ export default function App() {
           </div>
         </button>
 
-        <button onClick={() => setScreen('champion')} style={modeCard('#FFD700', dir)}>
+        <button onClick={() => setScreen('champion')} style={modeCard('#C9A227', dir)}>
           <span style={{ fontSize: 38 }}>🥇</span>
           <div style={{ flex: 1, textAlign: dir === 'rtl' ? 'right' : 'left' }}>
-            <div style={{ color: '#000', fontSize: 17, fontWeight: 800 }}>אלוף הזיהויים</div>
-            <div style={{ color: '#5a4500', fontSize: 12, marginTop: 3 }}>זמר, שיר ושנה — 3 קוביות לכל שיר</div>
+            <div style={{ color: '#fff', fontSize: 17, fontWeight: 800 }}>אלוף הזיהויים</div>
+            <div style={{ color: '#fff5c5', fontSize: 12, marginTop: 3 }}>זמר, שיר ושנה — 3 קוביות לכל שיר</div>
           </div>
         </button>
 
