@@ -57,9 +57,10 @@ export default function ChampionMultiplayerScreen({ onExit }) {
   const [showRules, setShowRules] = useState(false);
   // Host-controlled mute state. Affects only OTHER players' audio.
   const [allMuted, setAllMuted] = useState(false);
-  // Ref mirror so stale-closure socket listeners (set up in mount-time useEffect)
-  // can read the latest mute state when a new song loads
+  // Ref mirrors so stale-closure socket listeners (set up in mount-time
+  // useEffect) can read the latest values when a new song loads
   const allMutedRef = useRef(false);
+  const isHostRef = useRef(false);
   useEffect(() => { allMutedRef.current = allMuted; }, [allMuted]);
 
   // Victory + game stats for end screen
@@ -74,6 +75,7 @@ export default function ChampionMultiplayerScreen({ onExit }) {
 
   const me = useMemo(() => players.find(p => p.socketId === mySocketId) || null, [players, mySocketId]);
   const isHost = me?.isHost;
+  useEffect(() => { isHostRef.current = !!isHost; }, [isHost]);
 
   // Socket setup
   useEffect(() => {
@@ -101,12 +103,14 @@ export default function ChampionMultiplayerScreen({ onExit }) {
       setPickedArtist(''); setPickedTitle(''); setPickedYear(null);
       setSubmitted(false); setRevealData(null); setPicker(null);
       setPhase('playing');
-      // Auto-play, unless the host has muted us
+      // Auto-play. The host's audio always plays — the mute toggle only
+      // affects players via the champ:muted event, never the host themselves.
       setTimeout(() => {
         const a = audioRef.current;
         if (!a || !audioUrl) return;
         a.src = audioUrl; a.load();
-        if (!allMutedRef.current) a.play().catch(() => {});
+        const shouldPlay = isHostRef.current || !allMutedRef.current;
+        if (shouldPlay) a.play().catch(() => {});
       }, 50);
     });
     socket.on('champ:reveal', (data) => {
@@ -429,6 +433,32 @@ export default function ChampionMultiplayerScreen({ onExit }) {
       <div style={shell(dir)}>
         <TopBar onExit={onExit} title="🥇 אלוף הזיהויים" right={`${currentSong.index}/${currentSong.total} · ⭐ ${me?.score || 0}`} />
 
+        {/* Host action bar — mute toggle, matches MultiplayerScreen styling */}
+        {isHost && (
+          <div style={{ flexShrink: 0, padding: '6px 16px 0', display: 'flex', justifyContent: 'flex-end' }}>
+            <button
+              onClick={hostMuteToggle}
+              style={{
+                background: allMuted ? '#5a1010' : '#2d2d30',
+                border: `1px solid ${allMuted ? '#dc3545' : '#3a3a3a'}`,
+                color: allMuted ? '#ff6b6b' : '#ccc',
+                borderRadius: 8, padding: '4px 10px', fontSize: 13, fontWeight: 600,
+                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
+              }}
+            >
+              {allMuted ? '🔊' : '🔇'}
+              <span style={{ fontSize: 12 }}>{allMuted ? 'בטל השתקה' : 'השתקת משתמשים'}</span>
+            </button>
+          </div>
+        )}
+
+        {/* Muted indicator — pinned, only shown to non-host players */}
+        {!isHost && allMuted && (
+          <div style={{ margin: '6px 16px 0', padding: '6px 12px', borderRadius: 8, background: '#3a1010', border: '1px solid #dc3545', color: '#ff6b6b', fontSize: 13, textAlign: 'center', flexShrink: 0 }}>
+            🔇 המנהל השתיק את השמע
+          </div>
+        )}
+
         {/* Per-song timer (auto-submits on expiry) */}
       {gameTimerSec > 0 && !submitted && (
         <div style={{ flexShrink: 0, marginTop: 8 }}>
@@ -496,20 +526,9 @@ export default function ChampionMultiplayerScreen({ onExit }) {
           </div>
 
           {isHost && (
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={hostMuteToggle} style={{
-                flex: '0 0 auto', padding: '12px 16px', borderRadius: 12,
-                background: allMuted ? '#3a1010' : 'var(--bg2)',
-                color: allMuted ? '#ff6b6b' : 'var(--text)',
-                border: `1px solid ${allMuted ? '#dc3545' : 'var(--border)'}`,
-                fontSize: 18, cursor: 'pointer',
-              }} title={allMuted ? 'בטל השתקה לכל הטלפונים' : 'השתק את כל הטלפונים'}>
-                {allMuted ? '🔇' : '🔊'}
-              </button>
-              <button onClick={() => socketRef.current?.emit('champ:reveal')} style={{ ...secondaryBtn, flex: 1 }}>
-                💡 חשוף תשובה (עוקף ממתינים)
-              </button>
-            </div>
+            <button onClick={() => socketRef.current?.emit('champ:reveal')} style={secondaryBtn}>
+              💡 חשוף תשובה (עוקף ממתינים)
+            </button>
           )}
         </div>
 
