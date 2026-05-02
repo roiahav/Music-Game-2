@@ -31,8 +31,9 @@ export default function ChampionGameScreen({ onExit }) {
     playlists[0] ? new Set([playlists[0].id]) : new Set()
   );
   const [timerSec, setTimerSec] = useState(0);
-  // Year filter — set of decade-start years (e.g. {1990, 2000}). Empty = no filter.
-  const [decadeFilter, setDecadeFilter] = useState(new Set());
+  // Year filter — all decades selected by default (no filter effect).
+  // Deselect a decade to exclude it from the song pool.
+  const [decadeFilter, setDecadeFilter] = useState(() => new Set(DECADES));
   const [allSongs, setAllSongs] = useState([]);
   const [queue, setQueue] = useState([]);          // remaining songs in order
   const [currentSong, setCurrentSong] = useState(null);
@@ -66,9 +67,8 @@ export default function ChampionGameScreen({ onExit }) {
   // the latest version (with current picks) rather than a stale one
   const handleSubmitRef = useRef(null);
 
-  // Songs that match the chosen decade filter (empty filter = no restriction)
+  // Songs that match the chosen decade filter. All decades selected by default.
   const filteredSongs = useMemo(() => {
-    if (decadeFilter.size === 0) return allSongs;
     return allSongs.filter(s => decadeFilter.has(decadeOf(s.year)));
   }, [allSongs, decadeFilter]);
 
@@ -210,19 +210,43 @@ export default function ChampionGameScreen({ onExit }) {
             }}
           />
 
-          {/* Year filter — decade chips (empty selection = all years) */}
+          {/* Timer per song */}
+          <div>
+            <div style={{ color: 'var(--text2)', fontSize: 12, marginBottom: 8, fontWeight: 700 }}>⏱ טיימר לכל שיר</div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {TIMER_OPTIONS.map(sec => (
+                <button key={sec} onClick={() => setTimerSec(sec)} style={{
+                  flex: 1, padding: '10px 0', borderRadius: 12,
+                  background: timerSec === sec ? 'var(--accent)' : 'var(--bg2)',
+                  color: timerSec === sec ? '#fff' : 'var(--text2)',
+                  border: `1.5px solid ${timerSec === sec ? 'var(--accent)' : 'var(--border)'}`,
+                  fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                }}>
+                  {sec === 0 ? 'ללא' : `${sec}s`}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Year filter — all decades pre-selected; tap to exclude one */}
           {availableDecades.length > 0 && (
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                 <span style={{ color: 'var(--text2)', fontSize: 12, fontWeight: 700 }}>📅 סינון לפי שנים</span>
-                {decadeFilter.size > 0 && (
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    onClick={() => setDecadeFilter(new Set(availableDecades))}
+                    style={{ background: 'none', border: 'none', color: 'var(--text2)', fontSize: 11, cursor: 'pointer', textDecoration: 'underline' }}
+                  >
+                    הכל
+                  </button>
                   <button
                     onClick={() => setDecadeFilter(new Set())}
                     style={{ background: 'none', border: 'none', color: 'var(--text2)', fontSize: 11, cursor: 'pointer', textDecoration: 'underline' }}
                   >
-                    ✕ נקה
+                    אף אחד
                   </button>
-                )}
+                </div>
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                 {availableDecades.map(d => {
@@ -248,29 +272,8 @@ export default function ChampionGameScreen({ onExit }) {
                   );
                 })}
               </div>
-              <div style={{ color: 'var(--text2)', fontSize: 11, marginTop: 6 }}>
-                {decadeFilter.size === 0 ? 'ללא סינון — כל השנים' : `${filteredSongs.length} שירים תואמים`}
-              </div>
             </div>
           )}
-
-          {/* Timer per song */}
-          <div>
-            <div style={{ color: 'var(--text2)', fontSize: 12, marginBottom: 8, fontWeight: 700 }}>⏱ טיימר לכל שיר</div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              {TIMER_OPTIONS.map(sec => (
-                <button key={sec} onClick={() => setTimerSec(sec)} style={{
-                  flex: 1, padding: '10px 0', borderRadius: 12,
-                  background: timerSec === sec ? 'var(--accent)' : 'var(--bg2)',
-                  color: timerSec === sec ? '#fff' : 'var(--text2)',
-                  border: `1.5px solid ${timerSec === sec ? 'var(--accent)' : 'var(--border)'}`,
-                  fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                }}>
-                  {sec === 0 ? 'ללא' : `${sec}s`}
-                </button>
-              ))}
-            </div>
-          </div>
 
           <button
             onClick={startGame}
@@ -285,7 +288,7 @@ export default function ChampionGameScreen({ onExit }) {
             {loading
               ? '...'
               : filteredSongs.length === 0
-                ? (allSongs.length === 0 ? 'אין שירים מתאימים בפלייליסט' : 'אין שירים בעשורים הנבחרים')
+                ? (allSongs.length === 0 ? 'אין שירים מתאימים בפלייליסט' : decadeFilter.size === 0 ? 'בחר לפחות עשור אחד' : 'אין שירים בעשורים הנבחרים')
                 : `▶ התחל — ${filteredSongs.length} שירים`}
           </button>
         </div>
