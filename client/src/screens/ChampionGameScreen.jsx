@@ -85,6 +85,28 @@ export default function ChampionGameScreen({ onExit }) {
   useEffect(() => { currentSongRef.current = currentSong; }, [currentSong]);
   useEffect(() => { submittedRef.current = submitted; }, [submitted]);
 
+  // Hard teardown on unmount — even if carMode is still true when the user
+  // navigates away, this kills the mic + cancels any pending TTS.
+  useEffect(() => {
+    return () => {
+      try { recognitionRef.current?.stop(); } catch {}
+      try { recognitionRef.current?.abort(); } catch {}
+      recognitionRef.current = null;
+      try { window.speechSynthesis.cancel(); } catch {}
+    };
+  }, []);
+
+  // Wrap the home-button handler so we explicitly stop the mic before unmount
+  function exitGame() {
+    // Sync the ref FIRST so the recognition.onend handler doesn't auto-restart
+    carModeRef.current = false;
+    setCarMode(false);
+    try { recognitionRef.current?.stop(); } catch {}
+    try { recognitionRef.current?.abort(); } catch {}
+    try { window.speechSynthesis.cancel(); } catch {}
+    onExit?.();
+  }
+
   // Songs that match the chosen decade filter. All decades selected by default.
   const filteredSongs = useMemo(() => {
     return allSongs.filter(s => decadeFilter.has(decadeOf(s.year)));
@@ -167,12 +189,22 @@ export default function ChampionGameScreen({ onExit }) {
       const song = currentSongRef.current;
       if (!song || submittedRef.current) return;
 
-      // Try matching either artist OR title — the player can speak in any order
       const artistOk = looseContains(transcript, song.artist);
       const titleOk  = looseContains(transcript, song.title);
+
+      // Explicit "שלח" voice command: submit whatever was said so far. If the
+      // transcript matches → correct flow; otherwise reveal the answer.
+      if (containsSubmitWord(transcript)) {
+        try { rec.stop(); } catch {}
+        if (artistOk || titleOk) handleVoiceCorrect(song);
+        else handleVoiceWrong(song);
+        return;
+      }
+
+      // Auto-match: as soon as the player says the artist OR title, count it
       if (artistOk || titleOk) {
         try { rec.stop(); } catch {}
-        handleVoiceCorrect(song, { artistOk, titleOk });
+        handleVoiceCorrect(song);
       }
     };
     rec.onend = () => {
@@ -193,6 +225,27 @@ export default function ChampionGameScreen({ onExit }) {
       window.speechSynthesis.cancel();
     };
   }, [carMode]); // eslint-disable-line
+
+  // Wrong handler — used when the player says "שלח" but didn't say the artist
+  // or title. Reveals the right answer and advances.
+  async function handleVoiceWrong(song) {
+    if (submittedRef.current) return;
+    submittedRef.current = true;
+    setSubmitted(true);
+    audioRef.current?.pause();
+    setScore(s => ({
+      points:        s.points,
+      correctFields: s.correctFields,
+      songsPlayed:   s.songsPlayed + 1,
+      perfectRounds: s.perfectRounds,
+    }));
+    await new Promise(r => setTimeout(r, 200));
+    await speak(`התשובה הנכונה: השיר ${song.title} של ${song.artist} משנת ${song.year}`);
+    setTimeout(() => {
+      submittedRef.current = false;
+      nextSong();
+    }, 300);
+  }
 
   // Match handler — plays chime, announces details, auto-advances
   async function handleVoiceCorrect(song, _correct) {
@@ -325,7 +378,7 @@ export default function ChampionGameScreen({ onExit }) {
   if (phase === 'idle') {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg)', direction: dir }}>
-        <TopBar onExit={onExit} title={`🏆 אלוף הזיהויים`} />
+        <TopBar onExit={exitGame} title={`🏆 אלוף הזיהויים`} />
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '20px 16px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
           <PlaylistSelector
@@ -482,7 +535,7 @@ export default function ChampionGameScreen({ onExit }) {
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg)', direction: dir }}>
-        <TopBar onExit={onExit} title="🏆 סוף המשחק" />
+        <TopBar onExit={exitGame} title="🏆 סוף המשחק" />
         <div style={{ flex: 1, overflowY: 'auto', padding: '24px 16px 32px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18 }}>
 
           {/* Winner highlight */}
@@ -551,7 +604,7 @@ export default function ChampionGameScreen({ onExit }) {
 
           <div style={{ width: '100%', maxWidth: 360, display: 'flex', flexDirection: 'column', gap: 10 }}>
             <button onClick={startGame} style={{ ...primaryBtn, fontSize: 16, padding: '14px' }}>🔁 שחק שוב</button>
-            <button onClick={onExit} style={secondaryBtn}>← חזרה למסך הבית</button>
+            <button onClick={exitGame} style={secondaryBtn}>← חזרה למסך הבית</button>
           </div>
         </div>
       </div>
@@ -562,7 +615,7 @@ export default function ChampionGameScreen({ onExit }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg)', direction: dir }}>
       <TopBar
-        onExit={onExit}
+        onExit={exitGame}
         title="🏆 אלוף הזיהויים"
         right={`${songIdx + 1}/${queue.length} · ⭐ ${score.points}`}
       />
@@ -966,6 +1019,7 @@ function ChampionRulesModal({ onClose }) {
             <li>✅ לחץ "שלח תשובות" — נכון יהפוך לירוק, לא נכון לאדום</li>
             <li>🏆 כל קוביה נכונה = 1 נקודה</li>
             <li>💎 כל הקוביות נכונות = +5 בונוס (סך 8 לסיבוב מושלם)</li>
+            <li>🚗 במצב רכב — אומרים בקול את הזמר/השיר. אמרו "שלח" כדי לבדוק את התשובה</li>
           </ul>
         </div>
       </div>
@@ -980,6 +1034,25 @@ function uniqueSorted(arr) {
 
 function isMatch(a, b) {
   return (a || '').trim().toLowerCase() === (b || '').trim().toLowerCase();
+}
+
+// Voice trigger words for explicit submit — handles both Hebrew and a few
+// English fallbacks the recognizer may surface. Matched as whole words at
+// the END of the transcript so earlier mentions of "שלחתי" don't fire.
+const SUBMIT_WORDS = ['שלח', 'שלחי', 'שלחו', 'אישור', 'בדוק', 'submit', 'send'];
+function containsSubmitWord(transcript) {
+  if (!transcript) return false;
+  const norm = String(transcript)
+    .toLowerCase()
+    .replace(/[֑-ׇ]/g, '')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!norm) return false;
+  // Only fire if the trigger appears within the LAST 3 spoken words —
+  // protects against re-triggering on accumulated transcripts
+  const tail = norm.split(' ').slice(-3).join(' ');
+  return SUBMIT_WORDS.some(w => new RegExp(`(^|\\s)${w}(\\s|$)`).test(tail));
 }
 
 // Fuzzy match for voice recognition — strips punctuation/diacritics and
