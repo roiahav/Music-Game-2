@@ -43,6 +43,8 @@ export default function FavoritesScreen({ onExit }) {
   const [progress, setProgress] = useState(0);          // 0–1
   const [duration, setDuration] = useState(0);
   const [shuffleMode, setShuffleMode] = useState(false);
+  // Full-screen "now playing" view — opened by tapping the mini-player cover/title
+  const [nowPlayingOpen, setNowPlayingOpen] = useState(false);
   const audioRef = useRef(null);
 
   // ── drag-to-reorder (touch + mouse via Pointer Events) ──
@@ -666,12 +668,16 @@ export default function FavoritesScreen({ onExit }) {
 
           {/* Controls row */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px 10px' }}>
-            {/* Cover */}
-            <div style={{
-              width: 42, height: 42, borderRadius: 6, overflow: 'hidden', flexShrink: 0,
-              background: 'var(--bg3, #333)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
+            {/* Cover — tap to open full-screen "now playing" */}
+            <div
+              onClick={() => setNowPlayingOpen(true)}
+              style={{
+                width: 42, height: 42, borderRadius: 6, overflow: 'hidden', flexShrink: 0,
+                background: 'var(--bg3, #333)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer',
+              }}
+            >
               {current.coverUrl ? (
                 <img src={current.coverUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               ) : (
@@ -679,8 +685,11 @@ export default function FavoritesScreen({ onExit }) {
               )}
             </div>
 
-            {/* Title / time */}
-            <div style={{ flex: 1, minWidth: 0 }}>
+            {/* Title / time — tap to open full-screen "now playing" */}
+            <div
+              onClick={() => setNowPlayingOpen(true)}
+              style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}
+            >
               <div style={{
                 color: 'var(--text)', fontWeight: 700, fontSize: 13,
                 whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
@@ -706,6 +715,25 @@ export default function FavoritesScreen({ onExit }) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── FULL-SCREEN NOW PLAYING ── */}
+      {nowPlayingOpen && current && (
+        <NowPlayingView
+          song={current}
+          isPlaying={isPlaying}
+          progress={progress}
+          duration={duration}
+          shuffleMode={shuffleMode}
+          accentColor={accentColor}
+          dir={dir}
+          onClose={() => setNowPlayingOpen(false)}
+          onPlayPause={togglePlayPause}
+          onPrev={handlePlayPrev}
+          onNext={handlePlayNext}
+          onSeek={seekTo}
+          onToggleShuffle={toggleShuffle}
+        />
       )}
 
       {/* ── FLOATING GHOST during drag — visual feedback that follows finger ── */}
@@ -776,6 +804,141 @@ export default function FavoritesScreen({ onExit }) {
         }}
         onLoadStart={() => { setProgress(0); setDuration(0); }}
       />
+    </div>
+  );
+}
+
+// ─── Now-playing full-screen overlay — opens from the mini-player ──────────
+function NowPlayingView({
+  song, isPlaying, progress, duration,
+  shuffleMode, accentColor, dir,
+  onClose, onPlayPause, onPrev, onNext, onSeek, onToggleShuffle,
+}) {
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 100,
+      background: 'var(--bg)',
+      direction: dir,
+      display: 'flex', flexDirection: 'column',
+      paddingTop: 'env(safe-area-inset-top)',
+      paddingBottom: 'env(safe-area-inset-bottom)',
+    }}>
+      {/* Header — close button */}
+      <div style={{ display: 'flex', alignItems: 'center', padding: '14px 16px', flexShrink: 0 }}>
+        <button
+          onClick={onClose}
+          style={{ background: 'none', border: 'none', color: 'var(--text)', fontSize: 26, cursor: 'pointer', padding: 0, lineHeight: 1 }}
+          title="סגור"
+        >
+          ⌄
+        </button>
+        <div style={{ flex: 1, textAlign: 'center', color: 'var(--text2)', fontSize: 12, fontWeight: 700, letterSpacing: 1 }}>
+          מתנגן עכשיו
+        </div>
+        <div style={{ width: 26 }} />
+      </div>
+
+      {/* Content — cover, info, progress, controls */}
+      <div style={{
+        flex: 1, overflowY: 'auto',
+        padding: '8px 24px 24px',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 22,
+      }}>
+        {/* Big cover */}
+        <div style={{
+          width: 'min(320px, 75vw)', aspectRatio: '1 / 1',
+          borderRadius: 18, overflow: 'hidden',
+          background: 'var(--bg3, #2a2a2a)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: '0 12px 40px rgba(0,0,0,0.55)',
+          marginTop: 8,
+        }}>
+          {song.coverUrl ? (
+            <img src={song.coverUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          ) : (
+            <span style={{ fontSize: 96, opacity: 0.4 }}>🎵</span>
+          )}
+        </div>
+
+        {/* Song details */}
+        <div style={{ width: '100%', textAlign: 'center' }}>
+          <div style={{ color: 'var(--text)', fontSize: 22, fontWeight: 800, lineHeight: 1.25, wordBreak: 'break-word' }}>
+            {song.title || '—'}
+          </div>
+          <div style={{ color: 'var(--text2)', fontSize: 15, marginTop: 6, fontWeight: 600, wordBreak: 'break-word' }}>
+            {song.artist || '—'}
+          </div>
+          {song.year && (
+            <div style={{
+              display: 'inline-block', marginTop: 10,
+              background: `${accentColor}22`, color: accentColor,
+              fontSize: 12, fontWeight: 700,
+              padding: '4px 12px', borderRadius: 14,
+              border: `1px solid ${accentColor}55`,
+            }}>
+              📅 {song.year}
+            </div>
+          )}
+          {song.playlistName && (
+            <div style={{
+              display: 'inline-block', marginTop: 10, marginRight: 6,
+              background: 'var(--bg2)', color: 'var(--text2)',
+              fontSize: 11, fontWeight: 700,
+              padding: '4px 10px', borderRadius: 12,
+              border: '1px solid var(--border)',
+            }}>
+              {song.playlistName}
+            </div>
+          )}
+        </div>
+
+        {/* Progress + time */}
+        <div style={{ width: '100%' }}>
+          <div
+            onClick={e => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              const x = dir === 'rtl' ? rect.right - e.clientX : e.clientX - rect.left;
+              onSeek(Math.max(0, Math.min(1, x / rect.width)));
+            }}
+            style={{
+              height: 6, background: 'var(--bg2)', cursor: 'pointer', position: 'relative',
+              borderRadius: 3, overflow: 'hidden',
+            }}
+          >
+            <div style={{
+              position: 'absolute', top: 0, bottom: 0,
+              [dir === 'rtl' ? 'right' : 'left']: 0,
+              width: `${progress * 100}%`,
+              background: accentColor,
+              transition: 'width 0.25s linear',
+            }} />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, color: 'var(--text2)', fontSize: 11, fontVariantNumeric: 'tabular-nums', direction: 'ltr' }}>
+            <span>{fmtTime(progress * duration)}</span>
+            <span>{fmtTime(duration)}</span>
+          </div>
+        </div>
+
+        {/* Transport controls — locked LTR for music-player conventions */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 18, direction: 'ltr', width: '100%' }}>
+          <button onClick={onToggleShuffle} title={shuffleMode ? 'בטל סדר אקראי' : 'הפעל סדר אקראי'} style={{
+            background: 'none', border: 'none', cursor: 'pointer',
+            color: shuffleMode ? accentColor : 'var(--text2)',
+            fontSize: 22, padding: 8,
+          }}>🔀</button>
+          <button onClick={onPrev} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text)', fontSize: 36, padding: 4 }}>⏮</button>
+          <button onClick={onPlayPause} style={{
+            background: accentColor, color: '#fff', border: 'none', cursor: 'pointer',
+            width: 76, height: 76, borderRadius: 38,
+            fontSize: 30, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: `0 6px 24px ${accentColor}66`,
+          }}>
+            {isPlaying ? '⏸' : '▶'}
+          </button>
+          <button onClick={onNext} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text)', fontSize: 36, padding: 4 }}>⏭</button>
+          <div style={{ width: 38 }} /> {/* visual balance for the shuffle button on the other side */}
+        </div>
+      </div>
     </div>
   );
 }
