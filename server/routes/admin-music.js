@@ -5,8 +5,10 @@
  */
 import { Router } from 'express';
 import multer from 'multer';
+import NodeID3 from 'node-id3';
+import { parseFile } from 'music-metadata';
 import { promises as fs, existsSync, statSync } from 'fs';
-import { join, basename, normalize, resolve } from 'path';
+import { join, basename, normalize, resolve, extname } from 'path';
 import { getSettings } from '../services/SettingsStore.js';
 
 const router = Router();
@@ -86,14 +88,39 @@ router.get('/stats', async (_req, res) => {
   res.json(out);
 });
 
-// ── GET /api/admin/music/list/:playlistId — list files in a playlist ──────
+// Read embedded ID3/Vorbis tags + duration. Lightweight enough to call per
+// file in the list endpoint (~3-5ms each on local disk).
+async function readMetaFor(filePath) {
+  try {
+    const m = await parseFile(filePath, { skipCovers: true, duration: true });
+    const c = m.common;
+    let year = '';
+    if (c.year) year = String(c.year);
+    else if (c.date) year = String(c.date).substring(0, 4);
+    else if (c.originalyear) year = String(c.originalyear);
+    return {
+      title:    c.title || '',
+      artist:   c.artist || (c.artists && c.artists[0]) || '',
+      album:    c.album || '',
+      year,
+      genre:    (c.genre && c.genre[0]) || '',
+      track:    c.track?.no || null,
+      duration: m.format?.duration ? Math.round(m.format.duration) : null,
+      hasCover: !!(c.picture && c.picture.length),
+    };
+  } catch {
+    return { title: '', artist: '', album: '', year: '', genre: '', track: null, duration: null, hasCover: false };
+  }
+}
+
+// ── GET /api/admin/music/list/:playlistId — list files + embedded metadata ──
 router.get('/list/:playlistId', async (req, res) => {
   const pl = findPlaylistById(req.params.playlistId);
   if (!pl) return res.status(404).json({ error: 'פלייליסט לא קיים או לא מקומי' });
   if (!existsSync(pl.path)) return res.json({ playlist: pl, files: [] });
   try {
     const entries = await fs.readdir(pl.path, { withFileTypes: true });
-    const files = [];
+    const candidates = [];
     for (const e of entries) {
       if (!e.isFile()) continue;
       const ext = e.name.slice(e.name.lastIndexOf('.')).toLowerCase();
@@ -101,11 +128,57 @@ router.get('/list/:playlistId', async (req, res) => {
       const p = join(pl.path, e.name);
       try {
         const s = statSync(p);
-        files.push({ name: e.name, sizeBytes: s.size, mtime: s.mtimeMs });
+        candidates.push({ name: e.name, fullPath: p, sizeBytes: s.size, mtime: s.mtimeMs });
       } catch {}
+    }
+    // Read metadata in parallel batches so 600 files don't take forever
+    const BATCH = 20;
+    const files = [];
+    for (let i = 0; i < candidates.length; i += BATCH) {
+      const slice = candidates.slice(i, i + BATCH);
+      const metas = await Promise.all(slice.map(c => readMetaFor(c.fullPath)));
+      slice.forEach((c, idx) => files.push({
+        name: c.name,
+        sizeBytes: c.sizeBytes,
+        mtime: c.mtime,
+        ...metas[idx],
+      }));
     }
     files.sort((a, b) => a.name.localeCompare(b.name, 'he'));
     res.json({ playlist: { id: pl.id, name: pl.name, path: pl.path }, files });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── PUT /api/admin/music/metadata?playlistId=&filename=  — write ID3 tags ──
+// Body: { title, artist, album, year, genre, track }
+// Currently only MP3 supported (ID3v2). Other formats return a 400.
+router.put('/metadata', async (req, res) => {
+  const pl = findPlaylistById(req.query.playlistId);
+  if (!pl) return res.status(404).json({ error: 'פלייליסט לא קיים או לא מקומי' });
+  const full = safeJoin(pl.path, req.query.filename || '');
+  if (!full) return res.status(400).json({ error: 'שם קובץ לא תקין' });
+  const ext = extname(full).toLowerCase();
+  if (ext !== '.mp3') return res.status(400).json({ error: 'עריכת תגיות נתמכת ל-MP3 בלבד כרגע' });
+  if (!existsSync(full)) return res.status(404).json({ error: 'קובץ לא נמצא' });
+
+  const { title, artist, album, year, genre, track } = req.body || {};
+  // Only write fields the user actually provided, leave others untouched
+  const tags = {};
+  if (title  !== undefined) tags.title    = String(title);
+  if (artist !== undefined) tags.artist   = String(artist);
+  if (album  !== undefined) tags.album    = String(album);
+  if (year   !== undefined) tags.year     = String(year);
+  if (genre  !== undefined) tags.genre    = String(genre);
+  if (track  !== undefined && track !== null && track !== '') tags.trackNumber = String(track);
+
+  try {
+    const ok = NodeID3.update(tags, full);
+    if (ok !== true) return res.status(500).json({ error: 'כתיבת התגיות נכשלה' });
+    // Re-read so the client sees the canonical post-write state
+    const fresh = await readMetaFor(full);
+    res.json({ ok: true, ...fresh });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

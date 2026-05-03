@@ -5,7 +5,7 @@
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  getMusicStats, listMusicFiles, deleteMusicFile, uploadMusicFiles,
+  getMusicStats, listMusicFiles, deleteMusicFile, uploadMusicFiles, updateMusicMetadata,
 } from '../api/client.js';
 
 export default function MusicLibraryPanel() {
@@ -194,6 +194,9 @@ function PlaylistCard({ playlist, onChange, nowPlaying, isPlaying, onPlay }) {
   const [dragOver, setDragOver] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [deleting, setDeleting] = useState(null); // filename being deleted
+  const [editingFile, setEditingFile] = useState(null); // the file object being edited
+  const [sortKey, setSortKey] = useState('name'); // name | title | artist | year | duration | sizeBytes
+  const [sortDir, setSortDir] = useState('asc'); // 'asc' | 'desc'
   const inputRef = useRef(null);
 
   const loadFiles = useCallback(async () => {
@@ -240,9 +243,36 @@ function PlaylistCard({ playlist, onChange, nowPlaying, isPlaying, onPlay }) {
     }
   }
 
-  const visible = files
-    ? files.filter(f => !filter.trim() || f.name.toLowerCase().includes(filter.toLowerCase()))
+  // Filter by name OR any metadata field
+  const filtered = files
+    ? files.filter(f => {
+        const q = filter.trim().toLowerCase();
+        if (!q) return true;
+        return f.name.toLowerCase().includes(q)
+            || (f.title || '').toLowerCase().includes(q)
+            || (f.artist || '').toLowerCase().includes(q)
+            || (f.album || '').toLowerCase().includes(q)
+            || String(f.year || '').includes(q);
+      })
     : null;
+
+  // Sort the filtered set
+  const visible = filtered ? [...filtered].sort((a, b) => {
+    const av = a[sortKey] ?? '';
+    const bv = b[sortKey] ?? '';
+    let c = 0;
+    if (typeof av === 'number' && typeof bv === 'number') c = av - bv;
+    else c = String(av).localeCompare(String(bv), 'he', { numeric: true });
+    return sortDir === 'asc' ? c : -c;
+  }) : null;
+
+  function toggleSort(key) {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortKey(key); setSortDir('asc'); }
+  }
+  function arrow(key) {
+    return sortKey === key ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
+  }
 
   return (
     <div style={cardStyle}>
@@ -326,61 +356,191 @@ function PlaylistCard({ playlist, onChange, nowPlaying, isPlaying, onPlay }) {
 
           {errorMsg && <div style={errBox}>{errorMsg}</div>}
 
-          {/* File list */}
+          {/* File table */}
           {!files ? (
             <div style={{ color: '#888', fontSize: 13, padding: 14, textAlign: 'center' }}>טוען…</div>
           ) : files.length === 0 ? (
             <div style={emptyMini}>אין קבצים בפלייליסט הזה</div>
           ) : (
-            <div style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 10, maxHeight: 380, overflowY: 'auto' }}>
+            <div style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 10, maxHeight: 480, overflowY: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                <thead style={{ position: 'sticky', top: 0, background: '#222', zIndex: 1 }}>
+                  <tr style={{ color: '#888', fontWeight: 700, textAlign: 'right' }}>
+                    <Th width={48}></Th>
+                    <Th onClick={() => toggleSort('title')}    label={`שם השיר${arrow('title')}`} />
+                    <Th onClick={() => toggleSort('artist')}   label={`אמן${arrow('artist')}`} />
+                    <Th onClick={() => toggleSort('album')}    label={`אלבום${arrow('album')}`} width={140} />
+                    <Th onClick={() => toggleSort('year')}     label={`שנה${arrow('year')}`} width={70} />
+                    <Th onClick={() => toggleSort('duration')} label={`אורך${arrow('duration')}`} width={70} />
+                    <Th onClick={() => toggleSort('sizeBytes')} label={`גודל${arrow('sizeBytes')}`} width={80} />
+                    <Th width={88}></Th>
+                  </tr>
+                </thead>
+                <tbody>
               {visible.map((f, i) => {
                 const fullPath = playlist.path.endsWith('/') ? `${playlist.path}${f.name}` : `${playlist.path}/${f.name}`;
                 const isThisActive  = nowPlaying?.fullPath === fullPath;
                 const isThisPlaying = isThisActive && isPlaying;
                 return (
-                  <div key={f.name} style={{
-                    display: 'grid', gridTemplateColumns: 'auto 1fr auto auto', gap: 12, alignItems: 'center',
-                    padding: '10px 14px',
-                    borderBottom: i < visible.length - 1 ? '1px solid #2a2a2a' : 'none',
+                  <tr key={f.name} style={{
                     background: isThisActive ? '#0d2e0d33' : 'transparent',
+                    borderBottom: i < visible.length - 1 ? '1px solid #2a2a2a' : 'none',
                   }}>
-                    <button
-                      onClick={() => onPlay?.(playlist.id, playlist.path, f.name, files)}
-                      title={isThisPlaying ? 'השהה' : 'נגן'}
-                      style={{
-                        ...playBtn,
-                        background: isThisActive ? '#1db954' : '#2a2a2a',
-                        color: isThisActive ? '#000' : '#1db954',
-                        borderColor: isThisActive ? '#1db954' : '#2a2a2a',
-                      }}
-                    >
-                      {isThisPlaying ? '⏸' : '▶'}
-                    </button>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 13, color: isThisActive ? '#1db954' : '#fff', fontWeight: isThisActive ? 700 : 400, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {f.name}
+                    <td style={{ padding: '8px 8px 8px 12px' }}>
+                      <button
+                        onClick={() => onPlay?.(playlist.id, playlist.path, f.name, files)}
+                        title={isThisPlaying ? 'השהה' : 'נגן'}
+                        style={{
+                          ...playBtn,
+                          background: isThisActive ? '#1db954' : '#2a2a2a',
+                          color: isThisActive ? '#000' : '#1db954',
+                          borderColor: isThisActive ? '#1db954' : '#2a2a2a',
+                        }}
+                      >
+                        {isThisPlaying ? '⏸' : '▶'}
+                      </button>
+                    </td>
+                    <td style={tdStyle} title={f.name}>
+                      <div style={{ color: isThisActive ? '#1db954' : '#fff', fontWeight: isThisActive ? 700 : 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 240 }}>
+                        {f.title || f.name}
                       </div>
-                      <div style={{ fontSize: 10, color: '#666', marginTop: 2 }}>
-                        {fmtDate(f.mtime)}
-                      </div>
-                    </div>
-                    <span style={{ fontSize: 11, color: '#888', whiteSpace: 'nowrap' }}>{fmtBytes(f.sizeBytes)}</span>
-                    <button
-                      onClick={() => handleDelete(f.name)}
-                      disabled={deleting === f.name}
-                      title="מחיקה"
-                      style={delBtn}
-                    >
-                      {deleting === f.name ? '⏳' : '🗑️'}
-                    </button>
-                  </div>
+                      {!f.title && (
+                        <div style={{ fontSize: 10, color: '#666' }}>שם הקובץ — אין תגיות</div>
+                      )}
+                    </td>
+                    <td style={{ ...tdStyle, color: '#ccc' }}>{f.artist || <span style={muted}>—</span>}</td>
+                    <td style={{ ...tdStyle, color: '#aaa' }}>{f.album || <span style={muted}>—</span>}</td>
+                    <td style={{ ...tdStyle, color: '#aaa' }}>{f.year || <span style={muted}>—</span>}</td>
+                    <td style={{ ...tdStyle, color: '#aaa', fontVariantNumeric: 'tabular-nums' }}>
+                      {f.duration ? fmtTime(f.duration) : <span style={muted}>—</span>}
+                    </td>
+                    <td style={{ ...tdStyle, color: '#888', fontVariantNumeric: 'tabular-nums' }}>{fmtBytes(f.sizeBytes)}</td>
+                    <td style={{ padding: '8px 12px 8px 8px', whiteSpace: 'nowrap' }}>
+                      <button onClick={() => setEditingFile(f)} title="עריכת תגיות" style={editBtn}>✎</button>
+                      <button onClick={() => handleDelete(f.name)} disabled={deleting === f.name} title="מחיקה" style={{ ...delBtn, marginRight: 4 }}>
+                        {deleting === f.name ? '⏳' : '🗑️'}
+                      </button>
+                    </td>
+                  </tr>
                 );
               })}
+                </tbody>
+              </table>
             </div>
+          )}
+
+          {/* Edit metadata modal */}
+          {editingFile && (
+            <MetadataEditor
+              playlistId={playlist.id}
+              file={editingFile}
+              onClose={() => setEditingFile(null)}
+              onSaved={async () => { setEditingFile(null); await loadFiles(); onChange?.(); }}
+            />
           )}
         </div>
       )}
     </div>
+  );
+}
+
+// ─── Metadata edit modal ─────────────────────────────────────────────────────
+function MetadataEditor({ playlistId, file, onClose, onSaved }) {
+  const [form, setForm] = useState({
+    title:  file.title || '',
+    artist: file.artist || '',
+    album:  file.album || '',
+    year:   file.year || '',
+    genre:  file.genre || '',
+    track:  file.track || '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError]   = useState('');
+
+  function update(k, v) { setForm(s => ({ ...s, [k]: v })); }
+
+  async function handleSave() {
+    setSaving(true); setError('');
+    try {
+      await updateMusicMetadata(playlistId, file.name, form);
+      onSaved?.();
+    } catch (e) {
+      setError(e.response?.data?.error || e.message);
+      setSaving(false);
+    }
+  }
+
+  return (
+    <>
+      <div onClick={onClose} style={modalBackdrop} />
+      <div style={modalBox}>
+        <div style={modalHeader}>
+          <span style={{ fontSize: 16, fontWeight: 800 }}>✎ עריכת תגיות</span>
+          <button onClick={onClose} style={modalCloseBtn}>✕</button>
+        </div>
+        <div style={{ padding: 18, color: '#888', fontSize: 11, borderBottom: '1px solid #2a2a2a' }}>
+          קובץ: <span style={{ color: '#fff' }}>{file.name}</span>
+        </div>
+        <div style={modalBody}>
+          <Field label="שם השיר">
+            <input value={form.title}  onChange={e => update('title',  e.target.value)} style={fldInput} />
+          </Field>
+          <Field label="אמן">
+            <input value={form.artist} onChange={e => update('artist', e.target.value)} style={fldInput} />
+          </Field>
+          <Field label="אלבום">
+            <input value={form.album}  onChange={e => update('album',  e.target.value)} style={fldInput} />
+          </Field>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+            <Field label="שנה">
+              <input value={form.year}  onChange={e => update('year',  e.target.value)} style={fldInput} placeholder="2024" />
+            </Field>
+            <Field label="מס׳ רצועה">
+              <input value={form.track} onChange={e => update('track', e.target.value)} style={fldInput} placeholder="1" />
+            </Field>
+            <Field label="ז׳אנר">
+              <input value={form.genre} onChange={e => update('genre', e.target.value)} style={fldInput} />
+            </Field>
+          </div>
+
+          {error && <div style={errBox}>{error}</div>}
+
+          <div style={{ color: '#666', fontSize: 11, lineHeight: 1.6 }}>
+            💡 השינויים נכתבים ל-ID3 תגי המטא-דאטה של הקובץ עצמו (לא רק במסד הנתונים). חל על MP3 בלבד כרגע.
+          </div>
+        </div>
+        <div style={modalFooter}>
+          <button onClick={onClose} style={btnCancel}>ביטול</button>
+          <button onClick={handleSave} disabled={saving} style={{ ...btnSave, opacity: saving ? 0.6 : 1 }}>
+            {saving ? '⏳ שומר…' : '💾 שמירה'}
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function Field({ label, children }) {
+  return (
+    <div>
+      <div style={{ color: '#888', fontSize: 11, marginBottom: 4, fontWeight: 700 }}>{label}</div>
+      {children}
+    </div>
+  );
+}
+function Th({ label, onClick, width }) {
+  return (
+    <th
+      onClick={onClick}
+      style={{
+        padding: '10px 12px', textAlign: 'right', fontSize: 11, fontWeight: 700,
+        cursor: onClick ? 'pointer' : 'default', userSelect: 'none',
+        width: width ? width : 'auto',
+        borderBottom: '1px solid #333',
+      }}
+    >
+      {label || ''}
+    </th>
   );
 }
 
@@ -472,6 +632,58 @@ const ctrlBtn = {
   height: 36, minWidth: 44, padding: '0 10px',
   borderRadius: 10, fontSize: 13, fontWeight: 700,
   cursor: 'pointer', flexShrink: 0,
+};
+const tdStyle = {
+  padding: '10px 12px',
+  fontSize: 12,
+  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+  maxWidth: 200,
+};
+const muted = { color: '#444' };
+const editBtn = {
+  background: '#1a2a3a', color: '#5bb8ff', border: '1px solid #2a3a4a',
+  width: 36, height: 36, borderRadius: 8, fontSize: 14, cursor: 'pointer',
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+  marginLeft: 4,
+};
+const modalBackdrop = {
+  position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 99,
+};
+const modalBox = {
+  position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+  background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 14,
+  width: 'min(520px, calc(100vw - 32px))', maxHeight: '90vh',
+  display: 'flex', flexDirection: 'column',
+  zIndex: 100, direction: 'rtl', boxShadow: '0 12px 40px rgba(0,0,0,0.6)',
+};
+const modalHeader = {
+  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+  padding: '14px 18px', borderBottom: '1px solid #2a2a2a', color: '#fff',
+};
+const modalCloseBtn = {
+  background: 'transparent', color: '#888', border: 'none',
+  fontSize: 20, cursor: 'pointer', padding: 0, lineHeight: 1,
+};
+const modalBody = {
+  padding: '16px 18px', overflowY: 'auto',
+  display: 'flex', flexDirection: 'column', gap: 12,
+};
+const modalFooter = {
+  padding: '12px 18px', borderTop: '1px solid #2a2a2a',
+  display: 'flex', justifyContent: 'flex-start', gap: 10,
+};
+const fldInput = {
+  width: '100%', boxSizing: 'border-box',
+  background: '#0d0d0d', border: '1px solid #2a2a2a', color: '#fff',
+  borderRadius: 8, padding: '8px 12px', fontSize: 13, outline: 'none',
+};
+const btnSave = {
+  background: '#1db954', color: '#000', border: 'none',
+  borderRadius: 10, padding: '9px 18px', fontSize: 13, fontWeight: 800, cursor: 'pointer',
+};
+const btnCancel = {
+  background: 'transparent', color: '#aaa', border: '1px solid #333',
+  borderRadius: 10, padding: '9px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
 };
 const errBox = {
   background: '#3a1010', color: '#ff6b6b', border: '1px solid #dc3545',

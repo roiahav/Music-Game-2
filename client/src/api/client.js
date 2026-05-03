@@ -104,6 +104,8 @@ export const getMusicStats = () => api.get('/admin/music/stats').then(r => r.dat
 export const listMusicFiles = (playlistId) => api.get(`/admin/music/list/${playlistId}`).then(r => r.data);
 export const deleteMusicFile = (playlistId, filename) =>
   api.delete('/admin/music/file', { params: { playlistId, filename } }).then(r => r.data);
+export const updateMusicMetadata = (playlistId, filename, fields) =>
+  api.put('/admin/music/metadata', fields, { params: { playlistId, filename } }).then(r => r.data);
 export const uploadMusicFiles = (playlistId, files, onProgress) => {
   const fd = new FormData();
   for (const f of files) fd.append('files', f);
