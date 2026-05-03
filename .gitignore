@@ -6,9 +6,10 @@ server/node_modules/
 # Build output
 client/dist/
 
-# Server data (users, avatars, settings, logs)
+# Server data (users, avatars, settings, favorites, logs)
 server/data/
 server/settings.json
+server/favorites.json
 
 # Logs
 *.log

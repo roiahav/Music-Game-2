@@ -16,10 +16,35 @@ ok()     { echo -e "${GREEN}  ✓ $1${RESET}"; }
 SETUP_USER="${SUDO_USER:-$USER}"
 APP_DIR="$(getent passwd "$SETUP_USER" | cut -d: -f6)/music-game-2"
 
+# Preserve user-data files that live next to the source tree but should NOT
+# be touched by `git reset --hard`. settings.json and the data/ folder are
+# already gitignored, but favorites.json was tracked by mistake in the past
+# and still might be on older clones — back it up explicitly so the reset
+# never wipes it.
+PRESERVE=("server/favorites.json")
+BACKUP_DIR=$(mktemp -d)
+banner "Backing up user data"
+for f in "${PRESERVE[@]}"; do
+  if [ -f "$APP_DIR/$f" ]; then
+    mkdir -p "$BACKUP_DIR/$(dirname "$f")"
+    cp "$APP_DIR/$f" "$BACKUP_DIR/$f"
+    ok "saved $f"
+  fi
+done
+
 banner "Pulling latest from GitHub"
 git -C "$APP_DIR" fetch --all
 git -C "$APP_DIR" reset --hard origin/main
 ok "$(git -C "$APP_DIR" rev-parse --short HEAD) — $(git -C "$APP_DIR" log -1 --pretty=%s)"
+
+banner "Restoring user data"
+for f in "${PRESERVE[@]}"; do
+  if [ -f "$BACKUP_DIR/$f" ]; then
+    cp "$BACKUP_DIR/$f" "$APP_DIR/$f"
+    ok "restored $f"
+  fi
+done
+rm -rf "$BACKUP_DIR"
 
 banner "npm install (server)"
 cd "$APP_DIR/server" && npm install --no-audit --no-fund
