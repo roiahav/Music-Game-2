@@ -442,6 +442,7 @@ function PlaylistCard({ playlist, onChange, nowPlaying, isPlaying, onPlay }) {
             <MetadataEditor
               playlistId={playlist.id}
               file={editingFile}
+              artistSuggestions={[...new Set((files || []).map(f => f.artist).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'he'))}
               onClose={() => setEditingFile(null)}
               onSaved={async () => { setEditingFile(null); await loadFiles(); onChange?.(); }}
             />
@@ -453,7 +454,7 @@ function PlaylistCard({ playlist, onChange, nowPlaying, isPlaying, onPlay }) {
 }
 
 // ─── Metadata edit modal ─────────────────────────────────────────────────────
-function MetadataEditor({ playlistId, file, onClose, onSaved }) {
+function MetadataEditor({ playlistId, file, artistSuggestions = [], onClose, onSaved }) {
   const [form, setForm] = useState({
     title:  file.title || '',
     artist: file.artist || '',
@@ -494,7 +495,16 @@ function MetadataEditor({ playlistId, file, onClose, onSaved }) {
             <input value={form.title}  onChange={e => update('title',  e.target.value)} style={fldInput} />
           </Field>
           <Field label="אמן">
-            <input value={form.artist} onChange={e => update('artist', e.target.value)} style={fldInput} />
+            <input
+              value={form.artist}
+              onChange={e => update('artist', e.target.value)}
+              style={fldInput}
+              list="mlp-artist-suggestions"
+              autoComplete="off"
+            />
+            <datalist id="mlp-artist-suggestions">
+              {artistSuggestions.map(a => <option key={a} value={a} />)}
+            </datalist>
           </Field>
           <Field label="אלבום">
             <input value={form.album}  onChange={e => update('album',  e.target.value)} style={fldInput} />
