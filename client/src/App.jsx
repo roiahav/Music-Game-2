@@ -18,6 +18,7 @@ import YearsGameScreen from './screens/YearsGameScreen.jsx';
 import YearsMultiplayerScreen from './screens/YearsMultiplayerScreen.jsx';
 import ChampionGameScreen from './screens/ChampionGameScreen.jsx';
 import ChampionMultiplayerScreen from './screens/ChampionMultiplayerScreen.jsx';
+import LaddersHitsScreen from './screens/LaddersHitsScreen.jsx';
 import { logoutApi, uploadAvatar, getAvatarUrl, getUsers } from './api/client.js';
 import { useLang } from './i18n/useLang.js';
 import { getVisibleGames } from './games-config.js';
@@ -287,6 +288,15 @@ export default function App() {
     <div style={{ ...shell }}>
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         <ChampionMultiplayerScreen onExit={() => setScreen('home')} />
+      </div>
+    </div>
+  );
+
+  // ── Ladders & Hits (multiplayer board game) ──────────────────────────────────
+  if (screen === 'ladders-hits') return (
+    <div style={{ ...shell }}>
+      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <LaddersHitsScreen onExit={() => setScreen('home')} />
       </div>
     </div>
   );

@@ -47,6 +47,12 @@ export const GAMES = [
     bg: '#DAA520', subColor: '#fff8c5',
   },
   {
+    id: 'ladders-hits', screen: 'ladders-hits',
+    icon: '🎲', label: 'סולמות ולהיטים',
+    descRaw: 'משחק קבוצתי על לוח — נחש, הטל קובייה והגיע ראשון לסיום',
+    bg: '#16a085', subColor: '#a8f5e1',
+  },
+  {
     id: 'favorites', screen: 'favorites',
     icon: '❤️', label: 'המועדפים שלי',
     descKey: 'favorites_desc',

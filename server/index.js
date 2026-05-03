@@ -29,6 +29,7 @@ import { deleteSessionsByUserId } from './services/SessionStore.js';
 import { setupMultiplayer } from './multiplayer-socket.js';
 import { setupYearsMultiplayer } from './years-multiplayer-socket.js';
 import { setupChampionMultiplayer } from './champion-multiplayer-socket.js';
+import { setupLaddersHits } from './ladders-hits-socket.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
@@ -39,6 +40,7 @@ const io = new Server(httpServer, { cors: { origin: '*' } });
 setupMultiplayer(io);
 setupYearsMultiplayer(io);
 setupChampionMultiplayer(io);
+setupLaddersHits(io);
 
 app.use(cors());
 app.use(express.json());
