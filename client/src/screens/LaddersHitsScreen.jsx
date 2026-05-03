@@ -1,9 +1,14 @@
 /**
- * סולמות ולהיטים — Phase 1: lobby only.
+ * סולמות ולהיטים — Phases 1-2.
  *
- * Players create or join a room, pick an avatar (figurine + colour), and
- * the host configures the game (mode, timer, playlist). The "התחל משחק"
- * button is wired but does not yet emit lh:start — that lands in Phase 2.
+ * Phase 1: lobby (create/join, avatar pick, host configures mode + timer +
+ * playlists + song count).
+ * Phase 2: round mechanics — host clicks "התחל משחק"; everyone hears the
+ * audio; players type/pick the artist or year; first correct answer wins
+ * the round; host can reveal/skip; final score table at the end.
+ *
+ * Phase 3 will add the dice + 100-square board (round winner rolls); phase
+ * 4 will add the victory screen with photo + winner song.
  */
 
 import { useState, useEffect, useRef } from 'react';
@@ -11,15 +16,17 @@ import { useAuthStore } from '../store/authStore.js';
 import { useSettingsStore } from '../store/settingsStore.js';
 import { getSocket } from '../services/socket.js';
 import { Figurine, FIGURINE_OPTIONS } from '../components/Figurine.jsx';
+import { useFavorites } from '../hooks/useFavorites.js';
 
 const COLORS = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c', '#e67e22', '#34495e', '#d35400', '#16a085', '#c0392b', '#8e44ad'];
 
 export default function LaddersHitsScreen({ onExit }) {
   const { user } = useAuthStore();
   const { playlists } = useSettingsStore();
+  const { favoriteIds, toggle: toggleFavorite } = useFavorites();
 
   // Mode: choose to host or join from the entry screen
-  const [view, setView] = useState('entry');   // 'entry' | 'lobby'
+  const [view, setView] = useState('entry');   // 'entry' | 'lobby' | 'playing' | 'done'
   const [joinCode, setJoinCode] = useState('');
   const [error, setError] = useState('');
 
@@ -27,6 +34,18 @@ export default function LaddersHitsScreen({ onExit }) {
   const [room, setRoom] = useState(null);
   const [isHost, setIsHost] = useState(false);
   const [mySocketId, setMySocketId] = useState(null);
+
+  // Phase 2 — round state
+  const [autocomplete, setAutocomplete] = useState({ artists: [] });
+  const [currentSong, setCurrentSong] = useState(null);  // { songId, audioUrl, index, total, timerSec }
+  const [roundEnd, setRoundEnd] = useState(null);        // { correct, winnerSocketId, players, coverUrl, isLastRound, songId }
+  const [endResult, setEndResult] = useState(null);      // { players, winnerSocketId, victoryAudioUrl }
+  const [answer, setAnswer] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [wrongShake, setWrongShake] = useState(0);
+  const [secondsLeft, setSecondsLeft] = useState(null);
+  const audioRef = useRef(null);
+  const timerIntervalRef = useRef(null);
 
   const socketRef = useRef(null);
 
@@ -60,11 +79,84 @@ export default function LaddersHitsScreen({ onExit }) {
     }
     function onConnect() { setMySocketId(s.id); }
 
+    function onStarted({ autocomplete: ac }) {
+      setAutocomplete(ac || { artists: [] });
+      setView('playing');
+      setEndResult(null);
+      setRoundEnd(null);
+      setError('');
+    }
+    function onSong(song) {
+      setCurrentSong(song);
+      setRoundEnd(null);
+      setAnswer('');
+      setSubmitting(false);
+      // Auto-play
+      setTimeout(() => {
+        if (audioRef.current && song.audioUrl) {
+          audioRef.current.src = song.audioUrl;
+          audioRef.current.load();
+          audioRef.current.play().catch(() => {});
+        }
+      }, 50);
+      // Start countdown if there's a timer
+      if (timerIntervalRef.current) { clearInterval(timerIntervalRef.current); timerIntervalRef.current = null; }
+      if (song.timerSec > 0) {
+        setSecondsLeft(song.timerSec);
+        const startedAt = Date.now();
+        timerIntervalRef.current = setInterval(() => {
+          const elapsed = Math.floor((Date.now() - startedAt) / 1000);
+          const left = Math.max(0, song.timerSec - elapsed);
+          setSecondsLeft(left);
+          if (left <= 0) {
+            clearInterval(timerIntervalRef.current);
+            timerIntervalRef.current = null;
+          }
+        }, 250);
+      } else {
+        setSecondsLeft(null);
+      }
+    }
+    function onWrong() {
+      setSubmitting(false);
+      setWrongShake(n => n + 1);
+    }
+    function onRoundEnd(payload) {
+      setRoundEnd(payload);
+      // Update room players (scores changed)
+      setRoom(r => r ? { ...r, players: payload.players || r.players } : r);
+      if (timerIntervalRef.current) { clearInterval(timerIntervalRef.current); timerIntervalRef.current = null; }
+      setSecondsLeft(null);
+      setSubmitting(false);
+      // Pause audio (we'll let host decide when to advance)
+      if (audioRef.current) try { audioRef.current.pause(); } catch {}
+    }
+    function onEnded(payload) {
+      setEndResult(payload);
+      setView('done');
+      setRoundEnd(null);
+      setCurrentSong(null);
+      if (timerIntervalRef.current) { clearInterval(timerIntervalRef.current); timerIntervalRef.current = null; }
+      // Play victory song if provided
+      setTimeout(() => {
+        if (audioRef.current && payload.victoryAudioUrl) {
+          audioRef.current.src = payload.victoryAudioUrl;
+          audioRef.current.load();
+          audioRef.current.play().catch(() => {});
+        }
+      }, 100);
+    }
+
     s.on('connect', onConnect);
     s.on('lh:created', onCreated);
     s.on('lh:joined', onJoined);
     s.on('lh:room_update', onRoomUpdate);
     s.on('lh:error', onError);
+    s.on('lh:started', onStarted);
+    s.on('lh:song', onSong);
+    s.on('lh:wrong', onWrong);
+    s.on('lh:round_end', onRoundEnd);
+    s.on('lh:ended', onEnded);
 
     return () => {
       s.off('connect', onConnect);
@@ -72,6 +164,12 @@ export default function LaddersHitsScreen({ onExit }) {
       s.off('lh:joined', onJoined);
       s.off('lh:room_update', onRoomUpdate);
       s.off('lh:error', onError);
+      s.off('lh:started', onStarted);
+      s.off('lh:song', onSong);
+      s.off('lh:wrong', onWrong);
+      s.off('lh:round_end', onRoundEnd);
+      s.off('lh:ended', onEnded);
+      if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
       // Tell the server we're leaving when the screen unmounts
       try { s.emit('lh:leave'); } catch {}
     };
@@ -99,9 +197,19 @@ export default function LaddersHitsScreen({ onExit }) {
 
   function handleLeaveRoom() {
     try { socketRef.current?.emit('lh:leave'); } catch {}
+    if (audioRef.current) try { audioRef.current.pause(); } catch {}
     setRoom(null);
     setIsHost(false);
     setView('entry');
+    setCurrentSong(null);
+    setRoundEnd(null);
+    setEndResult(null);
+  }
+
+  function handleSubmitAnswer() {
+    if (!answer.trim() || submitting) return;
+    setSubmitting(true);
+    socketRef.current?.emit('lh:answer', { value: answer.trim() });
   }
 
   // ── Entry view: create or join ─────────────────────────────────────────
@@ -283,11 +391,23 @@ export default function LaddersHitsScreen({ onExit }) {
                 </div>
               </div>
 
+              {/* Song count */}
+              <div>
+                <div style={fieldLabel}>מספר שירים ({room.songCount || 10})</div>
+                <input
+                  type="range"
+                  min={3} max={50} step={1}
+                  value={room.songCount || 10}
+                  onChange={e => handleSetConfig({ songCount: Number(e.target.value) })}
+                  style={{ width: '100%' }}
+                />
+              </div>
+
               <button
-                disabled={room.playlistIds.length === 0 || room.players.length < 1}
+                disabled={room.playlistIds.length === 0}
                 style={{ ...primaryBtn, opacity: (room.playlistIds.length === 0) ? 0.4 : 1 }}
-                title={room.playlistIds.length === 0 ? 'בחר לפחות פלייליסט אחד' : 'התחל משחק (יוטמע בשלב הבא)'}
-                onClick={() => setError('שלב 1: לובי בלבד. תחילת המשחק תיושם בעדכון הבא.')}
+                title={room.playlistIds.length === 0 ? 'בחר לפחות פלייליסט אחד' : 'התחל משחק'}
+                onClick={() => socketRef.current?.emit('lh:start')}
               >
                 ▶ התחל משחק
               </button>
@@ -306,6 +426,219 @@ export default function LaddersHitsScreen({ onExit }) {
     );
   }
 
+  // ── Playing view ───────────────────────────────────────────────────────
+  if (view === 'playing' && room && currentSong) {
+    const me = room.players.find(p => p.socketId === mySocketId);
+    const winner = roundEnd ? room.players.find(p => p.socketId === roundEnd.winnerSocketId) : null;
+    const songForFav = roundEnd ? {
+      id: roundEnd.songId,
+      title: roundEnd.correct?.title,
+      artist: roundEnd.correct?.artist,
+      year: roundEnd.correct?.year,
+      audioUrl: currentSong.audioUrl,
+    } : {
+      id: currentSong.songId,
+      audioUrl: currentSong.audioUrl,
+    };
+    const isFavorited = songForFav.id && favoriteIds.has(songForFav.id);
+
+    return (
+      <div style={shellStyle}>
+        <Header title={`🎲 סבב ${currentSong.index}/${currentSong.total}`} onExit={() => { handleLeaveRoom(); onExit(); }} />
+        <audio ref={audioRef} preload="auto" />
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+          {/* Score strip */}
+          <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
+            {[...room.players].sort((a, b) => (b.score || 0) - (a.score || 0)).map(p => (
+              <div key={p.socketId} style={{
+                flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center',
+                background: p.socketId === mySocketId ? 'var(--accent-alpha)' : '#1e1e1e',
+                border: `1px solid ${p.socketId === mySocketId ? 'var(--accent)' : '#2d2d30'}`,
+                borderRadius: 10, padding: '4px 8px', minWidth: 56,
+              }}>
+                <Figurine figurineId={p.avatar?.figurineId} color={p.avatar?.color} size={32} />
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#fff', maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {p.name}
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--accent)' }}>{p.score || 0}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Cover (blurred until reveal) */}
+          <div style={{ display: 'flex', justifyContent: 'center' }}>
+            <div style={{
+              width: 'min(180px, 50vw)', aspectRatio: '1 / 1', borderRadius: 16,
+              background: 'linear-gradient(135deg, #3a3a3a 0%, #2a2a2a 100%)',
+              border: '2px solid var(--border)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              overflow: 'hidden',
+            }}>
+              {roundEnd?.coverUrl ? (
+                <img src={roundEnd.coverUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ) : (
+                <span style={{ fontSize: 56, opacity: 0.5 }}>🎵</span>
+              )}
+            </div>
+          </div>
+
+          {/* Audio + favourites + timer */}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button
+              onClick={() => {
+                const a = audioRef.current; if (!a) return;
+                if (a.paused) a.play().catch(() => {}); else a.pause();
+              }}
+              style={{ flex: 1, height: 46, background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 12, fontSize: 22, cursor: 'pointer' }}
+            >
+              ▶ / ⏸
+            </button>
+            <button
+              onClick={() => { const a = audioRef.current; if (a) a.currentTime = Math.min(a.duration || 0, (a.currentTime || 0) + 30); }}
+              style={{ flex: 1, height: 46, background: 'var(--bg2)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}
+            >
+              +30s
+            </button>
+            <button
+              onClick={() => songForFav.id && toggleFavorite(songForFav)}
+              disabled={!songForFav.id}
+              title={isFavorited ? 'הסרה מהמועדפים' : 'הוספה למועדפים'}
+              style={{
+                width: 56, height: 46,
+                background: isFavorited ? '#dc354522' : 'var(--bg2)',
+                color: isFavorited ? '#ff6b6b' : 'var(--text)',
+                border: `1px solid ${isFavorited ? '#dc3545' : 'var(--border)'}`,
+                borderRadius: 12, fontSize: 22, cursor: songForFav.id ? 'pointer' : 'not-allowed', flexShrink: 0,
+              }}
+            >
+              {isFavorited ? '💔' : '❤️'}
+            </button>
+          </div>
+
+          {/* Timer bar */}
+          {secondsLeft !== null && !roundEnd && (
+            <div style={{ background: '#1a1a1a', borderRadius: 6, height: 8, overflow: 'hidden', border: '1px solid #2d2d30' }}>
+              <div style={{
+                width: `${(secondsLeft / (currentSong.timerSec || 1)) * 100}%`,
+                height: '100%',
+                background: secondsLeft < 5 ? '#dc3545' : 'var(--accent)',
+                transition: 'width 0.25s linear, background 0.2s',
+              }} />
+            </div>
+          )}
+
+          {/* Round-end overlay */}
+          {roundEnd ? (
+            <div style={{
+              background: '#1e1e1e', border: `2px solid ${winner ? '#1db954' : '#3a3a3a'}`,
+              borderRadius: 12, padding: 14, display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center', textAlign: 'center',
+            }}>
+              {winner ? (
+                <>
+                  <div style={{ fontSize: 11, color: '#888', fontWeight: 700 }}>מנצח/ת הסבב</div>
+                  <Figurine figurineId={winner.avatar?.figurineId} color={winner.avatar?.color} size={56} label={winner.name} />
+                </>
+              ) : (
+                <div style={{ color: '#aaa', fontSize: 13 }}>הסבב הסתיים בלי מנצח</div>
+              )}
+              <div style={{ marginTop: 4 }}>
+                <div style={{ fontSize: 18, fontWeight: 800, color: '#fff' }}>{roundEnd.correct?.title}</div>
+                <div style={{ fontSize: 14, color: '#1db954', fontWeight: 700 }}>{roundEnd.correct?.artist}</div>
+                <div style={{ fontSize: 13, color: '#aaa' }}>{roundEnd.correct?.year}</div>
+              </div>
+              {isHost && (
+                <button
+                  onClick={() => socketRef.current?.emit('lh:host_next')}
+                  style={{ ...primaryBtn, marginTop: 6 }}
+                >
+                  {roundEnd.isLastRound ? '🏁 סיים משחק' : '⏭ הסבב הבא'}
+                </button>
+              )}
+              {!isHost && (
+                <div style={{ color: '#888', fontSize: 12 }}>מחכים שהמארח יתקדם…</div>
+              )}
+            </div>
+          ) : (
+            <>
+              {/* Answer input — artist or year */}
+              {room.mode === 'artist' ? (
+                <ArtistAnswer
+                  value={answer}
+                  onChange={setAnswer}
+                  onSubmit={handleSubmitAnswer}
+                  suggestions={autocomplete.artists}
+                  disabled={submitting}
+                  shake={wrongShake}
+                />
+              ) : (
+                <YearAnswer
+                  value={answer}
+                  onChange={setAnswer}
+                  onSubmit={handleSubmitAnswer}
+                  disabled={submitting}
+                  shake={wrongShake}
+                />
+              )}
+              {isHost && (
+                <button
+                  onClick={() => socketRef.current?.emit('lh:host_reveal')}
+                  style={{ ...secondaryBtn, padding: '8px', fontSize: 13 }}
+                >
+                  גלה תשובה (דלג על הסבב)
+                </button>
+              )}
+            </>
+          )}
+
+          {error && <div style={errBox}>{error}</div>}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Done view (game over) ─────────────────────────────────────────────
+  if (view === 'done' && endResult) {
+    const sorted = [...endResult.players].sort((a, b) => (b.score || 0) - (a.score || 0));
+    const winner = sorted[0];
+    return (
+      <div style={shellStyle}>
+        <Header title="🏆 סוף משחק" onExit={() => { handleLeaveRoom(); onExit(); }} />
+        <audio ref={audioRef} />
+        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'center' }}>
+          {winner && (
+            <>
+              <div style={{ fontSize: 64 }}>🏆</div>
+              <div style={{ fontSize: 13, color: '#888', fontWeight: 700 }}>הזוכ/ה</div>
+              <Figurine figurineId={winner.avatar?.figurineId} color={winner.avatar?.color} size={96} label={winner.name} />
+              <div style={{ fontSize: 28, fontWeight: 900, color: 'var(--accent)' }}>{winner.score} נקודות</div>
+            </>
+          )}
+
+          <div style={{ width: '100%', background: '#1e1e1e', border: '1px solid #2d2d30', borderRadius: 12, padding: 12, marginTop: 12 }}>
+            <div style={sectionTitle}>טבלת תוצאות</div>
+            {sorted.map((p, i) => (
+              <div key={p.socketId} style={{
+                display: 'flex', alignItems: 'center', gap: 10, padding: '8px 4px',
+                borderBottom: i < sorted.length - 1 ? '1px solid #2d2d30' : 'none',
+              }}>
+                <span style={{ fontSize: 16, fontWeight: 800, color: '#888', width: 24, textAlign: 'center' }}>{i + 1}</span>
+                <Figurine figurineId={p.avatar?.figurineId} color={p.avatar?.color} size={32} />
+                <span style={{ flex: 1, fontWeight: 700, color: '#fff' }}>{p.name}</span>
+                <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--accent)' }}>{p.score || 0}</span>
+              </div>
+            ))}
+          </div>
+
+          <button onClick={() => { handleLeaveRoom(); onExit(); }} style={{ ...secondaryBtn, marginTop: 8 }}>
+            🏠 חזרה לדף הראשי
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // Loading state between create/join request and the response
   return (
     <div style={shellStyle}>
@@ -316,6 +649,99 @@ export default function LaddersHitsScreen({ onExit }) {
     </div>
   );
 }
+
+// ── Answer-input components ─────────────────────────────────────────────
+
+function ArtistAnswer({ value, onChange, onSubmit, suggestions, disabled, shake }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <input
+        key={`shake-${shake}`}
+        autoFocus
+        list="lh-artist-suggestions"
+        type="text"
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') onSubmit(); }}
+        placeholder="הזן את שם הזמר/אמן…"
+        disabled={disabled}
+        autoComplete="off"
+        style={{
+          ...inputStyle,
+          fontSize: 16,
+          animation: shake ? 'lh-shake 0.3s' : 'none',
+          background: shake ? '#3a1010' : '#1e1e1e',
+          border: shake ? '1px solid #dc3545' : '1px solid #2d2d30',
+        }}
+      />
+      <datalist id="lh-artist-suggestions">
+        {(suggestions || []).map(a => <option key={a} value={a} />)}
+      </datalist>
+      <button onClick={onSubmit} disabled={!value.trim() || disabled} style={{
+        ...primaryBtn,
+        opacity: (!value.trim() || disabled) ? 0.4 : 1,
+      }}>
+        ➤ שלח תשובה
+      </button>
+      <style>{`
+        @keyframes lh-shake {
+          0%, 100% { transform: translateX(0); }
+          25% { transform: translateX(-8px); }
+          75% { transform: translateX(8px); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+function YearAnswer({ value, onChange, onSubmit, disabled, shake }) {
+  const decades = [1950, 1960, 1970, 1980, 1990, 2000, 2010, 2020];
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+        {decades.map(d => (
+          <button
+            key={d}
+            onClick={() => { onChange(String(d)); }}
+            disabled={disabled}
+            style={{
+              padding: '10px 4px', borderRadius: 10,
+              background: value === String(d) ? 'var(--accent)' : '#1e1e1e',
+              color: value === String(d) ? '#fff' : 'var(--text)',
+              border: `1px solid ${value === String(d) ? 'var(--accent)' : '#2d2d30'}`,
+              fontWeight: 700, fontSize: 13, cursor: disabled ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {d}s
+          </button>
+        ))}
+      </div>
+      <input
+        key={`shake-${shake}`}
+        type="text"
+        inputMode="numeric"
+        value={value}
+        onChange={e => onChange(e.target.value.replace(/[^0-9]/g, '').slice(0, 4))}
+        onKeyDown={e => { if (e.key === 'Enter') onSubmit(); }}
+        placeholder="או הזן שנה מדויקת (למשל 1985)"
+        disabled={disabled}
+        style={{
+          ...inputStyle, fontSize: 16, textAlign: 'center', letterSpacing: 4, fontWeight: 800,
+          animation: shake ? 'lh-shake 0.3s' : 'none',
+          background: shake ? '#3a1010' : '#1e1e1e',
+          border: shake ? '1px solid #dc3545' : '1px solid #2d2d30',
+        }}
+      />
+      <button onClick={onSubmit} disabled={!value.trim() || disabled} style={{
+        ...primaryBtn,
+        opacity: (!value.trim() || disabled) ? 0.4 : 1,
+      }}>
+        ➤ שלח תשובה
+      </button>
+    </div>
+  );
+}
+
 
 function Header({ title, onExit }) {
   return (

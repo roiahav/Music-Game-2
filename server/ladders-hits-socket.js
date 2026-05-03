@@ -1,14 +1,20 @@
 /**
- * "סולמות ולהיטים" — multiplayer board game (Phase 1: lobby only).
+ * "סולמות ולהיטים" — multiplayer board game.
  *
- * Phase 1 covers room creation/joining, avatar selection, and host config
- * (mode = 'artist'|'year', timerSec, playlistIds). Subsequent phases add
- * round mechanics, dice rolls, board movement, ladder/slide effects, and
- * the victory screen.
+ * Phases 1-2 implemented: lobby (create/join, avatar pick, host config) and
+ * round mechanics (artist or year mode, autocomplete, fastest-correct wins
+ * the round, optional timer, host can reveal/skip). Score = number of
+ * rounds won. Phase 3 will add the dice roll + 100-square board + ladders/
+ * slides; phase 4 adds the victory screen.
  *
  * Self-contained — does not share state with the other multiplayer files.
  * Event prefix: `lh:`.
  */
+
+import { getSettings } from './services/SettingsStore.js';
+import { scanFolder } from './services/FileScanner.js';
+import { getSongMetadata } from './services/MetadataService.js';
+import { getPlaylistTracks } from './services/SpotifyService.js';
 
 const rooms = new Map();        // code → room
 const socketToRoom = new Map(); // socketId → code
@@ -25,6 +31,75 @@ function makeCode() {
   }
   // Extremely unlikely fallback
   return Math.random().toString(36).slice(2, 6).toUpperCase();
+}
+
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// Load songs from a list of playlist ids using the same loader pattern as
+// the other multiplayer modes (champion-multiplayer-socket.js).
+async function loadSongs(playlistIds) {
+  const settings = getSettings();
+  const { playlists, blacklist = [] } = settings;
+  const bl = new Set(blacklist);
+  const all = [];
+  for (const pid of playlistIds) {
+    const pl = playlists.find(p => p.id === pid);
+    if (!pl) continue;
+    if (pl.type === 'local') {
+      const files = scanFolder(pl.path);
+      const BATCH = 15;
+      for (let i = 0; i < files.length; i += BATCH) {
+        const batch = files.slice(i, i + BATCH);
+        const meta = await Promise.all(batch.map(f => getSongMetadata(f)));
+        all.push(...meta);
+      }
+    } else if (pl.type === 'spotify') {
+      const id = pl.spotifyUri.split(':').pop();
+      const tracks = await getPlaylistTracks(id);
+      all.push(...tracks);
+    }
+  }
+  // Dedup, drop blacklisted, attach audio/cover urls
+  const seen = new Set();
+  return all
+    .filter(s => {
+      if (!s.id || seen.has(s.id) || bl.has(s.id)) return false;
+      seen.add(s.id);
+      return true;
+    })
+    .map(s => ({
+      ...s,
+      audioUrl: s.audioUrl || (s.filePath ? `/api/audio/${encodeURIComponent(s.filePath)}` : null),
+      coverUrl: s.coverUrl || (s.hasCover && s.filePath ? `/api/cover/${encodeURIComponent(s.filePath)}` : null),
+    }));
+}
+
+// Normalised string match used for artist-mode answers
+function normaliseStr(s) {
+  return String(s || '').trim().toLowerCase()
+    .replace(/[ְ-ׇֽׁׂ]/g, '') // strip Hebrew niqqud
+    .replace(/\s+/g, ' ');
+}
+function isArtistMatch(answer, expected) {
+  const a = normaliseStr(answer);
+  const b = normaliseStr(expected);
+  if (!a || !b) return false;
+  return a === b;
+}
+
+// Year match: tolerant by ±1 to absorb common off-by-one tag errors
+function isYearMatch(answer, expected) {
+  const a = Number(answer);
+  const b = Number(expected);
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return false;
+  return Math.abs(a - b) <= 1;
 }
 
 function pickFreeAvatar(room) {
@@ -62,7 +137,10 @@ function serializeRoom(room) {
     mode: room.mode,
     timerSec: room.timerSec,
     playlistIds: room.playlistIds,
+    songCount: room.songCount,
     status: room.status,
+    songIdx: room.songIdx,
+    totalRounds: room.queue ? room.queue.length : 0,
     players: serializePlayers(room),
   };
 }
@@ -81,9 +159,19 @@ export function setupLaddersHits(io) {
         hostSocketId: socket.id,
         mode: 'artist',           // 'artist' | 'year'
         timerSec: 30,
+        songCount: 10,
         playlistIds: [],
         status: 'lobby',          // 'lobby' | 'playing' | 'done'
         players: new Map(),
+        // Phase 2 game state — populated on lh:start
+        queue: [],
+        songIdx: -1,
+        currentSong: null,
+        roundEnded: false,
+        roundWinnerSocketId: null,
+        roundAttempts: new Map(),  // socketId → attempts count
+        timerHandle: null,
+        autocomplete: { artists: [] },
       };
       const avatar = pickFreeAvatar(room);
       room.players.set(socket.id, {
@@ -167,7 +255,7 @@ export function setupLaddersHits(io) {
       }
     });
 
-    socket.on('lh:set_config', ({ mode, timerSec, playlistIds }) => {
+    socket.on('lh:set_config', ({ mode, timerSec, playlistIds, songCount }) => {
       const code = socketToRoom.get(socket.id);
       if (!code) return;
       const room = rooms.get(code);
@@ -175,7 +263,116 @@ export function setupLaddersHits(io) {
       if (mode === 'artist' || mode === 'year') room.mode = mode;
       if (typeof timerSec === 'number' && timerSec >= 0 && timerSec <= 180) room.timerSec = Math.round(timerSec);
       if (Array.isArray(playlistIds)) room.playlistIds = playlistIds.filter(x => typeof x === 'string');
+      if (typeof songCount === 'number' && songCount >= 1 && songCount <= 200) room.songCount = Math.round(songCount);
       io.to(code).emit('lh:room_update', { room: serializeRoom(room) });
+    });
+
+    // ── Phase 2 — start the game ───────────────────────────────────────
+    socket.on('lh:start', async () => {
+      const code = socketToRoom.get(socket.id);
+      if (!code) return;
+      const room = rooms.get(code);
+      if (!room || room.hostSocketId !== socket.id) return;
+      if (!room.playlistIds.length) {
+        socket.emit('lh:error', { message: 'בחר לפחות פלייליסט אחד' });
+        return;
+      }
+      try {
+        const songs = await loadSongs(room.playlistIds);
+        if (!songs.length) {
+          socket.emit('lh:error', { message: 'אין שירים בפלייליסטים שנבחרו' });
+          return;
+        }
+        const N = Math.max(1, Math.min(songs.length, Number(room.songCount) || 10));
+        room.queue = shuffle(songs).slice(0, N);
+        room.songIdx = -1;
+        room.status = 'playing';
+        // Build artist autocomplete from ALL the loaded songs (not just queue)
+        // — same dedup-and-sort pattern champion-multiplayer-socket.js uses.
+        const artistSet = new Set();
+        for (const s of songs) {
+          if (s.artist?.trim()) artistSet.add(s.artist.trim());
+        }
+        room.autocomplete = {
+          artists: [...artistSet].sort((a, b) => a.localeCompare(b, 'he')),
+        };
+        // Reset per-game player stats
+        for (const p of room.players.values()) {
+          p.score = 0;
+          p.position = 0;
+        }
+        io.to(room.code).emit('lh:started', {
+          total: room.queue.length,
+          autocomplete: room.autocomplete,
+          mode: room.mode,
+          timerSec: room.timerSec,
+        });
+        startNextRound(io, room);
+      } catch (e) {
+        socket.emit('lh:error', { message: `שגיאה בטעינת שירים: ${e.message || e}` });
+      }
+    });
+
+    // ── Player submits an answer ───────────────────────────────────────
+    socket.on('lh:answer', ({ value }) => {
+      const code = socketToRoom.get(socket.id);
+      if (!code) return;
+      const room = rooms.get(code);
+      if (!room || room.status !== 'playing' || room.roundEnded) return;
+      // Host can play too in this game (not excluded like champion mode);
+      // we don't gate by host here. If you want host-spectator mode, gate here.
+      const player = room.players.get(socket.id);
+      if (!player) return;
+      // Track attempts to give feedback on wrong answers without ending the round
+      const attempts = (room.roundAttempts.get(socket.id) || 0) + 1;
+      room.roundAttempts.set(socket.id, attempts);
+
+      const song = room.currentSong;
+      if (!song) return;
+      const correct = room.mode === 'artist'
+        ? isArtistMatch(value, song.artist)
+        : isYearMatch(value, song.year);
+
+      if (!correct) {
+        socket.emit('lh:wrong', { value, attempts });
+        return;
+      }
+      // First correct answer wins the round
+      room.roundEnded = true;
+      room.roundWinnerSocketId = socket.id;
+      player.score = (player.score || 0) + 1;
+      finishRound(io, room);
+    });
+
+    // ── Host: force-reveal the current round (no winner) ───────────────
+    socket.on('lh:host_reveal', () => {
+      const code = socketToRoom.get(socket.id);
+      if (!code) return;
+      const room = rooms.get(code);
+      if (!room || room.hostSocketId !== socket.id) return;
+      if (room.status !== 'playing' || room.roundEnded) return;
+      room.roundEnded = true;
+      room.roundWinnerSocketId = null;
+      finishRound(io, room);
+    });
+
+    // ── Host: advance to the next round ────────────────────────────────
+    socket.on('lh:host_next', () => {
+      const code = socketToRoom.get(socket.id);
+      if (!code) return;
+      const room = rooms.get(code);
+      if (!room || room.hostSocketId !== socket.id) return;
+      if (room.status !== 'playing') return;
+      startNextRound(io, room);
+    });
+
+    // ── Host: end the game early ───────────────────────────────────────
+    socket.on('lh:end_game', () => {
+      const code = socketToRoom.get(socket.id);
+      if (!code) return;
+      const room = rooms.get(code);
+      if (!room || room.hostSocketId !== socket.id) return;
+      endGame(io, room);
     });
 
     socket.on('lh:leave', () => {
@@ -188,6 +385,75 @@ export function setupLaddersHits(io) {
   });
 }
 
+function startNextRound(io, room) {
+  if (room.timerHandle) { clearTimeout(room.timerHandle); room.timerHandle = null; }
+  room.songIdx++;
+  if (room.songIdx >= room.queue.length) {
+    endGame(io, room);
+    return;
+  }
+  const song = room.queue[room.songIdx];
+  room.currentSong = song;
+  room.roundEnded = false;
+  room.roundWinnerSocketId = null;
+  room.roundAttempts = new Map();
+
+  // Players don't see the artist/title/year — only the audio
+  io.to(room.code).emit('lh:song', {
+    index: room.songIdx + 1,
+    total: room.queue.length,
+    songId: song.id,
+    audioUrl: song.audioUrl,
+    timerSec: room.timerSec,
+  });
+
+  if (room.timerSec > 0) {
+    room.timerHandle = setTimeout(() => {
+      if (room.roundEnded) return;
+      room.roundEnded = true;
+      room.roundWinnerSocketId = null;
+      finishRound(io, room);
+    }, room.timerSec * 1000 + 500); // small grace
+  }
+}
+
+function finishRound(io, room) {
+  if (room.timerHandle) { clearTimeout(room.timerHandle); room.timerHandle = null; }
+  const song = room.currentSong;
+  io.to(room.code).emit('lh:round_end', {
+    songId: song?.id,
+    correct: {
+      artist: song?.artist || '',
+      title: song?.title || '',
+      year: song?.year || '',
+    },
+    coverUrl: song?.coverUrl || null,
+    winnerSocketId: room.roundWinnerSocketId,
+    players: serializePlayers(room),
+    isLastRound: room.songIdx + 1 >= room.queue.length,
+  });
+}
+
+function endGame(io, room) {
+  if (room.timerHandle) { clearTimeout(room.timerHandle); room.timerHandle = null; }
+  room.status = 'done';
+  // Highest score wins; ties broken arbitrarily by current player order
+  const sorted = [...room.players.values()].sort((a, b) => (b.score || 0) - (a.score || 0));
+  const winner = sorted[0] || null;
+  // Victory audio: prefer the existing settings.game.victoryAudioPath; fall
+  // back to the last song played in this game.
+  const settings = getSettings();
+  const victoryPath = settings?.game?.victoryAudioPath;
+  const victoryAudioUrl = victoryPath
+    ? `/api/audio/${encodeURIComponent(victoryPath)}`
+    : (room.currentSong?.audioUrl || null);
+  io.to(room.code).emit('lh:ended', {
+    players: serializePlayers(room),
+    winnerSocketId: winner?.socketId || null,
+    victoryAudioUrl,
+  });
+}
+
 function handleLeave(socket, io) {
   const code = socketToRoom.get(socket.id);
   if (!code) return;
@@ -196,6 +462,7 @@ function handleLeave(socket, io) {
   if (!room) return;
   room.players.delete(socket.id);
   if (room.players.size === 0) {
+    if (room.timerHandle) { clearTimeout(room.timerHandle); room.timerHandle = null; }
     rooms.delete(code);
     return;
   }
