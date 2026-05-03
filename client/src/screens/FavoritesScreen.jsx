@@ -59,6 +59,22 @@ export default function FavoritesScreen({ onExit }) {
   const reorderTimer = useRef(null);
 
   // ── load + resume last-played song ──
+  // Reload when the tab regains focus so favourites added elsewhere (other
+  // tab / another device / via a heart button on the home screen) show up
+  // without needing a page reload.
+  useEffect(() => {
+    function refreshSongs() {
+      getFavorites().then(data => setSongs(data)).catch(() => {});
+    }
+    function onVisibility() { if (document.visibilityState === 'visible') refreshSongs(); }
+    window.addEventListener('focus', refreshSongs);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('focus', refreshSongs);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, []);
+
   useEffect(() => {
     getFavorites()
       .then(data => {

@@ -4,6 +4,13 @@ import { getSettings } from '../services/SettingsStore.js';
 
 const router = Router();
 
+// Favorites change frequently and are user-specific. Disable HTTP caching so
+// browsers (and any intermediate proxies) never serve a stale list.
+router.use((req, res, next) => {
+  res.set('Cache-Control', 'no-store');
+  next();
+});
+
 /** Derive playlistId/Name from filePath by matching against local playlist paths */
 function enrichWithPlaylist(favorites) {
   const { playlists = [] } = getSettings();
