@@ -12,6 +12,32 @@ export default function MusicLibraryPanel() {
   const [stats, setStats] = useState(null);
   const [error, setError] = useState('');
 
+  // Shared audio player — one <audio> element across all cards so only ever
+  // one song plays at a time. State tracks which file is currently active.
+  const audioRef = useRef(null);
+  const [nowPlaying, setNowPlaying] = useState(null); // { playlistId, filename, fullPath }
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  function playFile(playlistId, playlistPath, filename) {
+    const fullPath = playlistPath.endsWith('/') ? `${playlistPath}${filename}` : `${playlistPath}/${filename}`;
+    // Toggle pause if same file
+    if (nowPlaying?.fullPath === fullPath) {
+      const a = audioRef.current;
+      if (!a) return;
+      if (a.paused) a.play().catch(() => {});
+      else a.pause();
+      return;
+    }
+    setNowPlaying({ playlistId, filename, fullPath });
+    setTimeout(() => {
+      const a = audioRef.current;
+      if (!a) return;
+      a.src = `/api/audio/${encodeURIComponent(fullPath)}`;
+      a.load();
+      a.play().catch(() => {});
+    }, 30);
+  }
+
   async function refresh() {
     try {
       const s = await getMusicStats();
@@ -61,15 +87,63 @@ export default function MusicLibraryPanel() {
       {/* Per-playlist cards */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
         {stats.map(p => (
-          <PlaylistCard key={p.id} playlist={p} onChange={refresh} />
+          <PlaylistCard
+            key={p.id}
+            playlist={p}
+            onChange={refresh}
+            nowPlaying={nowPlaying}
+            isPlaying={isPlaying}
+            onPlay={playFile}
+          />
         ))}
       </div>
+
+      {/* Shared audio element + sticky mini-player when a song is loaded */}
+      <audio
+        ref={audioRef}
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
+        onEnded={() => setIsPlaying(false)}
+      />
+      {nowPlaying && (
+        <div style={miniPlayer}>
+          <button
+            onClick={() => {
+              const a = audioRef.current;
+              if (!a) return;
+              if (a.paused) a.play().catch(() => {});
+              else a.pause();
+            }}
+            style={miniPlayBtn}
+          >
+            {isPlaying ? '⏸' : '▶'}
+          </button>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {nowPlaying.filename}
+            </div>
+            <div style={{ fontSize: 10, color: '#888', marginTop: 1 }}>מתנגן עכשיו</div>
+          </div>
+          <button
+            onClick={() => {
+              const a = audioRef.current;
+              if (a) { a.pause(); a.src = ''; }
+              setNowPlaying(null);
+              setIsPlaying(false);
+            }}
+            title="עצור וסגור"
+            style={miniCloseBtn}
+          >
+            ✕
+          </button>
+        </div>
+      )}
     </div>
   );
 }
 
 // ─── Per-playlist card with drag-drop, list, delete ──────────────────────────
-function PlaylistCard({ playlist, onChange }) {
+function PlaylistCard({ playlist, onChange, nowPlaying, isPlaying, onPlay }) {
   const [open, setOpen] = useState(false);
   const [files, setFiles] = useState(null);
   const [filter, setFilter] = useState('');
@@ -217,31 +291,49 @@ function PlaylistCard({ playlist, onChange }) {
             <div style={emptyMini}>אין קבצים בפלייליסט הזה</div>
           ) : (
             <div style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 10, maxHeight: 380, overflowY: 'auto' }}>
-              {visible.map((f, i) => (
-                <div key={f.name} style={{
-                  display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 14, alignItems: 'center',
-                  padding: '10px 14px',
-                  borderBottom: i < visible.length - 1 ? '1px solid #2a2a2a' : 'none',
-                }}>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 13, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {f.name}
+              {visible.map((f, i) => {
+                const fullPath = playlist.path.endsWith('/') ? `${playlist.path}${f.name}` : `${playlist.path}/${f.name}`;
+                const isThisActive  = nowPlaying?.fullPath === fullPath;
+                const isThisPlaying = isThisActive && isPlaying;
+                return (
+                  <div key={f.name} style={{
+                    display: 'grid', gridTemplateColumns: 'auto 1fr auto auto', gap: 12, alignItems: 'center',
+                    padding: '10px 14px',
+                    borderBottom: i < visible.length - 1 ? '1px solid #2a2a2a' : 'none',
+                    background: isThisActive ? '#0d2e0d33' : 'transparent',
+                  }}>
+                    <button
+                      onClick={() => onPlay?.(playlist.id, playlist.path, f.name)}
+                      title={isThisPlaying ? 'השהה' : 'נגן'}
+                      style={{
+                        ...playBtn,
+                        background: isThisActive ? '#1db954' : '#2a2a2a',
+                        color: isThisActive ? '#000' : '#1db954',
+                        borderColor: isThisActive ? '#1db954' : '#2a2a2a',
+                      }}
+                    >
+                      {isThisPlaying ? '⏸' : '▶'}
+                    </button>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 13, color: isThisActive ? '#1db954' : '#fff', fontWeight: isThisActive ? 700 : 400, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {f.name}
+                      </div>
+                      <div style={{ fontSize: 10, color: '#666', marginTop: 2 }}>
+                        {fmtDate(f.mtime)}
+                      </div>
                     </div>
-                    <div style={{ fontSize: 10, color: '#666', marginTop: 2 }}>
-                      {fmtDate(f.mtime)}
-                    </div>
+                    <span style={{ fontSize: 11, color: '#888', whiteSpace: 'nowrap' }}>{fmtBytes(f.sizeBytes)}</span>
+                    <button
+                      onClick={() => handleDelete(f.name)}
+                      disabled={deleting === f.name}
+                      title="מחיקה"
+                      style={delBtn}
+                    >
+                      {deleting === f.name ? '⏳' : '🗑️'}
+                    </button>
                   </div>
-                  <span style={{ fontSize: 11, color: '#888', whiteSpace: 'nowrap' }}>{fmtBytes(f.sizeBytes)}</span>
-                  <button
-                    onClick={() => handleDelete(f.name)}
-                    disabled={deleting === f.name}
-                    title="מחיקה"
-                    style={delBtn}
-                  >
-                    {deleting === f.name ? '⏳' : '🗑️'}
-                  </button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -297,6 +389,31 @@ const delBtn = {
   background: '#3a1010', color: '#ff6b6b', border: '1px solid #5a1010',
   width: 36, height: 36, borderRadius: 8, fontSize: 16, cursor: 'pointer',
   display: 'flex', alignItems: 'center', justifyContent: 'center',
+};
+const playBtn = {
+  border: '1px solid #2a2a2a',
+  width: 36, height: 36, borderRadius: 18, fontSize: 14, fontWeight: 800, cursor: 'pointer',
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  transition: 'all 0.15s',
+};
+const miniPlayer = {
+  position: 'fixed', bottom: 18, left: 18,
+  background: '#1a1a1a', border: '1px solid #1db954',
+  borderRadius: 12, padding: '10px 14px',
+  display: 'flex', alignItems: 'center', gap: 12,
+  width: 'min(420px, calc(100vw - 36px))',
+  boxShadow: '0 8px 28px rgba(0,0,0,0.5)',
+  zIndex: 50, direction: 'rtl',
+};
+const miniPlayBtn = {
+  background: '#1db954', color: '#000', border: 'none',
+  width: 40, height: 40, borderRadius: 20, fontSize: 16,
+  cursor: 'pointer', flexShrink: 0,
+};
+const miniCloseBtn = {
+  background: 'transparent', color: '#888', border: '1px solid #444',
+  width: 28, height: 28, borderRadius: 14, fontSize: 13, cursor: 'pointer',
+  flexShrink: 0,
 };
 const errBox = {
   background: '#3a1010', color: '#ff6b6b', border: '1px solid #dc3545',
