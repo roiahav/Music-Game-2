@@ -72,6 +72,7 @@ export const getPlaylistSongs = id => api.get(`/playlists/${id}/songs`).then(r =
 
 // Settings
 export const getSettings = () => api.get('/settings').then(r => r.data);
+export const getGamesConfig = () => api.get('/games-config').then(r => r.data);
 export const saveSettings = data => api.post('/settings', data);
 export const testEmailSettings = () => api.post('/settings/test-email').then(r => r.data);
 export const addPlaylist = data => api.post('/settings/playlists', data);

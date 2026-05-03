@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { getSettings, saveSettings, getPlaylists } from '../api/client.js';
+import { getSettings, getGamesConfig, saveSettings, getPlaylists } from '../api/client.js';
 
 const GAME_LS_KEY = 'mg_game_prefs';
 const DEFAULT_GAME = { shuffle: true, hintsEnabled: true, timerSeconds: 30, victoryAudioPath: '' };
@@ -22,6 +22,15 @@ export const useSettingsStore = create((set, get) => ({
       set({ playlists: playlists || [] });
     } catch {}
 
+    // Games config — public-safe, available to every authenticated user so the
+    // home screen can apply admin-chosen order/hidden/allowedUsers for everyone.
+    try {
+      const games = await getGamesConfig();
+      set({ games: games || { order: [], hidden: [], allowedUsers: {} } });
+    } catch {}
+
+    // Full settings — admin-only. Non-admins get 403 here, which is fine; we
+    // still want to attempt it so admins get spotify/email/etc. on first load.
     try {
       const s = await getSettings();
       const serverGame = { ...DEFAULT_GAME, ...(s.game || {}) };
@@ -30,7 +39,7 @@ export const useSettingsStore = create((set, get) => ({
       set({
         game: { ...serverGame, ...localPrefs },
         spotify: s.spotify || {},
-        games: s.games || { order: [], hidden: [], allowedUsers: {} },
+        games: s.games || get().games,
         loaded: true,
       });
     } catch {

@@ -90,6 +90,13 @@ app.use('/api/browse', browseRouter);
 app.use('/api/playlists', requireAuth, playlistsRouter);
 app.use('/api/audio', audioRouter);   // public — needed by <audio> element (no custom headers)
 app.use('/api/cover', coverRouter);   // public — same reason
+// Public-safe view of the games config — needed by every authenticated user
+// (the home screen filters games by gamesConfig.hidden / order). The full
+// /api/settings endpoint stays admin-only because it exposes secrets.
+app.get('/api/games-config', requireAuth, (req, res) => {
+  const s = getSettings();
+  res.json(s.games || { order: [], hidden: [], allowedUsers: {} });
+});
 app.use('/api/settings', requireAdmin, settingsRouter);
 app.use('/api/spotify', requireAdmin, spotifyRouter);
 app.use('/api/blacklist', requireAdmin, blacklistRouter);
