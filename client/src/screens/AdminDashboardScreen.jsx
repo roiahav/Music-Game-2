@@ -12,10 +12,25 @@ import { AvatarCircle } from '../App.jsx';
 import MusicLibraryPanel from '../components/MusicLibraryPanel.jsx';
 
 // ─── Public component ─────────────────────────────────────────────────────────
+const ZOOM_KEY = 'mg2-dashboard-zoom';
+const ZOOM_MIN = 0.8;
+const ZOOM_MAX = 1.6;
+const ZOOM_STEP = 0.1;
+function loadZoom() {
+  const v = parseFloat(localStorage.getItem(ZOOM_KEY) || '1');
+  return Number.isFinite(v) && v >= ZOOM_MIN && v <= ZOOM_MAX ? v : 1;
+}
+
 export default function AdminDashboardScreen({ onExit }) {
   const [section, setSection] = useState('overview');
   const [pendingCount, setPendingCount] = useState(0);
+  const [zoom, setZoom] = useState(loadZoom);
   const { user, logout } = useAuthStore();
+
+  useEffect(() => { localStorage.setItem(ZOOM_KEY, String(zoom)); }, [zoom]);
+  const bumpZoom  = () => setZoom(z => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(2)));
+  const trimZoom  = () => setZoom(z => Math.max(ZOOM_MIN, +(z - ZOOM_STEP).toFixed(2)));
+  const resetZoom = () => setZoom(1);
 
   // Refresh pending count when navigating between sections, so the sidebar badge stays current
   function refreshPending() {
@@ -36,6 +51,7 @@ export default function AdminDashboardScreen({ onExit }) {
       height: '100dvh', background: '#0f0f12',
       color: '#fff', fontFamily: 'system-ui, sans-serif',
       direction: 'rtl',
+      zoom: zoom,
     }}>
       {/* Sidebar */}
       <aside style={{
@@ -72,6 +88,21 @@ export default function AdminDashboardScreen({ onExit }) {
             <div style={{ fontSize: 10, color: '#888' }}>👑 מנהל</div>
           </div>
           <button onClick={handleLogout} title="יציאה" style={iconButton}>↩</button>
+        </div>
+
+        {/* Font-size (zoom) controls — affect the whole dashboard via the
+            CSS `zoom` property on the root div. Persisted to localStorage. */}
+        <div style={{
+          margin: '0 12px 8px', padding: 6,
+          background: '#2d2d33', borderRadius: 8,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4,
+        }}>
+          <span style={{ fontSize: 11, color: '#888', paddingInlineStart: 4 }}>גודל פונט</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <button onClick={trimZoom}  disabled={zoom <= ZOOM_MIN} title="הקטן" style={zoomBtn}>−</button>
+            <button onClick={resetZoom} title="איפוס" style={{ ...zoomBtn, minWidth: 38, fontSize: 11 }}>{Math.round(zoom * 100)}%</button>
+            <button onClick={bumpZoom}  disabled={zoom >= ZOOM_MAX} title="הגדל" style={zoomBtn}>+</button>
+          </div>
         </div>
 
         <button
@@ -133,6 +164,13 @@ const iconButton = {
   background: 'transparent', border: '1px solid #444',
   color: '#888', borderRadius: 8, padding: '4px 10px',
   fontSize: 14, cursor: 'pointer',
+};
+
+const zoomBtn = {
+  background: '#1a1a1f', border: '1px solid #444',
+  color: '#ddd', borderRadius: 6, padding: '2px 8px',
+  fontSize: 14, fontWeight: 700, cursor: 'pointer',
+  minWidth: 24,
 };
 
 // ─── Section: Overview ────────────────────────────────────────────────────────
