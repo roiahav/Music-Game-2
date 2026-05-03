@@ -6,6 +6,7 @@
 import { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
 import {
   getMusicStats, listMusicFiles, deleteMusicFile, uploadMusicFiles, updateMusicMetadata,
+  addToBlacklist, removeFromBlacklist,
 } from '../api/client.js';
 
 export default function MusicLibraryPanel() {
@@ -245,6 +246,24 @@ function PlaylistCard({ playlist, onChange, nowPlaying, isPlaying, onPlay }) {
     }
   }
 
+  // Toggle a song's hidden state by adding/removing it from the blacklist.
+  // Hidden songs stay in the music-library list (so admin can unhide them)
+  // but are excluded from /api/playlists/:id/songs that the games consume.
+  async function handleToggleHidden(f) {
+    if (!f.id) return;
+    const wasHidden = !!f.hidden;
+    // Optimistic update
+    setFiles(prev => prev?.map(x => x.name === f.name ? { ...x, hidden: !wasHidden } : x));
+    try {
+      if (wasHidden) await removeFromBlacklist(f.id);
+      else           await addToBlacklist(f.id);
+    } catch (e) {
+      // Revert on failure
+      setFiles(prev => prev?.map(x => x.name === f.name ? { ...x, hidden: wasHidden } : x));
+      setErrorMsg(e.response?.data?.error || e.message);
+    }
+  }
+
   // Filter by name OR any metadata field
   const filtered = files
     ? files.filter(f => {
@@ -393,6 +412,7 @@ function PlaylistCard({ playlist, onChange, nowPlaying, isPlaying, onPlay }) {
                 return (
                   <tr key={f.name} style={{
                     borderBottom: i < visible.length - 1 ? '1px solid #2a2a2a' : 'none',
+                    opacity: f.hidden ? 0.45 : 1,
                   }}>
                     <td style={{ padding: '8px 8px 8px 12px', ...stickyCell }}>
                       <button
@@ -424,6 +444,13 @@ function PlaylistCard({ playlist, onChange, nowPlaying, isPlaying, onPlay }) {
                     </td>
                     <td style={{ ...tdStyle, color: '#888', fontVariantNumeric: 'tabular-nums', ...stickyCell }}>{fmtBytes(f.sizeBytes)}</td>
                     <td style={{ padding: '8px 12px 8px 8px', whiteSpace: 'nowrap', ...stickyCell }}>
+                      <button
+                        onClick={() => handleToggleHidden(f)}
+                        title={f.hidden ? 'הצג שיר במשחקים' : 'הסתר שיר ממשחקים'}
+                        style={{ ...editBtn, marginRight: 4, color: f.hidden ? '#ff8a3d' : '#888' }}
+                      >
+                        {f.hidden ? '🙈' : '👁'}
+                      </button>
                       <button onClick={() => setEditingFile(f)} title="עריכת תגיות" style={editBtn}>✎</button>
                       <button onClick={() => handleDelete(f.name)} disabled={deleting === f.name} title="מחיקה" style={{ ...delBtn, marginRight: 4 }}>
                         {deleting === f.name ? '⏳' : '🗑️'}

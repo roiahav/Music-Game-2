@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { useSettingsStore } from '../store/settingsStore.js';
 import { useAuthStore } from '../store/authStore.js';
 import { getPlaylistSongs } from '../api/client.js';
+import { useFavorites } from '../hooks/useFavorites.js';
 import PlaylistSelector from '../components/PlaylistSelector.jsx';
 import TimerBar from '../components/TimerBar.jsx';
 import { AvatarCircle } from '../App.jsx';
@@ -25,6 +26,7 @@ export default function ChampionGameScreen({ onExit }) {
   const { dir } = useLang();
   const { user } = useAuthStore();
   const { playlists } = useSettingsStore();
+  const { favoriteIds, toggle: toggleFavorite } = useFavorites();
 
   const [phase, setPhase] = useState('idle'); // idle | playing | done
   const [selectedPlaylistIds, setSelectedPlaylistIds] = useState(
@@ -438,6 +440,26 @@ export default function ChampionGameScreen({ onExit }) {
           </button>
           <button onClick={skip30} style={{ flex: 1, height: 46, background: 'var(--bg2)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
             +30s
+          </button>
+          {/* Favorites toggle — saves the current song to the user's favourites list */}
+          <button
+            onClick={() => currentSong && toggleFavorite({
+              id: currentSong.id,
+              filePath: currentSong.audioUrl ? decodeURIComponent(currentSong.audioUrl.replace('/api/audio/', '')) : '',
+              title: currentSong.title || '',
+              artist: currentSong.artist || '',
+              year: currentSong.year || '',
+            })}
+            title={currentSong && favoriteIds.has(currentSong.id) ? 'הסרה מהמועדפים' : 'הוספה למועדפים'}
+            style={{
+              width: 56, height: 46,
+              background: currentSong && favoriteIds.has(currentSong.id) ? '#dc354522' : 'var(--bg2)',
+              color: currentSong && favoriteIds.has(currentSong.id) ? '#ff6b6b' : 'var(--text)',
+              border: `1px solid ${currentSong && favoriteIds.has(currentSong.id) ? '#dc3545' : 'var(--border)'}`,
+              borderRadius: 12, fontSize: 22, cursor: 'pointer', flexShrink: 0,
+            }}
+          >
+            {currentSong && favoriteIds.has(currentSong.id) ? '💔' : '❤️'}
           </button>
         </div>
 

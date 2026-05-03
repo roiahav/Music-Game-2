@@ -252,6 +252,11 @@ export default function SoloTypingScreen({ onExit }) {
           <div style={{ background: '#1e1e1e', border: '1px solid #3a3a3a', borderRadius: 20, padding: '3px 10px', fontSize: 13, fontWeight: 700, color: '#007ACC' }}>
             {score.earned} / {score.total}
           </div>
+          {/* Home — return to main menu */}
+          <button onClick={() => { audioRef.current?.pause(); onExit(); }} title="חזרה לדף הראשי"
+            style={{ background: '#2d2d30', border: '1px solid #3a3a3a', color: '#ccc', borderRadius: 8, padding: '4px 8px', fontSize: 15, cursor: 'pointer' }}>
+            🏠
+          </button>
           {/* Mute */}
           <button onClick={toggleMute} title={isMuted ? 'בטל השתקה' : 'השתק'}
             style={{ background: isMuted ? '#5a1010' : '#2d2d30', border: `1px solid ${isMuted ? '#dc3545' : '#3a3a3a'}`, color: isMuted ? '#ff6b6b' : '#ccc', borderRadius: 8, padding: '4px 8px', fontSize: 15, cursor: 'pointer' }}>

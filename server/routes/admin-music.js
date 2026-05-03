@@ -9,7 +9,10 @@ import NodeID3 from 'node-id3';
 import { parseFile } from 'music-metadata';
 import { promises as fs, existsSync, statSync } from 'fs';
 import { join, basename, normalize, resolve, extname } from 'path';
-import { getSettings } from '../services/SettingsStore.js';
+import { createHash } from 'crypto';
+import { getSettings, saveSettings } from '../services/SettingsStore.js';
+
+const sha1 = s => createHash('sha1').update(s).digest('hex');
 
 const router = Router();
 
@@ -145,6 +148,17 @@ router.get('/list/:playlistId', async (req, res) => {
       }));
     }
     files.sort((a, b) => a.name.localeCompare(b.name, 'he'));
+    // Attach the song id (sha1 of the absolute path — same scheme as
+    // MetadataService.getSongMetadata) and a `hidden` flag based on the
+    // current blacklist, so the music-library UI can show + toggle hide
+    // state without needing a second roundtrip.
+    const { blacklist = [] } = getSettings();
+    const blSet = new Set(blacklist);
+    for (const f of files) {
+      const fullPath = join(pl.path, f.name);
+      f.id = sha1(fullPath);
+      f.hidden = blSet.has(f.id);
+    }
     res.json({ playlist: { id: pl.id, name: pl.name, path: pl.path }, files });
   } catch (e) {
     res.status(500).json({ error: e.message });
