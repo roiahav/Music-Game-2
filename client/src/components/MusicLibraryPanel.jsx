@@ -467,6 +467,8 @@ function MetadataEditor({ playlistId, file, artistSuggestions = [], onClose, onS
   const [error, setError]   = useState('');
 
   function update(k, v) { setForm(s => ({ ...s, [k]: v })); }
+  // Select existing text on focus so typing replaces it instead of appending
+  const selectOnFocus = e => e.target.select();
 
   async function handleSave() {
     setSaving(true); setError('');
@@ -492,12 +494,13 @@ function MetadataEditor({ playlistId, file, artistSuggestions = [], onClose, onS
         </div>
         <div style={modalBody}>
           <Field label="שם השיר">
-            <input value={form.title}  onChange={e => update('title',  e.target.value)} style={fldInput} />
+            <input value={form.title}  onChange={e => update('title',  e.target.value)} onFocus={selectOnFocus} style={fldInput} />
           </Field>
           <Field label="אמן">
             <input
               value={form.artist}
               onChange={e => update('artist', e.target.value)}
+              onFocus={selectOnFocus}
               style={fldInput}
               list="mlp-artist-suggestions"
               autoComplete="off"
@@ -507,17 +510,17 @@ function MetadataEditor({ playlistId, file, artistSuggestions = [], onClose, onS
             </datalist>
           </Field>
           <Field label="אלבום">
-            <input value={form.album}  onChange={e => update('album',  e.target.value)} style={fldInput} />
+            <input value={form.album}  onChange={e => update('album',  e.target.value)} onFocus={selectOnFocus} style={fldInput} />
           </Field>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
             <Field label="שנה">
-              <input value={form.year}  onChange={e => update('year',  e.target.value)} style={fldInput} placeholder="2024" />
+              <input value={form.year}  onChange={e => update('year',  e.target.value)} onFocus={selectOnFocus} style={fldInput} placeholder="2024" />
             </Field>
             <Field label="מס׳ רצועה">
-              <input value={form.track} onChange={e => update('track', e.target.value)} style={fldInput} placeholder="1" />
+              <input value={form.track} onChange={e => update('track', e.target.value)} onFocus={selectOnFocus} style={fldInput} placeholder="1" />
             </Field>
             <Field label="ז׳אנר">
-              <input value={form.genre} onChange={e => update('genre', e.target.value)} style={fldInput} />
+              <input value={form.genre} onChange={e => update('genre', e.target.value)} onFocus={selectOnFocus} style={fldInput} />
             </Field>
           </div>
 
