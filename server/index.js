@@ -19,6 +19,8 @@ import favoritesRouter from './routes/favorites.js';
 import invitesRouter from './routes/invites.js';
 import backupRouter from './routes/backup.js';
 import adminStatsRouter from './routes/admin-stats.js';
+import onedriveRouter from './routes/onedrive.js';
+import { startSyncScheduler } from './services/OneDriveSync.js';
 import { requireAuth, requireAdmin } from './middleware/auth.js';
 import { updateSpotifyTokens, getSettings } from './services/SettingsStore.js';
 import { lockExpiredUsers } from './services/UserStore.js';
@@ -95,6 +97,7 @@ app.use('/api/invites', invitesRouter); // mixed: GET/:token + POST/:token/regis
 // Backup bundle can be large (avatars are base64), bump body limit for this route only
 app.use('/api/backup', express.json({ limit: '50mb' }), backupRouter);
 app.use('/api/admin', adminStatsRouter);
+app.use('/api/onedrive', requireAdmin, onedriveRouter);
 
 // SPA fallback
 app.get('*', (req, res) => {
@@ -119,6 +122,9 @@ httpServer.listen(PORT, '0.0.0.0', () => {
   console.log('\n🎵 Music Game Server is running!\n');
   console.log(`  Local:   http://localhost:${PORT}`);
   if (lanIp) console.log(`  Network: http://${lanIp}:${PORT}  ← open this on your phone\n`);
+  // Kick off the OneDrive sync scheduler — it reads settings.json each tick
+  // so toggling enabled/interval in the UI takes effect within 30s.
+  try { startSyncScheduler(); } catch (e) { console.error('[onedrive] scheduler failed:', e.message); }
 });
 
 function getLanIp() {

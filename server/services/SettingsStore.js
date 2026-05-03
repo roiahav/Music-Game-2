@@ -42,6 +42,20 @@ const DEFAULT_SETTINGS = {
     hidden: [],
     allowedUsers: {},
   },
+  // OneDrive sync — uploads to OneDrive get pulled down to the local music
+  // folder periodically. Configured server-side via rclone; this object is the
+  // app-level config + last-run state surfaced in the UI.
+  onedrive: {
+    enabled: false,                  // master toggle
+    remoteName: 'onedrive',          // rclone remote name (matches `rclone config`)
+    remoteFolder: 'Music Game/Songs',// folder on OneDrive to mirror
+    localFolder: '/home/oren/music', // destination on the server
+    syncIntervalMinutes: 5,          // 0 = manual only
+    lastSyncAt: 0,                   // ms timestamp
+    lastSyncOk: null,                // null=never, true=success, false=failed
+    lastSyncMessage: '',             // short human-readable status
+    lastSyncStats: null,             // { added, removed, changed, totalFiles, sizeBytes }
+  },
   inviteTemplates: [
     {
       id: 'tmpl-default',

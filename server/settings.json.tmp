@@ -13,14 +13,21 @@
       "type": "local",
       "path": "C:\\Users\\oren\\Desktop\\mp3\\לועזי",
       "spotifyUri": ""
+    },
+    {
+      "id": "ede4c07a-bd60-4a54-8db3-8115a2d7aabf",
+      "name": "שירי אהבה",
+      "type": "local",
+      "path": "C:\\Users\\oren\\Desktop\\mp3\\Love Songs",
+      "spotifyUri": ""
     }
   ],
   "spotify": {
     "clientId": "145f4229038948c68315a05e468afd50",
     "clientSecret": "3fd6cfaba1944a318df2b72e94502f0d",
-    "accessToken": "BQACSdFJwwo2N2XNRIzadqTtpWqVFT16_4Coi6svqyq24Xjjo3u1-yb6OmndR0Ajo8FG8RgvIFUReIsFbWUoL6iNAcatFsqA2Ow5F2iZZFXn-AddQiWtjvx-bHABQh4ktwT9P5va7BRTjeDbMj3_WcpSy-xSDyXE1K95eFINywT8teSluIvy0J66fgCDqQQYDHf6-WesZSP3HHoDmtK3Ta1kb1TXgg2Cya-RO9XxCKtVGQFTqS33ykRfavFFakksWtZsgWoeGXsCPXHhfdi_5QrjyQ",
+    "accessToken": "BQA680xgXufB4FzpBh92nvj8ABuLcqmGjLyjvtY4KMTADB44LwG8wcrjqoIsH7lJ5vWjca-hr1tyX-IDhzbwRVON9up2aIH0Wj1kDLzl-k-DaJtINN-O5P-MbmI07oFCVtkrLD3qgtYppogETjnzlrdZP-AYyOY_Peqc7XQ0vHpNYBoE_7Lu-Mdhfcx8nbB835M2C7vJ2UIxFNLJZ98m9h9fGUM-Xr2IZCAQQMdYlAXLrpPyylhlTcl_duI03QAKJarkTpDx15BuP3UkhdGsaoE3MA",
     "refreshToken": "AQB9Y43PWr1I-UeMLoyhOsxwmaHDZn9LAXludbkaQjCbjo7jNeUzBfduNgxrfwonVuPGFk-DjEDeLh5xLs3aClX5zmwfUe6PGlNzQRQS-dpXMHFWXRHcSnGFEJfJvV-f0t4",
-    "tokenExpiresAt": 1777713672408
+    "tokenExpiresAt": 1777798766080
   },
   "game": {
     "shuffle": true,
@@ -57,11 +64,11 @@
     "order": [
       "champion",
       "champion-multi",
-      "multiplayer",
-      "solo",
-      "solo-typing",
       "years",
       "years-multi",
+      "multiplayer",
+      "solo-typing",
+      "solo",
       "favorites"
     ],
     "hidden": [],

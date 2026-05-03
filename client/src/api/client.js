@@ -98,3 +98,9 @@ export const getFavorites = () => api.get('/favorites').then(r => r.data);
 export const addFavorite = (songId, song) => api.post(`/favorites/${songId}`, song).then(r => r.data);
 export const removeFavorite = (songId) => api.delete(`/favorites/${songId}`).then(r => r.data);
 export const reorderFavorites = (ids) => api.patch('/favorites/reorder', { ids }).then(r => r.data);
+
+// OneDrive sync (admin)
+export const getOneDriveStatus = () => api.get('/onedrive/status').then(r => r.data);
+export const probeOneDrive = () => api.post('/onedrive/probe').then(r => r.data);
+export const syncOneDrive = (deleteMissing = false) => api.post('/onedrive/sync', { deleteMissing }).then(r => r.data);
+export const updateOneDriveSettings = (cfg) => api.put('/onedrive/settings', cfg).then(r => r.data);
