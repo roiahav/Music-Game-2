@@ -3,7 +3,7 @@
  * Per-playlist cards: drag-and-drop upload, file list with delete, search,
  * and storage stats. Skips Spotify playlists (no local files there).
  */
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
 import {
   getMusicStats, listMusicFiles, deleteMusicFile, uploadMusicFiles, updateMusicMetadata,
 } from '../api/client.js';
@@ -198,6 +198,8 @@ function PlaylistCard({ playlist, onChange, nowPlaying, isPlaying, onPlay }) {
   const [sortKey, setSortKey] = useState('name'); // name | title | artist | year | duration | sizeBytes
   const [sortDir, setSortDir] = useState('asc'); // 'asc' | 'desc'
   const inputRef = useRef(null);
+  const theadRef = useRef(null);
+  const [headerH, setHeaderH] = useState(33);
 
   const loadFiles = useCallback(async () => {
     try {
@@ -270,6 +272,10 @@ function PlaylistCard({ playlist, onChange, nowPlaying, isPlaying, onPlay }) {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
     else { setSortKey(key); setSortDir('asc'); }
   }
+
+  useLayoutEffect(() => {
+    if (theadRef.current) setHeaderH(theadRef.current.offsetHeight);
+  }, [files, visible?.length, open]);
   function arrow(key) {
     return sortKey === key ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
   }
@@ -364,7 +370,7 @@ function PlaylistCard({ playlist, onChange, nowPlaying, isPlaying, onPlay }) {
           ) : (
             <div style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 10, maxHeight: 480, overflowY: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-                <thead style={{ position: 'sticky', top: 0, background: '#222', zIndex: 1 }}>
+                <thead ref={theadRef} style={{ position: 'sticky', top: 0, background: '#222', zIndex: 2 }}>
                   <tr style={{ color: '#888', fontWeight: 700, textAlign: 'right' }}>
                     <Th width={48}></Th>
                     <Th onClick={() => toggleSort('title')}    label={`שם השיר${arrow('title')}`} />
@@ -381,12 +387,14 @@ function PlaylistCard({ playlist, onChange, nowPlaying, isPlaying, onPlay }) {
                 const fullPath = playlist.path.endsWith('/') ? `${playlist.path}${f.name}` : `${playlist.path}/${f.name}`;
                 const isThisActive  = nowPlaying?.fullPath === fullPath;
                 const isThisPlaying = isThisActive && isPlaying;
+                const stickyCell = isThisActive
+                  ? { position: 'sticky', top: headerH, background: '#142a14', zIndex: 1 }
+                  : null;
                 return (
                   <tr key={f.name} style={{
-                    background: isThisActive ? '#0d2e0d33' : 'transparent',
                     borderBottom: i < visible.length - 1 ? '1px solid #2a2a2a' : 'none',
                   }}>
-                    <td style={{ padding: '8px 8px 8px 12px' }}>
+                    <td style={{ padding: '8px 8px 8px 12px', ...stickyCell }}>
                       <button
                         onClick={() => onPlay?.(playlist.id, playlist.path, f.name, files)}
                         title={isThisPlaying ? 'השהה' : 'נגן'}
@@ -400,7 +408,7 @@ function PlaylistCard({ playlist, onChange, nowPlaying, isPlaying, onPlay }) {
                         {isThisPlaying ? '⏸' : '▶'}
                       </button>
                     </td>
-                    <td style={tdStyle} title={f.name}>
+                    <td style={{ ...tdStyle, ...stickyCell }} title={f.name}>
                       <div style={{ color: isThisActive ? '#1db954' : '#fff', fontWeight: isThisActive ? 700 : 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 240 }}>
                         {f.title || f.name}
                       </div>
@@ -408,14 +416,14 @@ function PlaylistCard({ playlist, onChange, nowPlaying, isPlaying, onPlay }) {
                         <div style={{ fontSize: 10, color: '#666' }}>שם הקובץ — אין תגיות</div>
                       )}
                     </td>
-                    <td style={{ ...tdStyle, color: '#ccc' }}>{f.artist || <span style={muted}>—</span>}</td>
-                    <td style={{ ...tdStyle, color: '#aaa' }}>{f.album || <span style={muted}>—</span>}</td>
-                    <td style={{ ...tdStyle, color: '#aaa' }}>{f.year || <span style={muted}>—</span>}</td>
-                    <td style={{ ...tdStyle, color: '#aaa', fontVariantNumeric: 'tabular-nums' }}>
+                    <td style={{ ...tdStyle, color: '#ccc', ...stickyCell }}>{f.artist || <span style={muted}>—</span>}</td>
+                    <td style={{ ...tdStyle, color: '#aaa', ...stickyCell }}>{f.album || <span style={muted}>—</span>}</td>
+                    <td style={{ ...tdStyle, color: '#aaa', ...stickyCell }}>{f.year || <span style={muted}>—</span>}</td>
+                    <td style={{ ...tdStyle, color: '#aaa', fontVariantNumeric: 'tabular-nums', ...stickyCell }}>
                       {f.duration ? fmtTime(f.duration) : <span style={muted}>—</span>}
                     </td>
-                    <td style={{ ...tdStyle, color: '#888', fontVariantNumeric: 'tabular-nums' }}>{fmtBytes(f.sizeBytes)}</td>
-                    <td style={{ padding: '8px 12px 8px 8px', whiteSpace: 'nowrap' }}>
+                    <td style={{ ...tdStyle, color: '#888', fontVariantNumeric: 'tabular-nums', ...stickyCell }}>{fmtBytes(f.sizeBytes)}</td>
+                    <td style={{ padding: '8px 12px 8px 8px', whiteSpace: 'nowrap', ...stickyCell }}>
                       <button onClick={() => setEditingFile(f)} title="עריכת תגיות" style={editBtn}>✎</button>
                       <button onClick={() => handleDelete(f.name)} disabled={deleting === f.name} title="מחיקה" style={{ ...delBtn, marginRight: 4 }}>
                         {deleting === f.name ? '⏳' : '🗑️'}

@@ -91,10 +91,11 @@ export function getVisibleGames(gamesConfig, currentUser) {
     .map(id => findGame(id))
     .filter(Boolean)
     .filter(game => {
-      // Admins bypass all restrictions
-      if (isAdmin) return true;
-      // Globally hidden
+      // Globally hidden — applies to everyone, including admins. Admins can
+      // still re-show games from the settings panel (which renders GAMES directly).
       if (hidden.has(game.id)) return false;
+      // Admins bypass per-user whitelist so they can always test
+      if (isAdmin) return true;
       // Per-user whitelist (only applies when non-empty)
       const allowed = allowedUsers[game.id];
       if (Array.isArray(allowed) && allowed.length > 0) {
