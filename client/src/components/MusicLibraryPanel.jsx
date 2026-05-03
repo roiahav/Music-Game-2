@@ -13,14 +13,17 @@ export default function MusicLibraryPanel() {
   const [error, setError] = useState('');
 
   // Shared audio player — one <audio> element across all cards so only ever
-  // one song plays at a time. State tracks which file is currently active.
+  // one song plays at a time. State tracks which file is currently active +
+  // its containing list for prev/next navigation.
   const audioRef = useRef(null);
-  const [nowPlaying, setNowPlaying] = useState(null); // { playlistId, filename, fullPath }
+  const [nowPlaying, setNowPlaying] = useState(null); // { playlistId, filename, fullPath, files: [...] }
   const [isPlaying, setIsPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);   // 0–1
+  const [duration, setDuration] = useState(0);   // seconds
 
-  function playFile(playlistId, playlistPath, filename) {
+  function playFile(playlistId, playlistPath, filename, fileList = []) {
     const fullPath = playlistPath.endsWith('/') ? `${playlistPath}${filename}` : `${playlistPath}/${filename}`;
-    // Toggle pause if same file
+    // Toggle pause if tapping the same file
     if (nowPlaying?.fullPath === fullPath) {
       const a = audioRef.current;
       if (!a) return;
@@ -28,7 +31,7 @@ export default function MusicLibraryPanel() {
       else a.pause();
       return;
     }
-    setNowPlaying({ playlistId, filename, fullPath });
+    setNowPlaying({ playlistId, playlistPath, filename, fullPath, files: fileList });
     setTimeout(() => {
       const a = audioRef.current;
       if (!a) return;
@@ -36,6 +39,27 @@ export default function MusicLibraryPanel() {
       a.load();
       a.play().catch(() => {});
     }, 30);
+  }
+
+  function skip(deltaSec) {
+    const a = audioRef.current;
+    if (!a) return;
+    a.currentTime = Math.max(0, Math.min((a.duration || 0), (a.currentTime || 0) + deltaSec));
+  }
+
+  function seekTo(ratio) {
+    const a = audioRef.current;
+    if (!a || !duration) return;
+    a.currentTime = Math.max(0, Math.min(duration, ratio * duration));
+  }
+
+  function jumpInList(direction) {
+    if (!nowPlaying?.files?.length) return;
+    const idx = nowPlaying.files.findIndex(f => f.name === nowPlaying.filename);
+    if (idx < 0) return;
+    const nextIdx = (idx + direction + nowPlaying.files.length) % nowPlaying.files.length;
+    const next = nowPlaying.files[nextIdx];
+    playFile(nowPlaying.playlistId, nowPlaying.playlistPath, next.name, nowPlaying.files);
   }
 
   async function refresh() {
@@ -103,39 +127,57 @@ export default function MusicLibraryPanel() {
         ref={audioRef}
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
-        onEnded={() => setIsPlaying(false)}
+        onEnded={() => { setIsPlaying(false); jumpInList(1); }}
+        onTimeUpdate={() => {
+          const a = audioRef.current;
+          if (!a) return;
+          if (a.duration > 0) setProgress(a.currentTime / a.duration);
+        }}
+        onDurationChange={() => setDuration(audioRef.current?.duration || 0)}
+        onLoadStart={() => { setProgress(0); setDuration(0); }}
       />
       {nowPlaying && (
         <div style={miniPlayer}>
-          <button
-            onClick={() => {
-              const a = audioRef.current;
-              if (!a) return;
-              if (a.paused) a.play().catch(() => {});
-              else a.pause();
+          {/* Progress bar — click to seek */}
+          <div
+            onClick={e => {
+              const r = e.currentTarget.getBoundingClientRect();
+              // RTL: x measured from right edge for natural feel
+              const x = r.right - e.clientX;
+              seekTo(Math.max(0, Math.min(1, x / r.width)));
             }}
-            style={miniPlayBtn}
+            style={progressBar}
           >
-            {isPlaying ? '⏸' : '▶'}
-          </button>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {nowPlaying.filename}
-            </div>
-            <div style={{ fontSize: 10, color: '#888', marginTop: 1 }}>מתנגן עכשיו</div>
+            <div style={{
+              position: 'absolute', top: 0, bottom: 0, right: 0,
+              width: `${progress * 100}%`,
+              background: '#1db954', transition: 'width 0.2s linear',
+            }} />
           </div>
-          <button
-            onClick={() => {
-              const a = audioRef.current;
-              if (a) { a.pause(); a.src = ''; }
-              setNowPlaying(null);
-              setIsPlaying(false);
-            }}
-            title="עצור וסגור"
-            style={miniCloseBtn}
-          >
-            ✕
-          </button>
+
+          {/* Title + times */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 14px 4px' }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {nowPlaying.filename}
+              </div>
+              <div style={{ fontSize: 10, color: '#888', marginTop: 1, fontVariantNumeric: 'tabular-nums' }}>
+                {fmtTime(progress * duration)} / {fmtTime(duration)}
+              </div>
+            </div>
+            <button onClick={() => { const a = audioRef.current; if (a) { a.pause(); a.src = ''; } setNowPlaying(null); setIsPlaying(false); }}
+                    title="עצור וסגור" style={miniCloseBtn}>✕</button>
+          </div>
+
+          {/* Transport controls — locked LTR for music-player conventions */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, direction: 'ltr', padding: '4px 8px 10px' }}>
+            <button onClick={() => jumpInList(-1)} title="הקודם" style={ctrlBtn}>⏮</button>
+            <button onClick={() => skip(-10)}     title="-10 שניות" style={ctrlBtn}>⏪10</button>
+            <button onClick={() => { const a = audioRef.current; if (!a) return; if (a.paused) a.play().catch(() => {}); else a.pause(); }}
+                    style={miniPlayBtn}>{isPlaying ? '⏸' : '▶'}</button>
+            <button onClick={() => skip(10)}      title="+10 שניות" style={ctrlBtn}>10⏩</button>
+            <button onClick={() => jumpInList(1)} title="הבא" style={ctrlBtn}>⏭</button>
+          </div>
         </div>
       )}
     </div>
@@ -303,7 +345,7 @@ function PlaylistCard({ playlist, onChange, nowPlaying, isPlaying, onPlay }) {
                     background: isThisActive ? '#0d2e0d33' : 'transparent',
                   }}>
                     <button
-                      onClick={() => onPlay?.(playlist.id, playlist.path, f.name)}
+                      onClick={() => onPlay?.(playlist.id, playlist.path, f.name, files)}
                       title={isThisPlaying ? 'השהה' : 'נגן'}
                       style={{
                         ...playBtn,
@@ -368,6 +410,12 @@ function fmtDate(ms) {
   const d = new Date(ms);
   return d.toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' });
 }
+function fmtTime(sec) {
+  if (!isFinite(sec) || sec < 0) return '0:00';
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 const cardStyle = {
@@ -399,21 +447,31 @@ const playBtn = {
 const miniPlayer = {
   position: 'fixed', bottom: 18, left: 18,
   background: '#1a1a1a', border: '1px solid #1db954',
-  borderRadius: 12, padding: '10px 14px',
-  display: 'flex', alignItems: 'center', gap: 12,
-  width: 'min(420px, calc(100vw - 36px))',
+  borderRadius: 12, overflow: 'hidden',
+  width: 'min(440px, calc(100vw - 36px))',
   boxShadow: '0 8px 28px rgba(0,0,0,0.5)',
   zIndex: 50, direction: 'rtl',
 };
+const progressBar = {
+  height: 5, background: '#0d0d0d', cursor: 'pointer',
+  position: 'relative', borderBottom: '1px solid #2a2a2a',
+};
 const miniPlayBtn = {
   background: '#1db954', color: '#000', border: 'none',
-  width: 40, height: 40, borderRadius: 20, fontSize: 16,
-  cursor: 'pointer', flexShrink: 0,
+  width: 44, height: 44, borderRadius: 22, fontSize: 18,
+  cursor: 'pointer', flexShrink: 0, fontWeight: 800,
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
 };
 const miniCloseBtn = {
   background: 'transparent', color: '#888', border: '1px solid #444',
   width: 28, height: 28, borderRadius: 14, fontSize: 13, cursor: 'pointer',
   flexShrink: 0,
+};
+const ctrlBtn = {
+  background: '#252525', color: '#ccc', border: '1px solid #333',
+  height: 36, minWidth: 44, padding: '0 10px',
+  borderRadius: 10, fontSize: 13, fontWeight: 700,
+  cursor: 'pointer', flexShrink: 0,
 };
 const errBox = {
   background: '#3a1010', color: '#ff6b6b', border: '1px solid #dc3545',
