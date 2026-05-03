@@ -99,6 +99,22 @@ export const addFavorite = (songId, song) => api.post(`/favorites/${songId}`, so
 export const removeFavorite = (songId) => api.delete(`/favorites/${songId}`).then(r => r.data);
 export const reorderFavorites = (ids) => api.patch('/favorites/reorder', { ids }).then(r => r.data);
 
+// Admin music library (admin)
+export const getMusicStats = () => api.get('/admin/music/stats').then(r => r.data);
+export const listMusicFiles = (playlistId) => api.get(`/admin/music/list/${playlistId}`).then(r => r.data);
+export const deleteMusicFile = (playlistId, filename) =>
+  api.delete('/admin/music/file', { params: { playlistId, filename } }).then(r => r.data);
+export const uploadMusicFiles = (playlistId, files, onProgress) => {
+  const fd = new FormData();
+  for (const f of files) fd.append('files', f);
+  return api.post(`/admin/music/upload?playlistId=${encodeURIComponent(playlistId)}`, fd, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    onUploadProgress: e => {
+      if (onProgress && e.total) onProgress(Math.round((e.loaded / e.total) * 100));
+    },
+  }).then(r => r.data);
+};
+
 // OneDrive sync (admin)
 export const getOneDriveStatus = () => api.get('/onedrive/status').then(r => r.data);
 export const probeOneDrive = () => api.post('/onedrive/probe').then(r => r.data);

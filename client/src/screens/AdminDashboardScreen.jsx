@@ -9,6 +9,7 @@ import { useAuthStore } from '../store/authStore.js';
 import { logoutApi } from '../api/client.js';
 import { downloadCSV, csvDate } from '../utils/csv.js';
 import { AvatarCircle } from '../App.jsx';
+import MusicLibraryPanel from '../components/MusicLibraryPanel.jsx';
 
 // ─── Public component ─────────────────────────────────────────────────────────
 export default function AdminDashboardScreen({ onExit }) {
@@ -57,6 +58,7 @@ export default function AdminDashboardScreen({ onExit }) {
           <NavItem icon="📋" label="לוג פעילות"   active={section === 'activity'} onClick={() => setSection('activity')} />
           <NavItem icon="📨" label="הזמנות"       active={section === 'invites'}  onClick={() => setSection('invites')} />
           <NavItem icon="🎵" label="פלייליסטים"   active={section === 'playlists'} onClick={() => setSection('playlists')} />
+          <NavItem icon="🎶" label="ספריית מוזיקה" active={section === 'music'}    onClick={() => setSection('music')} />
           <NavItem icon="💾" label="גיבוי / שחזור" active={section === 'backup'}    onClick={() => setSection('backup')} />
         </nav>
 
@@ -91,6 +93,7 @@ export default function AdminDashboardScreen({ onExit }) {
         {section === 'activity'  && <ActivitySection />}
         {section === 'invites'   && <InvitesSection />}
         {section === 'playlists' && <PlaylistsSection />}
+        {section === 'music'     && <MusicLibraryPanel />}
         {section === 'backup'    && <BackupSection />}
         {section === 'messages'  && <MessagesSection onChange={refreshPending} />}
       </main>

@@ -19,6 +19,7 @@ import favoritesRouter from './routes/favorites.js';
 import invitesRouter from './routes/invites.js';
 import backupRouter from './routes/backup.js';
 import adminStatsRouter from './routes/admin-stats.js';
+import adminMusicRouter from './routes/admin-music.js';
 import onedriveRouter from './routes/onedrive.js';
 import { startSyncScheduler } from './services/OneDriveSync.js';
 import { requireAuth, requireAdmin } from './middleware/auth.js';
@@ -97,6 +98,7 @@ app.use('/api/invites', invitesRouter); // mixed: GET/:token + POST/:token/regis
 // Backup bundle can be large (avatars are base64), bump body limit for this route only
 app.use('/api/backup', express.json({ limit: '50mb' }), backupRouter);
 app.use('/api/admin', adminStatsRouter);
+app.use('/api/admin/music', requireAdmin, adminMusicRouter);
 app.use('/api/onedrive', requireAdmin, onedriveRouter);
 
 // SPA fallback
