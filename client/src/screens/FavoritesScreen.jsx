@@ -137,9 +137,10 @@ export default function FavoritesScreen({ onExit }) {
   };
 
   // Toggle shuffle mode.
-  // - OFF → ON:  reshuffle and either start a new random session, or just
-  //              swap the queue under the currently-playing song so it
-  //              continues into the random order without interrupting audio.
+  // - OFF → ON:  reshuffle and start playing a random song. If something is
+  //              already playing, jump to a different song so the action is
+  //              visibly random (previously we tried not to interrupt audio,
+  //              which made shuffle look like it did nothing).
   // - ON  → OFF: rebuild the queue in the displayed order, keeping the
   //              current song aligned so 'next' continues from there.
   const toggleShuffle = () => {
@@ -158,19 +159,15 @@ export default function FavoritesScreen({ onExit }) {
       setPlayQueue(displayedSongs);
       return;
     }
-    // Turn shuffle ON
+    // Turn shuffle ON — always start playing a fresh random song so the user
+    // sees that shuffle took effect. Avoid picking the same song that's
+    // currently playing when there's more than one option.
     setShuffleMode(true);
-    if (current && isPlaying) {
-      // Reshuffle the rest, keeping the current song at position 0 so audio
-      // doesn't restart
-      const others = displayedSongs.filter(s => s.id !== current.id);
-      const shuffled = [current, ...shuffleArr(others)];
-      setPlayQueue(shuffled);
-      setCurrentIdx(0);
-      return;
+    let shuffled = shuffleArr(displayedSongs);
+    if (current && shuffled.length > 1 && shuffled[0].id === current.id) {
+      // Swap [0] with [1] so we don't replay the song that was just playing
+      [shuffled[0], shuffled[1]] = [shuffled[1], shuffled[0]];
     }
-    // Nothing playing — start a fresh shuffled session
-    const shuffled = shuffleArr(displayedSongs);
     playSong(0, shuffled);
   };
 
@@ -514,10 +511,15 @@ export default function FavoritesScreen({ onExit }) {
               data-row-idx={idx}
               onClick={() => {
                 if (dragActive) return;
-                // Tapping a row plays from that point through the displayed list
-                // in its visual order — exits shuffle mode
-                setShuffleMode(false);
-                playSong(idx, displayedSongs);
+                if (shuffleMode) {
+                  // Shuffle on — play the tapped song now, then the rest
+                  // of the list reshuffled after it. Keeps shuffle active.
+                  const others = displayedSongs.filter(x => x.id !== s.id);
+                  playSong(0, [s, ...shuffleArr(others)]);
+                } else {
+                  // Natural order — play from this point through the list
+                  playSong(idx, displayedSongs);
+                }
               }}
               style={{
                 /* Grid handles min-content overflow far more reliably than flexbox.
@@ -785,12 +787,9 @@ export default function FavoritesScreen({ onExit }) {
       <audio
         ref={audioRef}
         onEnded={() => {
-          if (shuffleMode) {
-            const rand = Math.floor(Math.random() * displayedSongs.length);
-            playSong(rand);
-          } else {
-            handlePlayNext();
-          }
+          // playQueue is already shuffled when shuffleMode is on, so following
+          // it sequentially via handlePlayNext gives a random play order.
+          handlePlayNext();
         }}
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
