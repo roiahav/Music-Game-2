@@ -9,6 +9,8 @@
 #
 # Required env: DOMAIN (e.g. oriahav.duckdns.org)
 # Optional env: DUCKDNS_TOKEN (enable DDNS updater)
+# Optional env: HTTPS_PORT  (defaults to 443; set to e.g. 8443 when standard
+#                            443 is already used by another service in the LAN)
 #
 # Run on the server:
 #   DOMAIN=oriahav.duckdns.org \
@@ -16,7 +18,7 @@
 #   curl -sSL https://raw.githubusercontent.com/roiahav/Music-Game-2/main/deploy/setup-https.sh | bash
 #
 # Before running, make sure:
-#   1. Ports 80 and 443 are forwarded in your home router to this machine.
+#   1. Ports 80 and $HTTPS_PORT are forwarded in your home router to this machine.
 #   2. The DOMAIN already resolves to your public IP (DuckDNS dashboard).
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -29,6 +31,7 @@ fail()   { echo -e "${RED}  ✗ $1${RESET}"; }
 DOMAIN="${DOMAIN:-}"
 DUCKDNS_TOKEN="${DUCKDNS_TOKEN:-}"
 UPSTREAM_PORT="${UPSTREAM_PORT:-3000}"
+HTTPS_PORT="${HTTPS_PORT:-443}"
 
 if [ -z "$DOMAIN" ]; then
   fail "DOMAIN is required (e.g. DOMAIN=oriahav.duckdns.org)"
@@ -47,9 +50,9 @@ else
   ok "Caddy installed"
 fi
 
-banner "[2/4] Writing Caddyfile for $DOMAIN"
+banner "[2/4] Writing Caddyfile for $DOMAIN (HTTPS port $HTTPS_PORT)"
 sudo tee /etc/caddy/Caddyfile >/dev/null <<CADDYEOF
-$DOMAIN {
+$DOMAIN:$HTTPS_PORT {
     encode gzip zstd
     reverse_proxy 127.0.0.1:$UPSTREAM_PORT {
         # Forward original client info so Express's "trust proxy" can use it
@@ -72,9 +75,9 @@ sleep 1
 sudo systemctl status caddy --no-pager -n 3 || true
 ok "Caddyfile installed"
 
-banner "[3/4] Firewall — open 80+443, drop external 3000"
+banner "[3/4] Firewall — open 80+$HTTPS_PORT, drop external 3000"
 sudo ufw allow 80/tcp  >/dev/null
-sudo ufw allow 443/tcp >/dev/null
+sudo ufw allow "$HTTPS_PORT"/tcp >/dev/null
 sudo ufw delete allow 3000/tcp >/dev/null 2>&1 || true
 sudo ufw --force enable >/dev/null
 ok "ufw rules updated"
@@ -96,6 +99,11 @@ else
 fi
 
 PUBIP=$(curl -fsS https://api.ipify.org 2>/dev/null || echo unknown)
+if [ "$HTTPS_PORT" = "443" ]; then
+  PUBLIC_URL="https://$DOMAIN"
+else
+  PUBLIC_URL="https://$DOMAIN:$HTTPS_PORT"
+fi
 echo
 echo -e "${GREEN}╔══════════════════════════════════════════════════════════════╗"
 echo -e "║  HTTPS reverse proxy ready                                   ║"
@@ -103,7 +111,7 @@ echo -e "║  Domain:    $DOMAIN"
 echo -e "║  Public IP: $PUBIP"
 echo -e "║                                                              ║"
 echo -e "║  Open in your browser (give Let's Encrypt ~30s on first hit):║"
-echo -e "║  https://$DOMAIN                                             ║"
+echo -e "║  $PUBLIC_URL"
 echo -e "╚══════════════════════════════════════════════════════════════╝${RESET}"
 echo
-echo "Reminder: ports 80 and 443 must be forwarded in your router to this server."
+echo "Reminder: ports 80 and $HTTPS_PORT must be forwarded in your router to this server."
