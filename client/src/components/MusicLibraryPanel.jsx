@@ -787,18 +787,45 @@ function PlaylistCard({ playlist, allPlaylists = [], globalArtists = [], onChang
             )}
           </div>
 
-          {/* Search + count */}
+          {/* Search + count + select-all shortcut */}
           {files && files.length > 0 && (
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
               <input
                 value={filter}
                 onChange={e => setFilter(e.target.value)}
                 placeholder="🔍 סנן לפי שם…"
-                style={searchInput}
+                style={{ ...searchInput, flex: 1, minWidth: 200 }}
               />
               <span style={{ color: '#888', fontSize: 12, whiteSpace: 'nowrap' }}>
                 {visible.length} מתוך {files.length}
               </span>
+              {/* One-click "select all songs" — always visible so it's
+                  obvious you don't have to tick every row by hand. */}
+              {selectedNames.size === files.length ? (
+                <button
+                  onClick={clearSelection}
+                  style={{
+                    background: '#1db95433', border: '1px solid #1db954', color: '#1db954',
+                    borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 700,
+                    cursor: 'pointer', whiteSpace: 'nowrap',
+                  }}
+                  title="בטל בחירה לכל השירים"
+                >
+                  ✓ הכל נבחר — בטל
+                </button>
+              ) : (
+                <button
+                  onClick={() => setSelectedNames(new Set(files.map(f => f.name)))}
+                  style={{
+                    background: '#2a2a2a', border: '1px solid #3a3a3a', color: '#ddd',
+                    borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 700,
+                    cursor: 'pointer', whiteSpace: 'nowrap',
+                  }}
+                  title="סמן את כל השירים בפלייליסט"
+                >
+                  ☑ סמן הכל ({files.length})
+                </button>
+              )}
             </div>
           )}
 
