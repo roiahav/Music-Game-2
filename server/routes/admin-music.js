@@ -91,6 +91,50 @@ router.get('/stats', async (_req, res) => {
   res.json(out);
 });
 
+// ── GET /api/admin/music/duplicates ──────────────────────────────────────
+// Scan every local playlist, group files by lower(artist + ' - ' + title),
+// and return groups of size > 1 so the admin can resolve them. Files where
+// both artist and title are empty fall back to filename matching.
+router.get('/duplicates', async (_req, res) => {
+  const pls = localPlaylists();
+  const all = [];
+  for (const pl of pls) {
+    if (!existsSync(pl.path)) continue;
+    let entries = [];
+    try { entries = await fs.readdir(pl.path, { withFileTypes: true }); } catch { continue; }
+    const files = entries.filter(e => e.isFile() && ALLOWED_EXT.has(e.name.slice(e.name.lastIndexOf('.')).toLowerCase()));
+    const BATCH = 20;
+    for (let i = 0; i < files.length; i += BATCH) {
+      const slice = files.slice(i, i + BATCH);
+      const metas = await Promise.all(slice.map(async f => {
+        const fullPath = join(pl.path, f.name);
+        let sizeBytes = 0;
+        try { sizeBytes = statSync(fullPath).size; } catch {}
+        const meta = await readMetaFor(fullPath);
+        return {
+          playlistId: pl.id,
+          playlistName: pl.name,
+          filename: f.name,
+          sizeBytes,
+          ...meta,
+        };
+      }));
+      all.push(...metas);
+    }
+  }
+  // Group key: prefer artist+title (normalised); fall back to filename.
+  const groups = new Map();
+  for (const item of all) {
+    const a = (item.artist || '').trim().toLowerCase();
+    const t = (item.title  || '').trim().toLowerCase();
+    const key = (a && t) ? `tag:${a} ​ ${t}` : `name:${item.filename.toLowerCase()}`;
+    if (!groups.has(key)) groups.set(key, { key, kind: key.startsWith('tag:') ? 'tag' : 'filename', items: [] });
+    groups.get(key).items.push(item);
+  }
+  const duplicates = [...groups.values()].filter(g => g.items.length > 1);
+  res.json({ duplicates });
+});
+
 // Read embedded ID3/Vorbis tags + duration. Lightweight enough to call per
 // file in the list endpoint (~3-5ms each on local disk).
 async function readMetaFor(filePath) {

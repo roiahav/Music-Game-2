@@ -102,6 +102,7 @@ export const reorderFavorites = (ids) => api.patch('/favorites/reorder', { ids }
 
 // Admin music library (admin)
 export const getMusicStats = () => api.get('/admin/music/stats').then(r => r.data);
+export const getMusicDuplicates = () => api.get('/admin/music/duplicates').then(r => r.data);
 export const listMusicFiles = (playlistId) => api.get(`/admin/music/list/${playlistId}`).then(r => r.data);
 export const deleteMusicFile = (playlistId, filename) =>
   api.delete('/admin/music/file', { params: { playlistId, filename } }).then(r => r.data);

@@ -5,13 +5,43 @@
  */
 import { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
 import {
-  getMusicStats, listMusicFiles, deleteMusicFile, uploadMusicFiles, updateMusicMetadata,
+  getMusicStats, getMusicDuplicates, listMusicFiles, deleteMusicFile, uploadMusicFiles, updateMusicMetadata,
   addToBlacklist, removeFromBlacklist,
 } from '../api/client.js';
 
 export default function MusicLibraryPanel() {
   const [stats, setStats] = useState(null);
   const [error, setError] = useState('');
+  // Duplicate scanner: null when not run, [] for "no duplicates", array of
+  // groups otherwise. `dupLoading` is true while the scan is in flight.
+  const [dupResult, setDupResult] = useState(null);
+  const [dupOpen, setDupOpen] = useState(false);
+  const [dupLoading, setDupLoading] = useState(false);
+
+  async function runDuplicateScan() {
+    setDupOpen(true);
+    setDupLoading(true);
+    try {
+      const r = await getMusicDuplicates();
+      setDupResult(r.duplicates || []);
+    } catch (e) {
+      setDupResult([]);
+      setError(e.response?.data?.error || e.message);
+    } finally {
+      setDupLoading(false);
+    }
+  }
+
+  async function handleDeleteDuplicate(playlistId, filename) {
+    if (!window.confirm(`למחוק את "${filename}"? פעולה לא ניתנת לביטול.`)) return;
+    try {
+      await deleteMusicFile(playlistId, filename);
+      // Refresh duplicates list and overall stats
+      await Promise.all([runDuplicateScan(), refresh()]);
+    } catch (e) {
+      setError(e.response?.data?.error || e.message);
+    }
+  }
 
   // Shared audio player — one <audio> element across all cards so only ever
   // one song plays at a time. State tracks which file is currently active +
@@ -102,11 +132,23 @@ export default function MusicLibraryPanel() {
         העלה, מחק ועיין בקבצי MP3 לכל פלייליסט מקומי. הקבצים נשמרים ישירות בתיקיית הפלייליסט בשרת.
       </p>
 
-      {/* Top stats */}
-      <div style={{ display: 'flex', gap: 16, marginBottom: 24, flexWrap: 'wrap' }}>
+      {/* Top stats + actions */}
+      <div style={{ display: 'flex', gap: 16, marginBottom: 24, flexWrap: 'wrap', alignItems: 'center' }}>
         <Stat label="סה״כ פלייליסטים" value={stats.length} />
         <Stat label="סה״כ קבצים"     value={totalFiles} />
         <Stat label="סה״כ נפח"        value={fmtBytes(totalSize)} />
+        <button
+          onClick={runDuplicateScan}
+          disabled={dupLoading}
+          title="חיפוש שירים כפולים על פני כל הפלייליסטים"
+          style={{
+            background: '#2a2a2a', border: '1px solid #3a3a3a', color: '#ddd',
+            borderRadius: 10, padding: '10px 16px', fontSize: 13, fontWeight: 700,
+            cursor: dupLoading ? 'progress' : 'pointer', marginInlineStart: 'auto',
+          }}
+        >
+          {dupLoading ? '⏳ סורק…' : '🔍 בדיקת כפילויות'}
+        </button>
       </div>
 
       {/* Per-playlist cards */}
@@ -181,7 +223,97 @@ export default function MusicLibraryPanel() {
           </div>
         </div>
       )}
+
+      {/* Duplicates modal */}
+      {dupOpen && (
+        <DuplicatesModal
+          loading={dupLoading}
+          duplicates={dupResult || []}
+          onClose={() => setDupOpen(false)}
+          onDelete={handleDeleteDuplicate}
+          onPlay={(playlistId, playlistPath, filename) => {
+            playFile(playlistId, playlistPath, filename, []);
+          }}
+          stats={stats}
+        />
+      )}
     </div>
+  );
+}
+
+// ─── Duplicates modal ────────────────────────────────────────────────────────
+function DuplicatesModal({ loading, duplicates, onClose, onDelete, onPlay, stats }) {
+  const total = duplicates.reduce((a, g) => a + g.items.length, 0);
+  // Map playlistId → playlist path (so the delete handler can build a path)
+  const pathsById = Object.fromEntries((stats || []).map(p => [p.id, p.path]));
+
+  return (
+    <>
+      <div onClick={onClose} style={modalBackdrop} />
+      <div style={{ ...modalBox, maxWidth: 720 }}>
+        <div style={modalHeader}>
+          <span style={{ fontSize: 16, fontWeight: 800 }}>🔍 בדיקת כפילויות</span>
+          <button onClick={onClose} style={modalCloseBtn}>✕</button>
+        </div>
+        <div style={{ padding: 14, color: '#aaa', fontSize: 13, borderBottom: '1px solid #2a2a2a', lineHeight: 1.6 }}>
+          {loading ? (
+            'סורק את כל הפלייליסטים…'
+          ) : duplicates.length === 0 ? (
+            '✅ לא נמצאו כפילויות. הספרייה נקייה.'
+          ) : (
+            `נמצאו ${duplicates.length} קבוצות של שירים כפולים (${total} קבצים). חפש לפי תגיות זמר+שם השיר; אם אין תגיות, לפי שם הקובץ.`
+          )}
+        </div>
+        {duplicates.length > 0 && (
+          <div style={{ padding: 8, maxHeight: 480, overflowY: 'auto' }}>
+            {duplicates.map((g, gi) => (
+              <div key={gi} style={{
+                background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 10,
+                padding: 10, marginBottom: 10,
+              }}>
+                <div style={{ fontSize: 12, color: '#888', marginBottom: 6, fontWeight: 700 }}>
+                  {g.kind === 'tag'
+                    ? `${g.items[0].artist || '—'} · ${g.items[0].title || '—'}`
+                    : `שם קובץ: ${g.items[0].filename}`}
+                </div>
+                {g.items.map((item, i) => (
+                  <div key={i} style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    padding: '6px 0', borderBottom: i < g.items.length - 1 ? '1px solid #232323' : 'none',
+                    fontSize: 12,
+                  }}>
+                    <button
+                      onClick={() => {
+                        const path = pathsById[item.playlistId];
+                        if (path) onPlay(item.playlistId, path, item.filename);
+                      }}
+                      title="נגן"
+                      style={{ ...playBtn, width: 28, height: 28, fontSize: 12, flexShrink: 0 }}
+                    >▶</button>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ color: '#ddd', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.filename}>
+                        {item.filename}
+                      </div>
+                      <div style={{ color: '#666', fontSize: 11 }}>
+                        📁 {item.playlistName} · {fmtBytes(item.sizeBytes)}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => onDelete(item.playlistId, item.filename)}
+                      title="מחק עותק זה"
+                      style={{ ...delBtn, padding: '4px 8px' }}
+                    >🗑️</button>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
+        <div style={modalFooter}>
+          <button onClick={onClose} style={btnSave}>סגור</button>
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -506,6 +638,7 @@ function PlaylistCard({ playlist, onChange, nowPlaying, isPlaying, onPlay }) {
             <MetadataEditor
               playlistId={playlist.id}
               file={editingFile}
+              siblingFiles={files || []}
               artistSuggestions={[...new Set((files || []).map(f => f.artist).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'he'))}
               onClose={() => setEditingFile(null)}
               onSaved={async () => { setEditingFile(null); await loadFiles(); onChange?.(); }}
@@ -638,7 +771,7 @@ const rowBtn = {
 };
 
 // ─── Metadata edit modal ─────────────────────────────────────────────────────
-function MetadataEditor({ playlistId, file, artistSuggestions = [], onClose, onSaved }) {
+function MetadataEditor({ playlistId, file, siblingFiles = [], artistSuggestions = [], onClose, onSaved }) {
   const [form, setForm] = useState({
     title:  file.title || '',
     artist: file.artist || '',
@@ -649,6 +782,13 @@ function MetadataEditor({ playlistId, file, artistSuggestions = [], onClose, onS
   });
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState('');
+  // Bulk artist rename — set after the user changes the artist field. While
+  // this is non-null, the modal shows a confirmation step instead of closing.
+  // Shape: { oldName, newName, siblings: [filename, ...] } | null
+  const [pendingRename, setPendingRename] = useState(null);
+  const [bulkProgress, setBulkProgress] = useState(0);
+
+  const originalArtist = (file.artist || '').trim();
 
   function update(k, v) { setForm(s => ({ ...s, [k]: v })); }
   // Select existing text on focus so typing replaces it instead of appending
@@ -665,11 +805,54 @@ function MetadataEditor({ playlistId, file, artistSuggestions = [], onClose, onS
     setSaving(true); setError('');
     try {
       await updateMusicMetadata(playlistId, file.name, form);
+      const newArtist = (form.artist || '').trim();
+      // If the artist was renamed AND there are other files in this playlist
+      // by the OLD artist name, ask the user whether to rename them too.
+      if (originalArtist && newArtist && originalArtist !== newArtist) {
+        const sameOld = siblingFiles.filter(f =>
+          f.name !== file.name && (f.artist || '').trim() === originalArtist
+        );
+        if (sameOld.length > 0) {
+          setPendingRename({ oldName: originalArtist, newName: newArtist, siblings: sameOld });
+          setSaving(false);
+          return;
+        }
+      }
       onSaved?.();
     } catch (e) {
       setError(e.response?.data?.error || e.message);
       setSaving(false);
     }
+  }
+
+  async function applyBulkRename() {
+    if (!pendingRename) return;
+    setSaving(true); setError('');
+    setBulkProgress(0);
+    try {
+      let done = 0;
+      for (const sibling of pendingRename.siblings) {
+        await updateMusicMetadata(playlistId, sibling.name, {
+          title:  sibling.title || '',
+          artist: pendingRename.newName,
+          album:  sibling.album || '',
+          year:   sibling.year || '',
+          genre:  sibling.genre || '',
+          track:  sibling.track || '',
+        });
+        done++;
+        setBulkProgress(done);
+      }
+      onSaved?.();
+    } catch (e) {
+      setError(e.response?.data?.error || e.message);
+      setSaving(false);
+    }
+  }
+
+  function skipBulkRename() {
+    setPendingRename(null);
+    onSaved?.();
   }
 
   return (
@@ -683,49 +866,66 @@ function MetadataEditor({ playlistId, file, artistSuggestions = [], onClose, onS
         <div style={{ padding: 18, color: '#888', fontSize: 11, borderBottom: '1px solid #2a2a2a' }}>
           קובץ: <span style={{ color: '#fff' }}>{file.name}</span>
         </div>
-        <div style={modalBody}>
-          <Field label="שם השיר">
-            <input value={form.title}  onChange={e => update('title',  e.target.value)} onFocus={selectOnFocus} onKeyDown={submitOnEnter} style={fldInput} />
-          </Field>
-          <Field label="אמן">
-            <input
-              value={form.artist}
-              onChange={e => update('artist', e.target.value)}
-              onFocus={selectOnFocus} onKeyDown={submitOnEnter}
-              style={fldInput}
-              list="mlp-artist-suggestions"
-              autoComplete="off"
-            />
-            <datalist id="mlp-artist-suggestions">
-              {artistSuggestions.map(a => <option key={a} value={a} />)}
-            </datalist>
-          </Field>
-          <Field label="אלבום">
-            <input value={form.album}  onChange={e => update('album',  e.target.value)} onFocus={selectOnFocus} onKeyDown={submitOnEnter} style={fldInput} />
-          </Field>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-            <Field label="שנה">
-              <input value={form.year}  onChange={e => update('year',  e.target.value)} onFocus={selectOnFocus} onKeyDown={submitOnEnter} style={fldInput} placeholder="2024" />
-            </Field>
-            <Field label="מס׳ רצועה">
-              <input value={form.track} onChange={e => update('track', e.target.value)} onFocus={selectOnFocus} onKeyDown={submitOnEnter} style={fldInput} placeholder="1" />
-            </Field>
-            <Field label="ז׳אנר">
-              <input value={form.genre} onChange={e => update('genre', e.target.value)} onFocus={selectOnFocus} onKeyDown={submitOnEnter} style={fldInput} />
-            </Field>
-          </div>
 
-          {error && <div style={errBox}>{error}</div>}
+        {pendingRename
+          ? <RenameConfirmBody pendingRename={pendingRename} saving={saving} bulkProgress={bulkProgress} error={error} />
+          : (
+            <div style={modalBody}>
+              <Field label="שם השיר">
+                <input value={form.title}  onChange={e => update('title',  e.target.value)} onFocus={selectOnFocus} onKeyDown={submitOnEnter} style={fldInput} />
+              </Field>
+              <Field label="אמן">
+                <input
+                  value={form.artist}
+                  onChange={e => update('artist', e.target.value)}
+                  onFocus={selectOnFocus} onKeyDown={submitOnEnter}
+                  style={fldInput}
+                  list="mlp-artist-suggestions"
+                  autoComplete="off"
+                />
+                <datalist id="mlp-artist-suggestions">
+                  {artistSuggestions.map(a => <option key={a} value={a} />)}
+                </datalist>
+              </Field>
+              <Field label="אלבום">
+                <input value={form.album}  onChange={e => update('album',  e.target.value)} onFocus={selectOnFocus} onKeyDown={submitOnEnter} style={fldInput} />
+              </Field>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                <Field label="שנה">
+                  <input value={form.year}  onChange={e => update('year',  e.target.value)} onFocus={selectOnFocus} onKeyDown={submitOnEnter} style={fldInput} placeholder="2024" />
+                </Field>
+                <Field label="מס׳ רצועה">
+                  <input value={form.track} onChange={e => update('track', e.target.value)} onFocus={selectOnFocus} onKeyDown={submitOnEnter} style={fldInput} placeholder="1" />
+                </Field>
+                <Field label="ז׳אנר">
+                  <input value={form.genre} onChange={e => update('genre', e.target.value)} onFocus={selectOnFocus} onKeyDown={submitOnEnter} style={fldInput} />
+                </Field>
+              </div>
 
-          <div style={{ color: '#666', fontSize: 11, lineHeight: 1.6 }}>
-            💡 השינויים נכתבים ל-ID3 תגי המטא-דאטה של הקובץ עצמו (לא רק במסד הנתונים). חל על MP3 בלבד כרגע.
-          </div>
-        </div>
+              {error && <div style={errBox}>{error}</div>}
+
+              <div style={{ color: '#666', fontSize: 11, lineHeight: 1.6 }}>
+                💡 השינויים נכתבים ל-ID3 תגי המטא-דאטה של הקובץ עצמו (לא רק במסד הנתונים). חל על MP3 בלבד כרגע.
+              </div>
+            </div>
+          )
+        }
         <div style={modalFooter}>
-          <button onClick={onClose} style={btnCancel}>ביטול</button>
-          <button onClick={handleSave} disabled={saving} style={{ ...btnSave, opacity: saving ? 0.6 : 1 }}>
-            {saving ? '⏳ שומר…' : '💾 שמירה'}
-          </button>
+          {pendingRename ? (
+            <>
+              <button onClick={skipBulkRename} disabled={saving} style={btnCancel}>לא, רק את השיר הזה</button>
+              <button onClick={applyBulkRename} disabled={saving} style={{ ...btnSave, opacity: saving ? 0.6 : 1 }}>
+                {saving ? `⏳ ${bulkProgress}/${pendingRename.siblings.length}` : `🔁 עדכן את כל ${pendingRename.siblings.length}`}
+              </button>
+            </>
+          ) : (
+            <>
+              <button onClick={onClose} style={btnCancel}>ביטול</button>
+              <button onClick={handleSave} disabled={saving} style={{ ...btnSave, opacity: saving ? 0.6 : 1 }}>
+                {saving ? '⏳ שומר…' : '💾 שמירה'}
+              </button>
+            </>
+          )}
         </div>
       </div>
     </>
@@ -737,6 +937,37 @@ function Field({ label, children }) {
     <div>
       <div style={{ color: '#888', fontSize: 11, marginBottom: 4, fontWeight: 700 }}>{label}</div>
       {children}
+    </div>
+  );
+}
+
+// Body shown in MetadataEditor when the user just renamed an artist and we
+// detected other songs by the old artist name. Asks them to confirm the
+// bulk rename or skip it.
+function RenameConfirmBody({ pendingRename, saving, bulkProgress, error }) {
+  const oldQuoted = '"' + pendingRename.oldName + '"';
+  const newQuoted = '"' + pendingRename.newName + '"';
+  return (
+    <div style={modalBody}>
+      <div style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 10, padding: 14, lineHeight: 1.6, color: '#ddd', fontSize: 13 }}>
+        שינית את שם האמן מ-
+        <span style={{ color: '#ff8a3d', fontWeight: 700 }}> {oldQuoted}</span>
+        {' '}ל-
+        <span style={{ color: '#1db954', fontWeight: 700 }}>{newQuoted}</span>.
+        <br />
+        נמצאו <span style={{ color: '#fff', fontWeight: 800 }}>{pendingRename.siblings.length}</span> שירים נוספים בפלייליסט עם שם האמן הישן. לעדכן גם אותם?
+      </div>
+      <div style={{ background: '#0f0f0f', border: '1px solid #2a2a2a', borderRadius: 10, maxHeight: 200, overflowY: 'auto', padding: '6px 10px' }}>
+        {pendingRename.siblings.map(s => (
+          <div key={s.name} style={{ fontSize: 12, color: '#888', padding: '4px 0', borderBottom: '1px solid #1a1a1a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={s.name}>
+            {s.title || s.name}
+          </div>
+        ))}
+      </div>
+      {saving && (
+        <div style={{ color: '#888', fontSize: 12 }}>מעדכן {bulkProgress}/{pendingRename.siblings.length}…</div>
+      )}
+      {error && <div style={errBox}>{error}</div>}
     </div>
   );
 }
