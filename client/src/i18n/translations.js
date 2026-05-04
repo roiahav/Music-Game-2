@@ -14,6 +14,8 @@ export const T = {
   solo_desc:      { he:'נגן לבד, גלה שירים', en:'Play alone, reveal songs', ar:'العب وحدك، اكشف الأغاني', ru:'Играй один, угадывай', es:'Juega solo, descubre canciones' },
   group_game:     { he:'משחק קבוצתי',      en:'Group Game',         ar:'لعبة جماعية',           ru:'Групповая игра',        es:'Juego en Grupo' },
   group_desc:     { he:'התחרו עם חברים מהטלפון', en:'Compete with friends', ar:'تنافس مع الأصدقاء', ru:'Соревнуйтесь с друзьями', es:'Compite con amigos' },
+  chooser_solo_desc:  { he:'שחק לבד מול עצמך', en:'Play by yourself', ar:'العب بمفردك',           ru:'Играть одному',         es:'Juega tú solo' },
+  chooser_multi_desc: { he:'התחרו עם חברים', en:'Compete with friends', ar:'تنافس مع الأصدقاء', ru:'Соревнуйтесь с друзьями', es:'Compite con amigos' },
   free_guess:     { he:'ניחוש חופשי',      en:'Free Guess',         ar:'تخمين حر',              ru:'Угадай сам',            es:'Adivinanza Libre' },
   free_desc:      { he:'הקלד שם שיר, זמר ושנה', en:'Type song, artist & year', ar:'اكتب الأغنية والفنان والسنة', ru:'Введите песню, артиста и год', es:'Escribe canción, artista y año' },
   years_game:     { he:'זיהוי שנים',       en:'Year Match',         ar:'تطابق السنة',           ru:'Угадай год',            es:'Adivina el año' },

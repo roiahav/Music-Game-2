@@ -23,28 +23,16 @@ export const GAMES = [
     bg: '#9b59b6', subColor: '#d7b8f5',
   },
   {
-    id: 'years', screen: 'years',
+    id: 'years', screen: 'years-chooser',
     icon: '📅', label: 'זיהוי שנים',
     descKey: 'years_desc',
     bg: '#f39c12', subColor: '#fde8b0',
   },
   {
-    id: 'years-multi', screen: 'years-multi',
-    icon: '🏆', label: 'זיהוי שנים — קבוצתי',
-    descKey: 'ygm_desc',
-    bg: '#e67e22', subColor: '#fdd5b0',
-  },
-  {
-    id: 'champion', screen: 'champion',
+    id: 'champion', screen: 'champion-chooser',
     icon: '🥇', label: 'אלוף הזיהויים',
     descRaw: 'זמר, שיר ושנה — 3 קוביות לכל שיר',
     bg: '#C9A227', subColor: '#fff5c5',
-  },
-  {
-    id: 'champion-multi', screen: 'champion-multi',
-    icon: '🏅', label: 'אלוף הזיהויים — קבוצתי',
-    descRaw: 'מי שצובר הכי הרבה נקודות מנצח',
-    bg: '#DAA520', subColor: '#fff8c5',
   },
   {
     id: 'ladders-hits', screen: 'ladders-hits',

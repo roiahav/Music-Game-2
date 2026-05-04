@@ -19,6 +19,7 @@ import YearsMultiplayerScreen from './screens/YearsMultiplayerScreen.jsx';
 import ChampionGameScreen from './screens/ChampionGameScreen.jsx';
 import ChampionMultiplayerScreen from './screens/ChampionMultiplayerScreen.jsx';
 import LaddersHitsScreen from './screens/LaddersHitsScreen.jsx';
+import GameModeChooser from './components/GameModeChooser.jsx';
 import { logoutApi, uploadAvatar, getAvatarUrl, getUsers } from './api/client.js';
 import { useLang } from './i18n/useLang.js';
 import { getVisibleGames } from './games-config.js';
@@ -253,6 +254,36 @@ export default function App() {
           );
         })}
       </div>
+    </div>
+  );
+
+  // ── Years chooser (solo / multi) ──────────────────────────────────────────────
+  if (screen === 'years-chooser') return (
+    <div style={{ ...shell }}>
+      <GameModeChooser
+        title="זיהוי שנים"
+        icon="📅"
+        accent="#f39c12"
+        subColor="#fde8b0"
+        onSolo={() => setScreen('years')}
+        onMulti={() => setScreen('years-multi')}
+        onBack={() => setScreen('home')}
+      />
+    </div>
+  );
+
+  // ── Champion chooser (solo / multi) ───────────────────────────────────────────
+  if (screen === 'champion-chooser') return (
+    <div style={{ ...shell }}>
+      <GameModeChooser
+        title="אלוף הזיהויים"
+        icon="🥇"
+        accent="#C9A227"
+        subColor="#fff5c5"
+        onSolo={() => setScreen('champion')}
+        onMulti={() => setScreen('champion-multi')}
+        onBack={() => setScreen('home')}
+      />
     </div>
   );
 
