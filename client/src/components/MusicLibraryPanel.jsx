@@ -5,7 +5,7 @@
  */
 import { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
 import {
-  getMusicStats, getMusicDuplicates, listMusicFiles, deleteMusicFile, uploadMusicFiles, updateMusicMetadata,
+  getMusicStats, getMusicDuplicates, getMusicArtists, listMusicFiles, deleteMusicFile, uploadMusicFiles, updateMusicMetadata,
   moveMusicFile, setPlaylistHidden, createMusicPlaylist, addToBlacklist, removeFromBlacklist,
 } from '../api/client.js';
 
@@ -19,6 +19,16 @@ export default function MusicLibraryPanel() {
   const [dupLoading, setDupLoading] = useState(false);
   // "+ פלייליסט חדש" modal state
   const [createOpen, setCreateOpen] = useState(false);
+  // Global artist list for the metadata editor's autocomplete — sourced from
+  // every local playlist (not just the one being edited).
+  const [globalArtists, setGlobalArtists] = useState([]);
+  async function loadGlobalArtists() {
+    try {
+      const r = await getMusicArtists();
+      setGlobalArtists(r.artists || []);
+    } catch {}
+  }
+  useEffect(() => { loadGlobalArtists(); }, []);
 
   async function runDuplicateScan() {
     setDupOpen(true);
@@ -171,7 +181,8 @@ export default function MusicLibraryPanel() {
             key={p.id}
             playlist={p}
             allPlaylists={stats}
-            onChange={refresh}
+            globalArtists={globalArtists}
+            onChange={() => { refresh(); loadGlobalArtists(); }}
             nowPlaying={nowPlaying}
             isPlaying={isPlaying}
             onPlay={playFile}
@@ -425,7 +436,7 @@ function CreatePlaylistModal({ onClose, onCreated }) {
 }
 
 // ─── Per-playlist card with drag-drop, list, delete ──────────────────────────
-function PlaylistCard({ playlist, allPlaylists = [], onChange, nowPlaying, isPlaying, onPlay }) {
+function PlaylistCard({ playlist, allPlaylists = [], globalArtists = [], onChange, nowPlaying, isPlaying, onPlay }) {
   const [open, setOpen] = useState(false);
   const [files, setFiles] = useState(null);
   const [filter, setFilter] = useState('');
@@ -811,7 +822,10 @@ function PlaylistCard({ playlist, allPlaylists = [], onChange, nowPlaying, isPla
               playlistId={playlist.id}
               file={editingFile}
               siblingFiles={files || []}
-              artistSuggestions={[...new Set((files || []).map(f => f.artist).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'he'))}
+              artistSuggestions={[...new Set([
+                ...globalArtists,
+                ...((files || []).map(f => f.artist).filter(Boolean)),
+              ])].sort((a, b) => a.localeCompare(b, 'he'))}
               onClose={() => setEditingFile(null)}
               onSaved={async () => { setEditingFile(null); await loadFiles(); onChange?.(); }}
             />

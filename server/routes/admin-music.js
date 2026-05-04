@@ -105,6 +105,33 @@ router.get('/stats', async (_req, res) => {
   res.json(out);
 });
 
+// ── GET /api/admin/music/artists ─────────────────────────────────────────
+// Returns the unique, locale-sorted set of artist tags across every local
+// playlist. Used by the metadata editor's autocomplete so the admin can
+// pick a name they've already used elsewhere — useful when normalising
+// e.g. "Aviv Geffen" / "אביב גפן" across all folders.
+router.get('/artists', async (_req, res) => {
+  const pls = localPlaylists();
+  const set = new Set();
+  for (const pl of pls) {
+    if (!existsSync(pl.path)) continue;
+    let entries = [];
+    try { entries = await fs.readdir(pl.path, { withFileTypes: true }); } catch { continue; }
+    const files = entries.filter(e => e.isFile() && ALLOWED_EXT.has(e.name.slice(e.name.lastIndexOf('.')).toLowerCase()));
+    const BATCH = 20;
+    for (let i = 0; i < files.length; i += BATCH) {
+      const slice = files.slice(i, i + BATCH);
+      const metas = await Promise.all(slice.map(f => readMetaFor(join(pl.path, f.name))));
+      for (const m of metas) {
+        const a = (m.artist || '').trim();
+        if (a) set.add(a);
+      }
+    }
+  }
+  const artists = [...set].sort((a, b) => a.localeCompare(b, 'he'));
+  res.json({ artists });
+});
+
 // ── GET /api/admin/music/duplicates ──────────────────────────────────────
 // Scan every local playlist, group files by lower(artist + ' - ' + title),
 // and return groups of size > 1 so the admin can resolve them. Files where

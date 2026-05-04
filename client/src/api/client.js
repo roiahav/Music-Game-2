@@ -110,6 +110,7 @@ export const moveMusicFile = (fromPlaylistId, filename, toPlaylistId, overwrite 
   api.post('/admin/music/move', { fromPlaylistId, filename, toPlaylistId, overwrite }).then(r => r.data);
 export const createMusicPlaylist = (name) =>
   api.post('/admin/music/playlist-create', { name }).then(r => r.data);
+export const getMusicArtists = () => api.get('/admin/music/artists').then(r => r.data);
 export const setPlaylistHidden = (id, hidden) =>
   api.post('/settings/playlists', { id, hidden }).then(r => r.data);
 export const updateMusicMetadata = (playlistId, filename, fields) =>
