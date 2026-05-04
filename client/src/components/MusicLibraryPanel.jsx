@@ -448,6 +448,11 @@ function PlaylistCard({ playlist, allPlaylists = [], globalArtists = [], onChang
   const [editingFile, setEditingFile] = useState(null); // the file object being edited
   const [movingFile, setMovingFile]   = useState(null); // the file object being moved
   const [moving, setMoving] = useState(false);
+  // Bulk selection — set of filenames the user has ticked. Drives the
+  // checkbox state, the bulk-action toolbar, and the multi-file move flow.
+  const [selectedNames, setSelectedNames] = useState(() => new Set());
+  const [bulkMoveTarget, setBulkMoveTarget] = useState(null);   // 'open' | null
+  const [bulkProgress, setBulkProgress] = useState(null);       // { done, total } | null
   const [sortKey, setSortKey] = useState('name'); // name | title | artist | year | duration | sizeBytes
   const [sortDir, setSortDir] = useState('asc'); // 'asc' | 'desc'
   const inputRef = useRef(null);
@@ -532,6 +537,73 @@ function PlaylistCard({ playlist, allPlaylists = [], globalArtists = [], onChang
     if (!pendingUpload) return;
     const filtered = pendingUpload.files.filter(f => !skipNames.has(f.name));
     doUpload(filtered);
+  }
+
+  function toggleSelected(name) {
+    setSelectedNames(prev => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name); else next.add(name);
+      return next;
+    });
+  }
+  function selectAllVisible(visibleFiles) {
+    setSelectedNames(new Set(visibleFiles.map(f => f.name)));
+  }
+  function clearSelection() {
+    setSelectedNames(new Set());
+  }
+
+  // Bulk-move all selected files to `targetPlaylistId`. Iterates the
+  // existing /api/admin/music/move endpoint sequentially so the user sees a
+  // progress counter and any per-file conflict can be resolved per-step
+  // (we just default to skipping conflicts in bulk to keep it simple).
+  async function handleBulkMove(targetPlaylistId) {
+    const names = [...selectedNames];
+    if (names.length === 0) return;
+    setBulkProgress({ done: 0, total: names.length, action: 'move' });
+    setErrorMsg('');
+    let lastError = '';
+    for (let i = 0; i < names.length; i++) {
+      const name = names[i];
+      try {
+        await moveMusicFile(playlist.id, name, targetPlaylistId, false);
+      } catch (e) {
+        // 409 = name conflict at target — silently skip in bulk; user can
+        // resolve any leftovers individually.
+        if (e.response?.status !== 409) {
+          lastError = e.response?.data?.error || e.message;
+        }
+      }
+      setBulkProgress({ done: i + 1, total: names.length, action: 'move' });
+    }
+    if (lastError) setErrorMsg(`חלק מהקבצים לא הועברו: ${lastError}`);
+    setBulkProgress(null);
+    setBulkMoveTarget(null);
+    clearSelection();
+    await loadFiles();
+    onChange?.();
+  }
+
+  // Bulk-delete all selected files after a confirmation.
+  async function handleBulkDelete() {
+    const names = [...selectedNames];
+    if (names.length === 0) return;
+    if (!window.confirm(`למחוק ${names.length} קבצים? פעולה לא ניתנת לביטול.`)) return;
+    setBulkProgress({ done: 0, total: names.length, action: 'delete' });
+    let lastError = '';
+    for (let i = 0; i < names.length; i++) {
+      try {
+        await deleteMusicFile(playlist.id, names[i]);
+      } catch (e) {
+        lastError = e.response?.data?.error || e.message;
+      }
+      setBulkProgress({ done: i + 1, total: names.length, action: 'delete' });
+    }
+    if (lastError) setErrorMsg(`חלק מהקבצים לא נמחקו: ${lastError}`);
+    setBulkProgress(null);
+    clearSelection();
+    await loadFiles();
+    onChange?.();
   }
 
   async function handleMoveFile(targetPlaylistId, overwrite = false) {
@@ -732,6 +804,58 @@ function PlaylistCard({ playlist, allPlaylists = [], globalArtists = [], onChang
 
           {errorMsg && <div style={errBox}>{errorMsg}</div>}
 
+          {/* Bulk action toolbar — shows when at least one row is selected */}
+          {selectedNames.size > 0 && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              background: '#0d2e0d', border: '1px solid #1db954',
+              borderRadius: 10, padding: '8px 12px', flexWrap: 'wrap',
+            }}>
+              <span style={{ color: '#1db954', fontWeight: 800, fontSize: 13 }}>
+                ✓ {selectedNames.size} נבחרו
+              </span>
+              <div style={{ flex: 1 }} />
+              <button
+                onClick={() => setBulkMoveTarget('open')}
+                disabled={!!bulkProgress}
+                style={{
+                  background: '#1db95433', border: '1px solid #1db954', color: '#1db954',
+                  borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 700,
+                  cursor: bulkProgress ? 'progress' : 'pointer',
+                }}
+              >
+                ↗ העבר את כולם
+              </button>
+              <button
+                onClick={handleBulkDelete}
+                disabled={!!bulkProgress}
+                style={{
+                  background: '#3a1010', border: '1px solid #5a1010', color: '#ff6b6b',
+                  borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 700,
+                  cursor: bulkProgress ? 'progress' : 'pointer',
+                }}
+              >
+                🗑️ מחק את כולם
+              </button>
+              <button
+                onClick={clearSelection}
+                disabled={!!bulkProgress}
+                style={{
+                  background: 'transparent', border: '1px solid #3a3a3a', color: '#aaa',
+                  borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 700,
+                  cursor: bulkProgress ? 'progress' : 'pointer',
+                }}
+              >
+                ✕ בטל בחירה
+              </button>
+              {bulkProgress && (
+                <span style={{ color: '#ddd', fontSize: 12, fontWeight: 700 }}>
+                  {bulkProgress.action === 'move' ? '↗' : '🗑️'} {bulkProgress.done}/{bulkProgress.total}…
+                </span>
+              )}
+            </div>
+          )}
+
           {/* File table */}
           {!files ? (
             <div style={{ color: '#888', fontSize: 13, padding: 14, textAlign: 'center' }}>טוען…</div>
@@ -742,6 +866,25 @@ function PlaylistCard({ playlist, allPlaylists = [], globalArtists = [], onChang
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead ref={theadRef} style={{ position: 'sticky', top: 0, background: '#222', zIndex: 2 }}>
                   <tr style={{ color: '#888', fontWeight: 700, textAlign: 'right' }}>
+                    <Th width={36}>
+                      <input
+                        type="checkbox"
+                        checked={visible.length > 0 && visible.every(f => selectedNames.has(f.name))}
+                        ref={el => {
+                          if (el) {
+                            const allSelected = visible.length > 0 && visible.every(f => selectedNames.has(f.name));
+                            const someSelected = visible.some(f => selectedNames.has(f.name));
+                            el.indeterminate = someSelected && !allSelected;
+                          }
+                        }}
+                        onChange={e => {
+                          if (e.target.checked) selectAllVisible(visible);
+                          else clearSelection();
+                        }}
+                        style={{ cursor: 'pointer', accentColor: '#1db954' }}
+                        title="בחר/בטל בחירה לכל הנראים"
+                      />
+                    </Th>
                     <Th width={48}></Th>
                     <Th onClick={() => toggleSort('title')}    label={`שם השיר${arrow('title')}`} />
                     <Th onClick={() => toggleSort('artist')}   label={`אמן${arrow('artist')}`} />
@@ -760,11 +903,21 @@ function PlaylistCard({ playlist, allPlaylists = [], globalArtists = [], onChang
                 const stickyCell = isThisActive
                   ? { position: 'sticky', top: headerH, background: '#142a14', zIndex: 1 }
                   : null;
+                const isSelected = selectedNames.has(f.name);
                 return (
                   <tr key={f.name} style={{
                     borderBottom: i < visible.length - 1 ? '1px solid #2a2a2a' : 'none',
                     opacity: f.hidden ? 0.45 : 1,
+                    background: isSelected ? '#0d2e0d22' : 'transparent',
                   }}>
+                    <td style={{ padding: '8px 4px 8px 8px', ...stickyCell }}>
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleSelected(f.name)}
+                        style={{ cursor: 'pointer', accentColor: '#1db954', width: 16, height: 16 }}
+                      />
+                    </td>
                     <td style={{ padding: '8px 8px 8px 12px', ...stickyCell }}>
                       <button
                         onClick={() => onPlay?.(playlist.id, playlist.path, f.name, files)}
@@ -838,6 +991,18 @@ function PlaylistCard({ playlist, allPlaylists = [], globalArtists = [], onChang
               conflictNames={pendingUpload.conflictNames}
               onResolve={handleResolveConflicts}
               onCancel={() => setPendingUpload(null)}
+            />
+          )}
+
+          {/* Bulk-move modal */}
+          {bulkMoveTarget === 'open' && (
+            <BulkMovePlaylistModal
+              count={selectedNames.size}
+              currentPlaylistId={playlist.id}
+              targets={allPlaylists}
+              progress={bulkProgress}
+              onSelect={pid => handleBulkMove(pid)}
+              onCancel={() => { if (!bulkProgress) setBulkMoveTarget(null); }}
             />
           )}
 
@@ -1005,6 +1170,52 @@ function MovePlaylistModal({ file, currentPlaylistId, targets, moving, onSelect,
         </div>
         <div style={modalFooter}>
           <button onClick={onCancel} disabled={moving} style={btnCancel}>ביטול</button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ─── Bulk-move modal — pick a target playlist for many files at once ─────────
+function BulkMovePlaylistModal({ count, currentPlaylistId, targets, progress, onSelect, onCancel }) {
+  const others = (targets || []).filter(p => p.id !== currentPlaylistId);
+  const busy = !!progress;
+  return (
+    <>
+      <div onClick={busy ? undefined : onCancel} style={modalBackdrop} />
+      <div style={{ ...modalBox, maxWidth: 480 }}>
+        <div style={modalHeader}>
+          <span style={{ fontSize: 16, fontWeight: 800 }}>↗ העברת {count} קבצים</span>
+          <button onClick={onCancel} disabled={busy} style={modalCloseBtn}>✕</button>
+        </div>
+        <div style={{ padding: 14, color: '#aaa', fontSize: 13, borderBottom: '1px solid #2a2a2a', lineHeight: 1.6 }}>
+          {busy
+            ? `מעביר ${progress.done}/${progress.total}…`
+            : `בחר פלייליסט יעד. הקבצים יעברו פיזית בין התיקיות. אם קובץ באותו שם כבר קיים ביעד — הוא לא ידרס (ידלג).`}
+        </div>
+        <div style={{ padding: '8px 14px', maxHeight: 360, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {others.length === 0 ? (
+            <div style={{ color: '#888', fontSize: 13, padding: 8 }}>אין פלייליסטים אחרים זמינים.</div>
+          ) : others.map(p => (
+            <button
+              key={p.id}
+              onClick={() => onSelect(p.id)}
+              disabled={busy}
+              style={{
+                background: '#1a1a1a', border: '1px solid #2a2a2a',
+                borderRadius: 8, padding: '10px 12px', textAlign: 'right',
+                color: '#fff', cursor: busy ? 'progress' : 'pointer',
+                opacity: busy ? 0.6 : 1,
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              }}
+            >
+              <span style={{ fontSize: 14, fontWeight: 700 }}>📁 {p.name}{p.hidden ? ' 🙈' : ''}</span>
+              <span style={{ fontSize: 11, color: '#888' }}>{p.files} קבצים</span>
+            </button>
+          ))}
+        </div>
+        <div style={modalFooter}>
+          <button onClick={onCancel} disabled={busy} style={btnCancel}>ביטול</button>
         </div>
       </div>
     </>
