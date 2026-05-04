@@ -35,6 +35,11 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
 
 const app = express();
+// Trust the first proxy hop so X-Forwarded-* headers from Caddy /
+// Cloudflare / Tailscale-Funnel are honoured (correct client IP in
+// activity logs + secure-cookie detection if/when we add cookies).
+// Harmless when there's no proxy in front.
+app.set('trust proxy', 1);
 const httpServer = createServer(app);
 const io = new Server(httpServer, { cors: { origin: '*' } });
 setupMultiplayer(io);
