@@ -867,22 +867,26 @@ function PlaylistCard({ playlist, allPlaylists = [], globalArtists = [], onChang
                 <thead ref={theadRef} style={{ position: 'sticky', top: 0, background: '#222', zIndex: 2 }}>
                   <tr style={{ color: '#888', fontWeight: 700, textAlign: 'right' }}>
                     <Th width={36}>
+                      {/* One ✓ in the header marks the ENTIRE playlist —
+                          not just the rows visible after the search filter.
+                          To select only the filtered subset, use the row
+                          checkboxes (or first clear the search). */}
                       <input
                         type="checkbox"
-                        checked={visible.length > 0 && visible.every(f => selectedNames.has(f.name))}
+                        checked={files.length > 0 && selectedNames.size === files.length}
                         ref={el => {
                           if (el) {
-                            const allSelected = visible.length > 0 && visible.every(f => selectedNames.has(f.name));
-                            const someSelected = visible.some(f => selectedNames.has(f.name));
-                            el.indeterminate = someSelected && !allSelected;
+                            const all  = files.length > 0 && selectedNames.size === files.length;
+                            const some = selectedNames.size > 0;
+                            el.indeterminate = some && !all;
                           }
                         }}
                         onChange={e => {
-                          if (e.target.checked) selectAllVisible(visible);
+                          if (e.target.checked) setSelectedNames(new Set(files.map(f => f.name)));
                           else clearSelection();
                         }}
                         style={{ cursor: 'pointer', accentColor: '#1db954' }}
-                        title="בחר/בטל בחירה לכל הנראים"
+                        title="בחר / בטל בחירה לכל השירים בפלייליסט"
                       />
                     </Th>
                     <Th width={48}></Th>
