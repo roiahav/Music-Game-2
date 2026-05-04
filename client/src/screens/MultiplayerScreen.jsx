@@ -10,6 +10,7 @@ import YearPicker from '../components/YearPicker.jsx';
 import AutocompleteInput from '../components/AutocompleteInput.jsx';
 import { AvatarCircle } from '../App.jsx';
 import { useLang } from '../i18n/useLang.js';
+import { unlockAudio } from '../utils/audioUnlock.js';
 
 const DEFAULT_YEAR = 2000;
 const MEDALS = ['🥇', '🥈', '🥉'];
@@ -446,12 +447,14 @@ export default function MultiplayerScreen({ onExit }) {
   // ── Handlers ──────────────────────────────────────────────────────────────
   function createRoom() {
     if (!myName.trim()) { setError('הזן שם'); return; }
+    unlockAudio(audioRef.current);
     socket.emit('mp:create', { name: myName.trim(), userId: authUser?.id });
   }
 
   function joinRoom() {
     if (!myName.trim()) { setError('הזן שם'); return; }
     if (!joinCode.trim()) { setError('הזן קוד חדר'); return; }
+    unlockAudio(audioRef.current);
     socket.emit('mp:join', { code: joinCode.trim(), name: myName.trim(), userId: authUser?.id });
   }
 

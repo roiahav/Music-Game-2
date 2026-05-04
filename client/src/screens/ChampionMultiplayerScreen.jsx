@@ -5,6 +5,7 @@ import { useAuthStore } from '../store/authStore.js';
 import TimerBar from '../components/TimerBar.jsx';
 import { AvatarCircle } from '../App.jsx';
 import { useLang } from '../i18n/useLang.js';
+import { unlockAudio } from '../utils/audioUnlock.js';
 
 const SERVER = import.meta.env.VITE_SERVER_URL || '';
 const DECADES = [1950, 1960, 1970, 1980, 1990, 2000, 2010, 2020];
@@ -159,10 +160,12 @@ export default function ChampionMultiplayerScreen({ onExit }) {
   // Actions
   function handleCreate() {
     if (!playerName.trim()) return;
+    unlockAudio(audioRef.current);
     socketRef.current?.emit('champ:create', { name: playerName.trim(), userId: user?.id });
   }
   function handleJoin() {
     if (!playerName.trim() || !code.trim()) return;
+    unlockAudio(audioRef.current);
     socketRef.current?.emit('champ:join', { code: code.trim().toUpperCase(), name: playerName.trim(), userId: user?.id });
   }
   function startGame() {
