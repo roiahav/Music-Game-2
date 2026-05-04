@@ -117,8 +117,11 @@ export const updateMusicMetadata = (playlistId, filename, fields) =>
 export const uploadMusicFiles = (playlistId, files, onProgress) => {
   const fd = new FormData();
   for (const f of files) fd.append('files', f);
+  // IMPORTANT: do NOT set Content-Type here. axios + the browser auto-add
+  // `multipart/form-data; boundary=…` from FormData. Setting it manually
+  // (without the boundary) makes multer see a malformed body and reject
+  // it with "Unexpected field".
   return api.post(`/admin/music/upload?playlistId=${encodeURIComponent(playlistId)}`, fd, {
-    headers: { 'Content-Type': 'multipart/form-data' },
     onUploadProgress: e => {
       if (onProgress && e.total) onProgress(Math.round((e.loaded / e.total) * 100));
     },
