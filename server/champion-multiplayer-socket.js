@@ -36,7 +36,7 @@ function shuffle(arr) {
 }
 function makeCode() {
   let code;
-  do { code = Math.random().toString(36).substring(2, 6).toUpperCase(); } while (rooms.has(code));
+  do { code = String(Math.floor(1000 + Math.random() * 9000)); } while (rooms.has(code));
   return code;
 }
 function serializePlayers(room) {

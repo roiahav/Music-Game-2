@@ -43,18 +43,13 @@ function applyBoardMove(currentPos, dieValue) {
 const rooms = new Map();        // code → room
 const socketToRoom = new Map(); // socketId → code
 
-const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I to avoid typos
 const FIGURINE_IDS = ['violin', 'guitar', 'drum', 'piano', 'mic', 'sax', 'trumpet', 'flute', 'dancer', 'singer', 'dj', 'conductor'];
 const COLORS = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c', '#e67e22', '#34495e', '#d35400', '#16a085', '#c0392b', '#8e44ad'];
 
 function makeCode() {
-  for (let attempt = 0; attempt < 50; attempt++) {
-    let s = '';
-    for (let i = 0; i < 4; i++) s += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
-    if (!rooms.has(s)) return s;
-  }
-  // Extremely unlikely fallback
-  return Math.random().toString(36).slice(2, 6).toUpperCase();
+  let code;
+  do { code = String(Math.floor(1000 + Math.random() * 9000)); } while (rooms.has(code));
+  return code;
 }
 
 function shuffle(arr) {

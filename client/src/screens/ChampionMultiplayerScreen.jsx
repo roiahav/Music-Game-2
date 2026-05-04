@@ -6,6 +6,7 @@ import TimerBar from '../components/TimerBar.jsx';
 import { AvatarCircle } from '../App.jsx';
 import { useLang } from '../i18n/useLang.js';
 import { unlockAudio } from '../utils/audioUnlock.js';
+import { useFavorites } from '../hooks/useFavorites.js';
 
 const SERVER = import.meta.env.VITE_SERVER_URL || '';
 const DECADES = [1950, 1960, 1970, 1980, 1990, 2000, 2010, 2020];
@@ -43,6 +44,8 @@ export default function ChampionMultiplayerScreen({ onExit }) {
   // Year filter — all decades selected by default (no filter effect).
   // Host deselects decades to exclude them from the pool.
   const [decadeFilter, setDecadeFilter] = useState(() => new Set(DECADES));
+
+  const { favoriteIds, toggle: toggleFavorite } = useFavorites();
 
   // Game
   const [autocomplete, setAutocomplete] = useState({ artists: [], titles: [] });
@@ -481,14 +484,33 @@ export default function ChampionMultiplayerScreen({ onExit }) {
             </div>
           </div>
 
-          {/* Audio controls — host only (so all players hear together via host) */}
-          {!isHost && (
-            <div style={{ display: 'flex', gap: 8 }}>
+          {/* Audio controls — non-host gets play/pause; host only sees the favorite toggle */}
+          <div style={{ display: 'flex', gap: 8 }}>
+            {!isHost && (
               <button onClick={togglePlayPause} style={{ flex: 1, height: 44, background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 12, fontSize: 22, cursor: 'pointer' }}>
                 {audioPlaying ? '⏸' : '▶'}
               </button>
-            </div>
-          )}
+            )}
+            <button
+              onClick={() => currentSong && toggleFavorite({
+                id: currentSong.id,
+                filePath: currentSong.audioUrl ? decodeURIComponent(currentSong.audioUrl.replace('/api/audio/', '')) : '',
+                title: currentSong.title || '',
+                artist: currentSong.artist || '',
+                year: currentSong.year || '',
+              })}
+              title={currentSong && favoriteIds.has(currentSong.id) ? 'הסרה מהמועדפים' : 'הוספה למועדפים'}
+              style={{
+                flex: isHost ? 1 : '0 0 56px', height: 44,
+                background: currentSong && favoriteIds.has(currentSong.id) ? '#dc354522' : 'var(--bg2)',
+                color: currentSong && favoriteIds.has(currentSong.id) ? '#ff6b6b' : 'var(--text)',
+                border: `1px solid ${currentSong && favoriteIds.has(currentSong.id) ? '#dc3545' : 'var(--border)'}`,
+                borderRadius: 12, fontSize: 22, cursor: 'pointer',
+              }}
+            >
+              {currentSong && favoriteIds.has(currentSong.id) ? '💔' : '❤️'}
+            </button>
+          </div>
 
           {submitted ? (
             <div style={{ background: 'var(--bg2)', border: '1px solid var(--accent)', borderRadius: 12, padding: 14, textAlign: 'center', color: 'var(--text)' }}>
