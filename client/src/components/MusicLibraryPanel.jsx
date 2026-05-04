@@ -215,13 +215,41 @@ function PlaylistCard({ playlist, onChange, nowPlaying, isPlaying, onPlay }) {
     if (open && files === null) loadFiles();
   }, [open, files, loadFiles]);
 
+  // Pending-upload state for the conflict-resolver modal. While `pending`
+  // is set, the user is being asked which existing files to overwrite.
+  // Shape: { files: File[], conflictNames: Set<string> } | null
+  const [pendingUpload, setPendingUpload] = useState(null);
+
   async function handleUpload(fileList) {
     if (!fileList || fileList.length === 0) return;
+    const incoming = Array.from(fileList);
+    // Compare against the currently-loaded files in this playlist (case-
+    // insensitive — server filenames keep their original case but Windows
+    // file systems treat them as the same file).
+    const existingLower = new Set((files || []).map(f => f.name.toLowerCase()));
+    const conflictNames = new Set(
+      incoming
+        .map(f => f.name)
+        .filter(name => existingLower.has(name.toLowerCase()))
+    );
+    if (conflictNames.size === 0) {
+      return doUpload(incoming);
+    }
+    // There are duplicates — let the user decide
+    setPendingUpload({ files: incoming, conflictNames });
+  }
+
+  async function doUpload(fileArray) {
+    if (!fileArray || fileArray.length === 0) {
+      setPendingUpload(null);
+      return;
+    }
     setUploading(true);
     setProgress(0);
     setErrorMsg('');
+    setPendingUpload(null);
     try {
-      await uploadMusicFiles(playlist.id, Array.from(fileList), pct => setProgress(pct));
+      await uploadMusicFiles(playlist.id, fileArray, pct => setProgress(pct));
       await loadFiles();
       onChange?.();
     } catch (e) {
@@ -230,6 +258,15 @@ function PlaylistCard({ playlist, onChange, nowPlaying, isPlaying, onPlay }) {
       setUploading(false);
       setProgress(0);
     }
+  }
+
+  // User finished resolving conflicts in the modal.
+  // skipNames is a Set of conflict filenames the user chose to skip
+  // (everything not in the set should be uploaded; multer overwrites).
+  function handleResolveConflicts(skipNames) {
+    if (!pendingUpload) return;
+    const filtered = pendingUpload.files.filter(f => !skipNames.has(f.name));
+    doUpload(filtered);
   }
 
   async function handleDelete(filename) {
@@ -474,11 +511,131 @@ function PlaylistCard({ playlist, onChange, nowPlaying, isPlaying, onPlay }) {
               onSaved={async () => { setEditingFile(null); await loadFiles(); onChange?.(); }}
             />
           )}
+
+          {/* Upload conflict resolver modal */}
+          {pendingUpload && (
+            <UploadConflictModal
+              files={pendingUpload.files}
+              conflictNames={pendingUpload.conflictNames}
+              onResolve={handleResolveConflicts}
+              onCancel={() => setPendingUpload(null)}
+            />
+          )}
         </div>
       )}
     </div>
   );
 }
+
+// ─── Upload conflict resolver ────────────────────────────────────────────────
+// Shown when one or more files being uploaded already exist in the playlist.
+// User picks per-file (skip / replace) with bulk shortcuts; replace = upload
+// (multer overwrites in place); skip = exclude from the upload list.
+function UploadConflictModal({ files, conflictNames, onResolve, onCancel }) {
+  // decisions: filename → 'skip' | 'replace'. Default to undecided ('').
+  const [decisions, setDecisions] = useState(() => {
+    const init = {};
+    for (const name of conflictNames) init[name] = '';
+    return init;
+  });
+
+  function setOne(name, value)   { setDecisions(d => ({ ...d, [name]: value })); }
+  function setAll(value)         {
+    const next = {};
+    for (const name of conflictNames) next[name] = value;
+    setDecisions(next);
+  }
+
+  const undecidedCount = [...conflictNames].filter(n => !decisions[n]).length;
+  const conflictArr = [...conflictNames];
+
+  function confirm() {
+    const skip = new Set();
+    for (const name of conflictNames) {
+      if (decisions[name] === 'skip') skip.add(name);
+    }
+    onResolve(skip);
+  }
+
+  return (
+    <>
+      <div onClick={onCancel} style={modalBackdrop} />
+      <div style={{ ...modalBox, maxWidth: 520 }}>
+        <div style={modalHeader}>
+          <span style={{ fontSize: 16, fontWeight: 800 }}>📁 קבצים כפולים</span>
+          <button onClick={onCancel} style={modalCloseBtn}>✕</button>
+        </div>
+        <div style={{ padding: 14, color: '#aaa', fontSize: 13, borderBottom: '1px solid #2a2a2a', lineHeight: 1.6 }}>
+          {conflictNames.size === 1 ? (
+            <>הקובץ הבא כבר קיים בפלייליסט. מה לעשות?</>
+          ) : (
+            <>{conflictNames.size} קבצים כבר קיימים בפלייליסט. תוכל להחליט לכל קובץ בנפרד או להחיל פעולה על כולם.</>
+          )}
+        </div>
+
+        {/* Bulk actions */}
+        {conflictNames.size > 1 && (
+          <div style={{ display: 'flex', gap: 8, padding: '10px 14px', borderBottom: '1px solid #2a2a2a' }}>
+            <button onClick={() => setAll('skip')}    style={bulkBtn}>⏭ דלג על כולם</button>
+            <button onClick={() => setAll('replace')} style={bulkBtn}>🔁 החלף את כולם</button>
+          </div>
+        )}
+
+        {/* Per-file decisions */}
+        <div style={{ padding: '8px 14px', maxHeight: 360, overflowY: 'auto' }}>
+          {conflictArr.map(name => {
+            const dec = decisions[name];
+            return (
+              <div key={name} style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '8px 0', borderBottom: '1px solid #232323',
+              }}>
+                <div style={{ flex: 1, minWidth: 0, color: '#ddd', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={name}>
+                  {name}
+                </div>
+                <button
+                  onClick={() => setOne(name, 'skip')}
+                  title="דלג על קובץ זה — הקובץ הקיים יישאר ללא שינוי"
+                  style={{ ...rowBtn, background: dec === 'skip' ? '#dc354533' : '#2a2a2a', borderColor: dec === 'skip' ? '#dc3545' : '#3a3a3a', color: dec === 'skip' ? '#ff6b6b' : '#aaa' }}
+                >
+                  דלג
+                </button>
+                <button
+                  onClick={() => setOne(name, 'replace')}
+                  title="החלף את הקובץ הקיים בקובץ החדש"
+                  style={{ ...rowBtn, background: dec === 'replace' ? '#1db95433' : '#2a2a2a', borderColor: dec === 'replace' ? '#1db954' : '#3a3a3a', color: dec === 'replace' ? '#1db954' : '#aaa' }}
+                >
+                  החלף
+                </button>
+              </div>
+            );
+          })}
+        </div>
+
+        <div style={modalFooter}>
+          <button onClick={onCancel} style={btnCancel}>בטל העלאה</button>
+          <button
+            onClick={confirm}
+            disabled={undecidedCount > 0}
+            style={{ ...btnSave, opacity: undecidedCount > 0 ? 0.4 : 1 }}
+            title={undecidedCount > 0 ? `יש להחליט עבור ${undecidedCount} קבצים` : 'בצע העלאה'}
+          >
+            {undecidedCount > 0 ? `החלט על ${undecidedCount} קבצים` : 'אישור והעלאה'}
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+const bulkBtn = {
+  flex: 1, padding: '8px', borderRadius: 8, background: '#1a1a1a',
+  border: '1px solid #3a3a3a', color: '#ddd', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+};
+const rowBtn = {
+  padding: '4px 10px', borderRadius: 6, border: '1px solid #3a3a3a',
+  background: '#2a2a2a', color: '#aaa', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+};
 
 // ─── Metadata edit modal ─────────────────────────────────────────────────────
 function MetadataEditor({ playlistId, file, artistSuggestions = [], onClose, onSaved }) {
