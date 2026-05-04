@@ -464,10 +464,23 @@ function PlaylistCard({ playlist, allPlaylists = [], onChange, nowPlaying, isPla
   async function handleUpload(fileList) {
     if (!fileList || fileList.length === 0) return;
     const incoming = Array.from(fileList);
+    // If the file list hasn't loaded yet (e.g. the user dragged in
+    // immediately after expanding the card), fetch it now so the duplicate
+    // check runs against actual data and not an empty placeholder.
+    let currentFiles = files;
+    if (currentFiles === null) {
+      try {
+        const r = await listMusicFiles(playlist.id);
+        currentFiles = r.files || [];
+        setFiles(currentFiles);
+      } catch {
+        currentFiles = [];
+      }
+    }
     // Compare against the currently-loaded files in this playlist (case-
     // insensitive — server filenames keep their original case but Windows
     // file systems treat them as the same file).
-    const existingLower = new Set((files || []).map(f => f.name.toLowerCase()));
+    const existingLower = new Set(currentFiles.map(f => f.name.toLowerCase()));
     const conflictNames = new Set(
       incoming
         .map(f => f.name)
