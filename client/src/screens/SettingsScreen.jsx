@@ -7,18 +7,20 @@ import SettingsPlaylistRow from '../components/SettingsPlaylistRow.jsx';
 import FolderBrowser from '../components/FolderBrowser.jsx';
 import AdminBlacklistSection from '../components/AdminBlacklistSection.jsx';
 import OneDrivePanel from '../components/OneDrivePanel.jsx';
+import MobileMetadataPanel from '../components/MobileMetadataPanel.jsx';
 import AdminUsersScreen, { ActivityTab } from '../screens/AdminUsersScreen.jsx';
 import { getJSON, setJSON } from '../utils/safeStorage.js';
 import { GAMES, DEFAULT_GAME_ORDER } from '../games-config.js';
 
 const SECTION_ORDER_KEY = 'mg_settings_section_order';
 const SECTION_LOCK_KEY  = 'mg_settings_section_locked';
-const DEFAULT_SECTION_ORDER = ['games-mgmt', 'victory', 'playlists', 'onedrive', 'users', 'activity-log', 'blacklist', 'email', 'invite', 'invite-templates'];
+const DEFAULT_SECTION_ORDER = ['games-mgmt', 'metadata', 'victory', 'playlists', 'onedrive', 'users', 'activity-log', 'blacklist', 'email', 'invite', 'invite-templates'];
 
 // Labels rendered inside the floating ghost during drag, so the user can see
 // what they're moving even though the actual card is just an empty placeholder.
 const SECTION_META = {
   'games-mgmt':        { icon: '🎮', label: 'ניהול משחקים' },
+  'metadata':          { icon: '📝', label: 'עריכת תגיות שירים' },
   'victory':           { icon: '🏆', label: 'שיר ניצחון' },
   'playlists':         { icon: '🎵', label: 'פלייליסטים' },
   'onedrive':          { icon: '☁️', label: 'OneDrive — ספריית מוזיקה' },
@@ -225,6 +227,11 @@ export default function SettingsScreen({ isAdmin = false, usersDefaultFilter = '
           {/* Games management — visibility, order, per-user restrictions */}
           <DraggableCard {...dragProps('games-mgmt')}>
             <GamesManagementPanel />
+          </DraggableCard>
+
+          {/* Mobile-friendly ID3-tag editor for songs across every playlist */}
+          <DraggableCard {...dragProps('metadata')}>
+            <MobileMetadataPanel />
           </DraggableCard>
 
           {/* Victory song (collapsible) */}
