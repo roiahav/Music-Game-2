@@ -17,6 +17,8 @@ import { useSettingsStore } from '../store/settingsStore.js';
 import { getSocket } from '../services/socket.js';
 import { Figurine, FIGURINE_OPTIONS } from '../components/Figurine.jsx';
 import { useFavorites } from '../hooks/useFavorites.js';
+import SnakeLadderBoard from '../components/SnakeLadderBoard.jsx';
+import DiceRoller from '../components/DiceRoller.jsx';
 
 const COLORS = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c', '#e67e22', '#34495e', '#d35400', '#16a085', '#c0392b', '#8e44ad'];
 
@@ -44,8 +46,14 @@ export default function LaddersHitsScreen({ onExit }) {
   const [submitting, setSubmitting] = useState(false);
   const [wrongShake, setWrongShake] = useState(0);
   const [secondsLeft, setSecondsLeft] = useState(null);
+
+  // Phase 3 — dice + board
+  const [dicePhase, setDicePhase] = useState(null);     // null | 'spinning' | 'moving' | 'ladder' | 'done'
+  const [diceData, setDiceData]   = useState(null);     // payload from lh:dice_rolled
+
   const audioRef = useRef(null);
   const timerIntervalRef = useRef(null);
+  const dicePhaseTimers = useRef([]);
 
   const socketRef = useRef(null);
 
@@ -91,6 +99,10 @@ export default function LaddersHitsScreen({ onExit }) {
       setRoundEnd(null);
       setAnswer('');
       setSubmitting(false);
+      // Clear any leftover dice/animation state from the previous round
+      clearDiceTimers();
+      setDicePhase(null);
+      setDiceData(null);
       // Auto-play
       setTimeout(() => {
         if (audioRef.current && song.audioUrl) {
@@ -131,6 +143,35 @@ export default function LaddersHitsScreen({ onExit }) {
       // Pause audio (we'll let host decide when to advance)
       if (audioRef.current) try { audioRef.current.pause(); } catch {}
     }
+    function clearDiceTimers() {
+      for (const t of dicePhaseTimers.current) clearTimeout(t);
+      dicePhaseTimers.current = [];
+    }
+
+    function onDiceRolled(payload) {
+      // payload = { byPlayerSocketId, value, fromPosition, intermediate, finalPosition, effect, players, gameOver }
+      clearDiceTimers();
+      setDiceData(payload);
+      setDicePhase('spinning');
+      // After dice settles (1.4s) → move to intermediate
+      dicePhaseTimers.current.push(setTimeout(() => {
+        setDicePhase('moving');
+      }, 1500));
+      // If a ladder/slide hit, schedule the final-position move
+      if (payload.effect) {
+        dicePhaseTimers.current.push(setTimeout(() => {
+          setDicePhase('ladder');
+        }, 1500 + 700));
+      }
+      // After everything settled, sync to server truth (clear override)
+      const totalMs = 1500 + 700 + (payload.effect ? 800 : 0);
+      dicePhaseTimers.current.push(setTimeout(() => {
+        setDicePhase('done');
+        // Update room players with the post-move positions from the server
+        setRoom(r => r ? { ...r, players: payload.players || r.players } : r);
+      }, totalMs));
+    }
+
     function onEnded(payload) {
       setEndResult(payload);
       setView('done');
@@ -156,6 +197,7 @@ export default function LaddersHitsScreen({ onExit }) {
     s.on('lh:song', onSong);
     s.on('lh:wrong', onWrong);
     s.on('lh:round_end', onRoundEnd);
+    s.on('lh:dice_rolled', onDiceRolled);
     s.on('lh:ended', onEnded);
 
     return () => {
@@ -168,8 +210,10 @@ export default function LaddersHitsScreen({ onExit }) {
       s.off('lh:song', onSong);
       s.off('lh:wrong', onWrong);
       s.off('lh:round_end', onRoundEnd);
+      s.off('lh:dice_rolled', onDiceRolled);
       s.off('lh:ended', onEnded);
       if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+      clearDiceTimers();
       // Tell the server we're leaving when the screen unmounts
       try { s.emit('lh:leave'); } catch {}
     };
@@ -467,22 +511,47 @@ export default function LaddersHitsScreen({ onExit }) {
             ))}
           </div>
 
-          {/* Cover (blurred until reveal) */}
+          {/* Board — always visible during play */}
           <div style={{ display: 'flex', justifyContent: 'center' }}>
-            <div style={{
-              width: 'min(180px, 50vw)', aspectRatio: '1 / 1', borderRadius: 16,
-              background: 'linear-gradient(135deg, #3a3a3a 0%, #2a2a2a 100%)',
-              border: '2px solid var(--border)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              overflow: 'hidden',
-            }}>
-              {roundEnd?.coverUrl ? (
-                <img src={roundEnd.coverUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              ) : (
-                <span style={{ fontSize: 56, opacity: 0.5 }}>🎵</span>
+            <SnakeLadderBoard
+              size={Math.min(360, typeof window !== 'undefined' ? Math.min(window.innerWidth - 32, 360) : 360)}
+              players={room.players.map(p => ({
+                ...p,
+                position: effectivePosition(p, diceData, dicePhase),
+              }))}
+              highlightSocketId={diceData?.byPlayerSocketId}
+            />
+          </div>
+
+          {/* Dice spin / cover — dice replaces cover when a roll is in flight */}
+          {(dicePhase && dicePhase !== 'done' && diceData) ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+              <DiceRoller value={diceData.value} size={88} />
+              {dicePhase !== 'spinning' && (
+                <div style={{ fontSize: 14, color: '#fff', fontWeight: 700 }}>
+                  🎲 הוטל: <span style={{ color: 'var(--accent)' }}>{diceData.value}</span>
+                  {diceData.effect === 'ladder' && dicePhase === 'ladder' && <span style={{ color: '#1db954' }}> 🎹 +סולם!</span>}
+                  {diceData.effect === 'slide'  && dicePhase === 'ladder' && <span style={{ color: '#dc3545' }}> 🎷 גלישה!</span>}
+                </div>
               )}
             </div>
-          </div>
+          ) : (
+            <div style={{ display: 'flex', justifyContent: 'center' }}>
+              <div style={{
+                width: 'min(140px, 40vw)', aspectRatio: '1 / 1', borderRadius: 16,
+                background: 'linear-gradient(135deg, #3a3a3a 0%, #2a2a2a 100%)',
+                border: '2px solid var(--border)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                overflow: 'hidden',
+              }}>
+                {roundEnd?.coverUrl ? (
+                  <img src={roundEnd.coverUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <span style={{ fontSize: 48, opacity: 0.5 }}>🎵</span>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Audio + favourites + timer */}
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -548,17 +617,40 @@ export default function LaddersHitsScreen({ onExit }) {
                 <div style={{ fontSize: 14, color: '#1db954', fontWeight: 700 }}>{roundEnd.correct?.artist}</div>
                 <div style={{ fontSize: 13, color: '#aaa' }}>{roundEnd.correct?.year}</div>
               </div>
-              {isHost && (
-                <button
-                  onClick={() => socketRef.current?.emit('lh:host_next')}
-                  style={{ ...primaryBtn, marginTop: 6 }}
-                >
-                  {roundEnd.isLastRound ? '🏁 סיים משחק' : '⏭ הסבב הבא'}
-                </button>
-              )}
-              {!isHost && (
-                <div style={{ color: '#888', fontSize: 12 }}>מחכים שהמארח יתקדם…</div>
-              )}
+              {/* Dice trigger — round winner can roll once */}
+              {(() => {
+                const iAmRoundWinner = roundEnd.winnerSocketId === mySocketId;
+                const diceAlreadyRolled = !!diceData;
+                const diceComplete = dicePhase === 'done';
+                if (roundEnd.winnerSocketId && !diceAlreadyRolled && iAmRoundWinner) {
+                  return (
+                    <button
+                      onClick={() => socketRef.current?.emit('lh:roll_dice')}
+                      style={{ ...primaryBtn, marginTop: 6, fontSize: 18 }}
+                    >
+                      🎲 הטל קובייה
+                    </button>
+                  );
+                }
+                if (roundEnd.winnerSocketId && !diceAlreadyRolled && !iAmRoundWinner) {
+                  return <div style={{ color: '#888', fontSize: 12 }}>ממתינים שהמנצח/ת יטיל/תטיל קובייה…</div>;
+                }
+                if (diceAlreadyRolled && !diceComplete) {
+                  return null; // animation in flight
+                }
+                // Dice done OR no winner this round → host advances
+                if (isHost) {
+                  return (
+                    <button
+                      onClick={() => socketRef.current?.emit('lh:host_next')}
+                      style={{ ...primaryBtn, marginTop: 6 }}
+                    >
+                      {roundEnd.isLastRound ? '🏁 סיים משחק' : '⏭ הסבב הבא'}
+                    </button>
+                  );
+                }
+                return <div style={{ color: '#888', fontSize: 12 }}>מחכים שהמארח יתקדם…</div>;
+              })()}
             </div>
           ) : (
             <>
@@ -648,6 +740,19 @@ export default function LaddersHitsScreen({ onExit }) {
       </div>
     </div>
   );
+}
+
+// ── Position override during dice/move animation ────────────────────────
+// While the rolling player's figurine is being animated through the
+// dice→intermediate→final sequence, we override their position so the
+// board moves them in stages rather than teleporting.
+function effectivePosition(player, diceData, dicePhase) {
+  if (!diceData || dicePhase === 'done' || dicePhase === null) return player.position || 0;
+  if (player.socketId !== diceData.byPlayerSocketId) return player.position || 0;
+  if (dicePhase === 'spinning') return diceData.fromPosition;
+  if (dicePhase === 'moving')   return diceData.intermediate;
+  if (dicePhase === 'ladder')   return diceData.finalPosition;
+  return player.position || 0;
 }
 
 // ── Answer-input components ─────────────────────────────────────────────

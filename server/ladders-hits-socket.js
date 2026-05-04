@@ -16,6 +16,30 @@ import { scanFolder } from './services/FileScanner.js';
 import { getSongMetadata } from './services/MetadataService.js';
 import { getPlaylistTracks } from './services/SpotifyService.js';
 
+// Board map — MUST stay in sync with client/src/components/laddersHitsMap.js.
+// We duplicate rather than import across the server/client boundary because
+// the server runs as plain Node ESM and shouldn't reach into the client tree.
+const LADDERS = [
+  [4, 25], [9, 31], [21, 42], [28, 84], [36, 57], [51, 67], [71, 91], [80, 99],
+];
+const SLIDES = [
+  [17, 7], [54, 34], [62, 19], [64, 60], [87, 36], [93, 73], [95, 75], [98, 78],
+];
+const BOARD_END = 100;
+
+function applyBoardMove(currentPos, dieValue) {
+  const after = currentPos + dieValue;
+  // Going past 100? Bounce back: classic snakes-&-ladders "exact roll wins".
+  // To keep games short here we use the simpler "clamp to 100" rule — landing
+  // exactly or past 100 wins.
+  const landed = Math.min(BOARD_END, after);
+  const ladder = LADDERS.find(([from]) => from === landed);
+  if (ladder) return { intermediate: landed, final: ladder[1], effect: 'ladder' };
+  const slide  = SLIDES.find(([from]) => from === landed);
+  if (slide)  return { intermediate: landed, final: slide[1],  effect: 'slide' };
+  return { intermediate: landed, final: landed, effect: null };
+}
+
 const rooms = new Map();        // code → room
 const socketToRoom = new Map(); // socketId → code
 
@@ -172,6 +196,7 @@ export function setupLaddersHits(io) {
         roundAttempts: new Map(),  // socketId → attempts count
         timerHandle: null,
         autocomplete: { artists: [] },
+        diceRolled: false,        // true once the round winner has rolled
       };
       const avatar = pickFreeAvatar(room);
       room.players.set(socket.id, {
@@ -366,6 +391,45 @@ export function setupLaddersHits(io) {
       startNextRound(io, room);
     });
 
+    // ── Round winner rolls the die ─────────────────────────────────────
+    socket.on('lh:roll_dice', () => {
+      const code = socketToRoom.get(socket.id);
+      if (!code) return;
+      const room = rooms.get(code);
+      if (!room || room.status !== 'playing') return;
+      if (!room.roundEnded) return;
+      if (room.diceRolled) return;
+      // Only the round winner can roll. If the round had no winner (host
+      // skipped or timer expired), nobody rolls — the host advances directly.
+      if (room.roundWinnerSocketId !== socket.id) return;
+      const player = room.players.get(socket.id);
+      if (!player) return;
+
+      const value = 1 + Math.floor(Math.random() * 6);
+      const move = applyBoardMove(player.position || 0, value);
+      const fromPosition = player.position || 0;
+      player.position = move.final;
+      room.diceRolled = true;
+
+      const reachedEnd = move.final >= BOARD_END;
+      io.to(room.code).emit('lh:dice_rolled', {
+        byPlayerSocketId: socket.id,
+        value,
+        fromPosition,
+        intermediate: move.intermediate,
+        finalPosition: move.final,
+        effect: move.effect,
+        players: serializePlayers(room),
+        gameOver: reachedEnd,
+      });
+
+      if (reachedEnd) {
+        // Give clients a moment to play the dice + move animation before
+        // transitioning to the victory screen.
+        setTimeout(() => endGame(io, room, socket.id), 2400);
+      }
+    });
+
     // ── Host: end the game early ───────────────────────────────────────
     socket.on('lh:end_game', () => {
       const code = socketToRoom.get(socket.id);
@@ -397,6 +461,7 @@ function startNextRound(io, room) {
   room.roundEnded = false;
   room.roundWinnerSocketId = null;
   room.roundAttempts = new Map();
+  room.diceRolled = false;
 
   // Players don't see the artist/title/year — only the audio
   io.to(room.code).emit('lh:song', {
@@ -434,14 +499,22 @@ function finishRound(io, room) {
   });
 }
 
-function endGame(io, room) {
+function endGame(io, room, boardWinnerSocketId = null) {
   if (room.timerHandle) { clearTimeout(room.timerHandle); room.timerHandle = null; }
+  if (room.status === 'done') return; // idempotent
   room.status = 'done';
-  // Highest score wins; ties broken arbitrarily by current player order
-  const sorted = [...room.players.values()].sort((a, b) => (b.score || 0) - (a.score || 0));
-  const winner = sorted[0] || null;
-  // Victory audio: prefer the existing settings.game.victoryAudioPath; fall
-  // back to the last song played in this game.
+  // Primary win condition (phase 3+): a player reached the end of the board.
+  // Fallback (out of rounds): highest position wins; tie-break by score.
+  let winner = null;
+  if (boardWinnerSocketId) {
+    winner = room.players.get(boardWinnerSocketId) || null;
+  } else {
+    const sorted = [...room.players.values()].sort((a, b) => {
+      if ((b.position || 0) !== (a.position || 0)) return (b.position || 0) - (a.position || 0);
+      return (b.score || 0) - (a.score || 0);
+    });
+    winner = sorted[0] || null;
+  }
   const settings = getSettings();
   const victoryPath = settings?.game?.victoryAudioPath;
   const victoryAudioUrl = victoryPath
@@ -451,6 +524,7 @@ function endGame(io, room) {
     players: serializePlayers(room),
     winnerSocketId: winner?.socketId || null,
     victoryAudioUrl,
+    reason: boardWinnerSocketId ? 'reached_end' : 'all_rounds_played',
   });
 }
 
