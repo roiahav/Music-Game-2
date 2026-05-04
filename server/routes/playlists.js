@@ -7,9 +7,17 @@ import { getPlaylistTracks } from '../services/SpotifyService.js';
 const router = Router();
 
 // GET /api/playlists
+// Admins always see every playlist (with the `hidden` flag so the music-
+// library UI can show a toggle). Non-admins only get the visible ones.
 router.get('/', (req, res) => {
   const { playlists } = getSettings();
-  res.json(playlists.map(p => ({ id: p.id, name: p.name, type: p.type, path: p.path || '', spotifyUri: p.spotifyUri || '' })));
+  const isAdmin = req.user?.role === 'admin';
+  const filtered = isAdmin ? playlists : playlists.filter(p => !p.hidden);
+  res.json(filtered.map(p => ({
+    id: p.id, name: p.name, type: p.type,
+    path: p.path || '', spotifyUri: p.spotifyUri || '',
+    hidden: !!p.hidden,
+  })));
 });
 
 // GET /api/playlists/:id/songs

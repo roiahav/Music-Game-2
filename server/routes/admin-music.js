@@ -86,6 +86,7 @@ router.get('/stats', async (_req, res) => {
     id: p.id,
     name: p.name,
     path: p.path,
+    hidden: !!p.hidden,
     ...(await dirStats(p.path)),
   })));
   res.json(out);
@@ -258,6 +259,47 @@ router.post('/upload', upload.array('files', 50), (req, res) => {
 // Surface multer errors as friendly JSON
 router.use((err, _req, res, _next) => {
   if (err) return res.status(400).json({ error: err.message });
+});
+
+// ── POST /api/admin/music/move — move a file across local playlists ───────
+// Body: { fromPlaylistId, filename, toPlaylistId, overwrite? }
+router.post('/move', async (req, res) => {
+  const { fromPlaylistId, filename, toPlaylistId, overwrite } = req.body || {};
+  if (!fromPlaylistId || !filename || !toPlaylistId) {
+    return res.status(400).json({ error: 'חסרים פרטי המקור או היעד' });
+  }
+  if (fromPlaylistId === toPlaylistId) {
+    return res.status(400).json({ error: 'המקור והיעד זהים' });
+  }
+  const fromPl = findPlaylistById(fromPlaylistId);
+  const toPl   = findPlaylistById(toPlaylistId);
+  if (!fromPl || !toPl) return res.status(404).json({ error: 'פלייליסט לא קיים או לא מקומי' });
+  const fromPath = safeJoin(fromPl.path, filename);
+  if (!fromPath) return res.status(400).json({ error: 'שם קובץ לא תקין' });
+  if (!existsSync(fromPath)) return res.status(404).json({ error: 'קובץ לא נמצא במקור' });
+  if (!existsSync(toPl.path)) await fs.mkdir(toPl.path, { recursive: true });
+  const toPath = safeJoin(toPl.path, basename(filename));
+  if (!toPath) return res.status(400).json({ error: 'שם קובץ לא תקין ליעד' });
+  if (existsSync(toPath) && !overwrite) {
+    return res.status(409).json({ error: 'קובץ באותו שם כבר קיים ביעד', conflict: true });
+  }
+  try {
+    // fs.rename is atomic on the same volume; falls back to copy + unlink on
+    // EXDEV (cross-volume — rare on a typical home server but possible).
+    try {
+      await fs.rename(fromPath, toPath);
+    } catch (e) {
+      if (e.code === 'EXDEV') {
+        await fs.copyFile(fromPath, toPath);
+        await fs.unlink(fromPath);
+      } else {
+        throw e;
+      }
+    }
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ── DELETE /api/admin/music/file?playlistId=...&filename=... ──────────────

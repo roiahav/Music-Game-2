@@ -75,15 +75,23 @@ router.post('/test-email', async (req, res) => {
 // POST /api/settings/playlists — add or update a playlist
 router.post('/playlists', (req, res) => {
   const s = getSettings();
-  const { id, name, type, path, spotifyUri } = req.body;
+  const { id, name, type, path, spotifyUri, hidden } = req.body;
   const existing = id ? s.playlists.find(p => p.id === id) : null;
   if (existing) {
     existing.name = name ?? existing.name;
     existing.type = type ?? existing.type;
     existing.path = path ?? existing.path;
     existing.spotifyUri = spotifyUri ?? existing.spotifyUri;
+    if (typeof hidden === 'boolean') existing.hidden = hidden;
   } else {
-    s.playlists.push({ id: uuidv4(), name: name || 'פלייליסט חדש', type: type || 'local', path: path || '', spotifyUri: spotifyUri || '' });
+    s.playlists.push({
+      id: uuidv4(),
+      name: name || 'פלייליסט חדש',
+      type: type || 'local',
+      path: path || '',
+      spotifyUri: spotifyUri || '',
+      hidden: !!hidden,
+    });
   }
   saveSettings(s);
   res.json({ ok: true });

@@ -6,7 +6,7 @@
 import { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
 import {
   getMusicStats, getMusicDuplicates, listMusicFiles, deleteMusicFile, uploadMusicFiles, updateMusicMetadata,
-  addToBlacklist, removeFromBlacklist,
+  moveMusicFile, setPlaylistHidden, addToBlacklist, removeFromBlacklist,
 } from '../api/client.js';
 
 export default function MusicLibraryPanel() {
@@ -157,6 +157,7 @@ export default function MusicLibraryPanel() {
           <PlaylistCard
             key={p.id}
             playlist={p}
+            allPlaylists={stats}
             onChange={refresh}
             nowPlaying={nowPlaying}
             isPlaying={isPlaying}
@@ -243,8 +244,14 @@ export default function MusicLibraryPanel() {
 
 // ─── Duplicates modal ────────────────────────────────────────────────────────
 function DuplicatesModal({ loading, duplicates, onClose, onDelete, onPlay, stats }) {
-  const total = duplicates.reduce((a, g) => a + g.items.length, 0);
-  // Map playlistId → playlist path (so the delete handler can build a path)
+  // Filter scope: 'all' shows every duplicate group; a playlist id shows
+  // only groups whose items include that playlist (useful for cleanup work
+  // focused on one folder at a time).
+  const [scope, setScope] = useState('all');
+  const filtered = scope === 'all'
+    ? duplicates
+    : duplicates.filter(g => g.items.some(it => it.playlistId === scope));
+  const total = filtered.reduce((a, g) => a + g.items.length, 0);
   const pathsById = Object.fromEntries((stats || []).map(p => [p.id, p.path]));
 
   return (
@@ -261,12 +268,35 @@ function DuplicatesModal({ loading, duplicates, onClose, onDelete, onPlay, stats
           ) : duplicates.length === 0 ? (
             '✅ לא נמצאו כפילויות. הספרייה נקייה.'
           ) : (
-            `נמצאו ${duplicates.length} קבוצות של שירים כפולים (${total} קבצים). חפש לפי תגיות זמר+שם השיר; אם אין תגיות, לפי שם הקובץ.`
+            <>
+              <div style={{ marginBottom: 10 }}>
+                {scope === 'all'
+                  ? `נמצאו ${duplicates.length} קבוצות של שירים כפולים (${total} קבצים). חפש לפי תגיות זמר+שם השיר; אם אין תגיות, לפי שם הקובץ.`
+                  : `${filtered.length} קבוצות (${total} קבצים) שכוללות את הפלייליסט הנבחר.`}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 12, color: '#888', fontWeight: 700 }}>סנן:</span>
+                <select
+                  value={scope}
+                  onChange={e => setScope(e.target.value)}
+                  style={{
+                    flex: 1, background: '#1a1a1a', color: '#fff',
+                    border: '1px solid #2a2a2a', borderRadius: 6,
+                    padding: '6px 8px', fontSize: 12,
+                  }}
+                >
+                  <option value="all">כל הפלייליסטים</option>
+                  {(stats || []).map(p => (
+                    <option key={p.id} value={p.id}>📁 {p.name}</option>
+                  ))}
+                </select>
+              </div>
+            </>
           )}
         </div>
-        {duplicates.length > 0 && (
+        {filtered.length > 0 && (
           <div style={{ padding: 8, maxHeight: 480, overflowY: 'auto' }}>
-            {duplicates.map((g, gi) => (
+            {filtered.map((g, gi) => (
               <div key={gi} style={{
                 background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 10,
                 padding: 10, marginBottom: 10,
@@ -318,7 +348,7 @@ function DuplicatesModal({ loading, duplicates, onClose, onDelete, onPlay, stats
 }
 
 // ─── Per-playlist card with drag-drop, list, delete ──────────────────────────
-function PlaylistCard({ playlist, onChange, nowPlaying, isPlaying, onPlay }) {
+function PlaylistCard({ playlist, allPlaylists = [], onChange, nowPlaying, isPlaying, onPlay }) {
   const [open, setOpen] = useState(false);
   const [files, setFiles] = useState(null);
   const [filter, setFilter] = useState('');
@@ -328,6 +358,8 @@ function PlaylistCard({ playlist, onChange, nowPlaying, isPlaying, onPlay }) {
   const [errorMsg, setErrorMsg] = useState('');
   const [deleting, setDeleting] = useState(null); // filename being deleted
   const [editingFile, setEditingFile] = useState(null); // the file object being edited
+  const [movingFile, setMovingFile]   = useState(null); // the file object being moved
+  const [moving, setMoving] = useState(false);
   const [sortKey, setSortKey] = useState('name'); // name | title | artist | year | duration | sizeBytes
   const [sortDir, setSortDir] = useState('asc'); // 'asc' | 'desc'
   const inputRef = useRef(null);
@@ -401,6 +433,31 @@ function PlaylistCard({ playlist, onChange, nowPlaying, isPlaying, onPlay }) {
     doUpload(filtered);
   }
 
+  async function handleMoveFile(targetPlaylistId, overwrite = false) {
+    if (!movingFile) return;
+    setMoving(true);
+    setErrorMsg('');
+    try {
+      await moveMusicFile(playlist.id, movingFile.name, targetPlaylistId, overwrite);
+      setMovingFile(null);
+      await loadFiles();
+      onChange?.();
+    } catch (e) {
+      const r = e.response;
+      if (r?.status === 409 && r?.data?.conflict) {
+        // Conflict — confirm overwrite
+        if (window.confirm(`כבר קיים קובץ בשם "${movingFile.name}" בפלייליסט היעד. להחליף?`)) {
+          setMoving(false);
+          return handleMoveFile(targetPlaylistId, true);
+        }
+      } else {
+        setErrorMsg(r?.data?.error || e.message);
+      }
+    } finally {
+      setMoving(false);
+    }
+  }
+
   async function handleDelete(filename) {
     if (!window.confirm(`למחוק את "${filename}"? פעולה לא ניתנת לביטול.`)) return;
     setDeleting(filename);
@@ -468,20 +525,44 @@ function PlaylistCard({ playlist, onChange, nowPlaying, isPlaying, onPlay }) {
     return sortKey === key ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
   }
 
+  async function toggleHidden(e) {
+    e.stopPropagation();
+    try {
+      await setPlaylistHidden(playlist.id, !playlist.hidden);
+      onChange?.();
+    } catch (err) {
+      setErrorMsg(err.response?.data?.error || err.message);
+    }
+  }
+
   return (
-    <div style={cardStyle}>
+    <div style={{ ...cardStyle, opacity: playlist.hidden ? 0.6 : 1 }}>
       {/* Header */}
       <button onClick={() => setOpen(o => !o)} style={cardHeaderBtn}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span style={{ fontSize: 22 }}>📁</span>
           <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 16, fontWeight: 800 }}>{playlist.name}</div>
+            <div style={{ fontSize: 16, fontWeight: 800 }}>
+              {playlist.name}
+              {playlist.hidden && <span style={{ marginInlineStart: 8, fontSize: 10, padding: '2px 6px', background: '#3a1010', color: '#ff8a3d', borderRadius: 4, fontWeight: 700 }}>מוסתר</span>}
+            </div>
             <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>{playlist.path}</div>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
           <span style={pill}>{playlist.files} קבצים</span>
           <span style={pill}>{fmtBytes(playlist.sizeBytes)}</span>
+          <button
+            onClick={toggleHidden}
+            title={playlist.hidden ? 'הצג את הפלייליסט במשחקים' : 'הסתר את הפלייליסט מהמשחקים'}
+            style={{
+              background: 'transparent', border: '1px solid #3a3a3a',
+              color: playlist.hidden ? '#ff8a3d' : '#888',
+              borderRadius: 8, padding: '4px 10px', fontSize: 16, cursor: 'pointer',
+            }}
+          >
+            {playlist.hidden ? '🙈' : '👁'}
+          </button>
           <span style={{ color: '#888', fontSize: 18 }}>{open ? '▲' : '▼'}</span>
         </div>
       </button>
@@ -620,6 +701,7 @@ function PlaylistCard({ playlist, onChange, nowPlaying, isPlaying, onPlay }) {
                       >
                         {f.hidden ? '🙈' : '👁'}
                       </button>
+                      <button onClick={() => setMovingFile(f)} title="העבר לפלייליסט אחר" style={{ ...editBtn, marginRight: 4 }}>↗</button>
                       <button onClick={() => setEditingFile(f)} title="עריכת תגיות" style={editBtn}>✎</button>
                       <button onClick={() => handleDelete(f.name)} disabled={deleting === f.name} title="מחיקה" style={{ ...delBtn, marginRight: 4 }}>
                         {deleting === f.name ? '⏳' : '🗑️'}
@@ -652,6 +734,18 @@ function PlaylistCard({ playlist, onChange, nowPlaying, isPlaying, onPlay }) {
               conflictNames={pendingUpload.conflictNames}
               onResolve={handleResolveConflicts}
               onCancel={() => setPendingUpload(null)}
+            />
+          )}
+
+          {/* Move file modal */}
+          {movingFile && (
+            <MovePlaylistModal
+              file={movingFile}
+              currentPlaylistId={playlist.id}
+              targets={allPlaylists}
+              moving={moving}
+              onSelect={pid => handleMoveFile(pid)}
+              onCancel={() => setMovingFile(null)}
             />
           )}
         </div>
@@ -769,6 +863,49 @@ const rowBtn = {
   padding: '4px 10px', borderRadius: 6, border: '1px solid #3a3a3a',
   background: '#2a2a2a', color: '#aaa', fontSize: 12, fontWeight: 700, cursor: 'pointer',
 };
+
+// ─── Move file to a different playlist ───────────────────────────────────────
+function MovePlaylistModal({ file, currentPlaylistId, targets, moving, onSelect, onCancel }) {
+  const others = (targets || []).filter(p => p.id !== currentPlaylistId);
+  return (
+    <>
+      <div onClick={onCancel} style={modalBackdrop} />
+      <div style={{ ...modalBox, maxWidth: 480 }}>
+        <div style={modalHeader}>
+          <span style={{ fontSize: 16, fontWeight: 800 }}>↗ העברת קובץ</span>
+          <button onClick={onCancel} style={modalCloseBtn}>✕</button>
+        </div>
+        <div style={{ padding: 14, color: '#aaa', fontSize: 13, borderBottom: '1px solid #2a2a2a', lineHeight: 1.6 }}>
+          העבר את <span style={{ color: '#fff', fontWeight: 700 }}>{file.title || file.name}</span> לפלייליסט אחר. הקובץ יעבור פיזית בין התיקיות.
+        </div>
+        <div style={{ padding: '8px 14px', maxHeight: 360, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {others.length === 0 ? (
+            <div style={{ color: '#888', fontSize: 13, padding: 8 }}>אין פלייליסטים אחרים זמינים.</div>
+          ) : others.map(p => (
+            <button
+              key={p.id}
+              onClick={() => onSelect(p.id)}
+              disabled={moving}
+              style={{
+                background: '#1a1a1a', border: '1px solid #2a2a2a',
+                borderRadius: 8, padding: '10px 12px', textAlign: 'right',
+                color: '#fff', cursor: moving ? 'progress' : 'pointer',
+                opacity: moving ? 0.6 : 1,
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              }}
+            >
+              <span style={{ fontSize: 14, fontWeight: 700 }}>📁 {p.name}{p.hidden ? ' 🙈' : ''}</span>
+              <span style={{ fontSize: 11, color: '#888' }}>{p.files} קבצים</span>
+            </button>
+          ))}
+        </div>
+        <div style={modalFooter}>
+          <button onClick={onCancel} disabled={moving} style={btnCancel}>ביטול</button>
+        </div>
+      </div>
+    </>
+  );
+}
 
 // ─── Metadata edit modal ─────────────────────────────────────────────────────
 function MetadataEditor({ playlistId, file, siblingFiles = [], artistSuggestions = [], onClose, onSaved }) {
