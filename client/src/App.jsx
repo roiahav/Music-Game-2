@@ -19,7 +19,6 @@ import YearsMultiplayerScreen from './screens/YearsMultiplayerScreen.jsx';
 import ChampionGameScreen from './screens/ChampionGameScreen.jsx';
 import ChampionMultiplayerScreen from './screens/ChampionMultiplayerScreen.jsx';
 import LaddersHitsScreen from './screens/LaddersHitsScreen.jsx';
-import GameModeChooser from './components/GameModeChooser.jsx';
 import { logoutApi, uploadAvatar, getAvatarUrl, getUsers } from './api/client.js';
 import { useLang } from './i18n/useLang.js';
 import { getVisibleGames } from './games-config.js';
@@ -227,65 +226,105 @@ export default function App() {
         ))}
       </div>
 
-      {/* Mode cards — driven by games-config + admin settings (order, hidden, restrictions) */}
+      {/* Top-level menu — solo + multiplayer collapse into chooser sub-screens. Personal-category games (e.g. favorites) render directly. */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%', padding: '0 24px 28px' }}>
-        {getVisibleGames(gamesConfig, user).map(g => {
-          const labelMap = {
-            'solo': t('solo_game'),
-            'multiplayer': t('group_game'),
-            'solo-typing': t('free_guess'),
-            'years': t('years_game'),
-            'years-multi': t('ygm_game'),
-            'favorites': t('my_favorites'),
-          };
-          const descText = g.descKey ? t(g.descKey) : (g.descRaw || '');
+        {(() => {
+          const visible = getVisibleGames(gamesConfig, user);
+          const hasSolo  = visible.some(g => g.category === 'solo');
+          const hasMulti = visible.some(g => g.category === 'multi');
+          const personal = visible.filter(g => g.category === 'personal');
           return (
-            <button
-              key={g.id}
-              onClick={() => { setScreen(g.screen); if (g.tab) setTab(g.tab); }}
-              style={modeCard(g.bg, dir)}
-            >
-              <span style={{ fontSize: 38 }}>{g.icon}</span>
-              <div style={{ flex: 1, textAlign: dir === 'rtl' ? 'right' : 'left' }}>
-                <div style={{ color: '#fff', fontSize: 17, fontWeight: 800 }}>{labelMap[g.id] || g.label}</div>
-                <div style={{ color: g.subColor || '#fff', fontSize: 12, marginTop: 3 }}>{descText}</div>
-              </div>
-            </button>
+            <>
+              {hasSolo && (
+                <button onClick={() => setScreen('solo-chooser')} style={modeCard('#007ACC', dir)}>
+                  <span style={{ fontSize: 38 }}>🎧</span>
+                  <div style={{ flex: 1, textAlign: dir === 'rtl' ? 'right' : 'left' }}>
+                    <div style={{ color: '#fff', fontSize: 17, fontWeight: 800 }}>{t('solo_game')}</div>
+                    <div style={{ color: '#a8d4f5', fontSize: 12, marginTop: 3 }}>{t('chooser_solo_desc')}</div>
+                  </div>
+                </button>
+              )}
+              {hasMulti && (
+                <button onClick={() => setScreen('multi-chooser')} style={modeCard('#1db954', dir)}>
+                  <span style={{ fontSize: 38 }}>👥</span>
+                  <div style={{ flex: 1, textAlign: dir === 'rtl' ? 'right' : 'left' }}>
+                    <div style={{ color: '#fff', fontSize: 17, fontWeight: 800 }}>{t('group_game')}</div>
+                    <div style={{ color: '#a8f5c4', fontSize: 12, marginTop: 3 }}>{t('chooser_multi_desc')}</div>
+                  </div>
+                </button>
+              )}
+              {personal.map(g => {
+                const descText = g.descKey ? t(g.descKey) : (g.descRaw || '');
+                const labelMap = { 'favorites': t('my_favorites') };
+                return (
+                  <button
+                    key={g.id}
+                    onClick={() => { setScreen(g.screen); if (g.tab) setTab(g.tab); }}
+                    style={modeCard(g.bg, dir)}
+                  >
+                    <span style={{ fontSize: 38 }}>{g.icon}</span>
+                    <div style={{ flex: 1, textAlign: dir === 'rtl' ? 'right' : 'left' }}>
+                      <div style={{ color: '#fff', fontSize: 17, fontWeight: 800 }}>{labelMap[g.id] || g.label}</div>
+                      <div style={{ color: g.subColor || '#fff', fontSize: 12, marginTop: 3 }}>{descText}</div>
+                    </div>
+                  </button>
+                );
+              })}
+            </>
           );
-        })}
+        })()}
       </div>
     </div>
   );
 
-  // ── Years chooser (solo / multi) ──────────────────────────────────────────────
-  if (screen === 'years-chooser') return (
-    <div style={{ ...shell }}>
-      <GameModeChooser
-        title="זיהוי שנים"
-        icon="📅"
-        accent="#f39c12"
-        subColor="#fde8b0"
-        onSolo={() => setScreen('years')}
-        onMulti={() => setScreen('years-multi')}
-        onBack={() => setScreen('home')}
-      />
-    </div>
-  );
-
-  // ── Champion chooser (solo / multi) ───────────────────────────────────────────
-  if (screen === 'champion-chooser') return (
-    <div style={{ ...shell }}>
-      <GameModeChooser
-        title="אלוף הזיהויים"
-        icon="🥇"
-        accent="#C9A227"
-        subColor="#fff5c5"
-        onSolo={() => setScreen('champion')}
-        onMulti={() => setScreen('champion-multi')}
-        onBack={() => setScreen('home')}
-      />
-    </div>
-  );
+  // ── Solo / Multi chooser screens ─────────────────────────────────────────────
+  if (screen === 'solo-chooser' || screen === 'multi-chooser') {
+    const cat = screen === 'solo-chooser' ? 'solo' : 'multi';
+    const title = cat === 'solo' ? t('solo_game') : t('group_game');
+    const icon  = cat === 'solo' ? '🎧' : '👥';
+    const games = getVisibleGames(gamesConfig, user).filter(g => g.category === cat);
+    const labelMap = {
+      'solo': t('solo_game'),
+      'multiplayer': t('group_game'),
+      'solo-typing': t('free_guess'),
+      'years': t('years_game'),
+      'years-multi': t('ygm_game'),
+    };
+    return (
+      <div style={{ ...shell, direction: dir, alignItems: 'center', overflowY: 'auto' }}>
+        <div style={{ width: '100%', display: 'flex', alignItems: 'center', padding: '14px 16px', gap: 10, flexShrink: 0 }}>
+          <button
+            onClick={() => setScreen('home')}
+            style={{ background: 'var(--bg2)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 10, padding: '6px 14px', cursor: 'pointer', fontSize: 16 }}
+          >
+            {dir === 'rtl' ? '→' : '←'}
+          </button>
+          <div style={{ flex: 1, textAlign: 'center', color: 'var(--text)', fontSize: 22, fontWeight: 800 }}>
+            {icon} {title}
+          </div>
+          <div style={{ width: 48 }} />
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%', padding: '12px 24px 28px' }}>
+          {games.map(g => {
+            const descText = g.descKey ? t(g.descKey) : (g.descRaw || '');
+            return (
+              <button
+                key={g.id}
+                onClick={() => { setScreen(g.screen); if (g.tab) setTab(g.tab); }}
+                style={modeCard(g.bg, dir)}
+              >
+                <span style={{ fontSize: 38 }}>{g.icon}</span>
+                <div style={{ flex: 1, textAlign: dir === 'rtl' ? 'right' : 'left' }}>
+                  <div style={{ color: '#fff', fontSize: 17, fontWeight: 800 }}>{labelMap[g.id] || g.label}</div>
+                  <div style={{ color: g.subColor || '#fff', fontSize: 12, marginTop: 3 }}>{descText}</div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
 
   // ── Years game (solo) ─────────────────────────────────────────────────────────
   if (screen === 'years') return (

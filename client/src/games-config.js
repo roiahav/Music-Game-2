@@ -2,46 +2,63 @@
  * Single source of truth for all home-screen games.
  * Order, visibility and per-user restrictions are stored in settings.json
  * (under settings.games) and merged on top of these defaults at render time.
+ *
+ * `category` controls which top-level home button reveals the game:
+ *   'solo'      → "משחק יחיד" chooser
+ *   'multi'     → "משחק קבוצתי" chooser
+ *   'personal'  → rendered directly on home (e.g. favorites library)
  */
 export const GAMES = [
   {
-    id: 'solo', screen: 'solo', tab: 'game',
+    id: 'solo', screen: 'solo', tab: 'game', category: 'solo',
     icon: '🎧', label: 'משחק יחיד',
     descKey: 'solo_desc',
     bg: '#007ACC', subColor: '#a8d4f5',
   },
   {
-    id: 'multiplayer', screen: 'multiplayer',
+    id: 'multiplayer', screen: 'multiplayer', category: 'multi',
     icon: '🎮', label: 'משחק קבוצתי',
     descKey: 'group_desc',
     bg: '#1db954', subColor: '#a8f5c4',
   },
   {
-    id: 'solo-typing', screen: 'solo-typing',
+    id: 'solo-typing', screen: 'solo-typing', category: 'solo',
     icon: '🎤', label: 'ניחוש חופשי',
     descKey: 'free_desc',
     bg: '#9b59b6', subColor: '#d7b8f5',
   },
   {
-    id: 'years', screen: 'years-chooser',
+    id: 'years', screen: 'years', category: 'solo',
     icon: '📅', label: 'זיהוי שנים',
     descKey: 'years_desc',
     bg: '#f39c12', subColor: '#fde8b0',
   },
   {
-    id: 'champion', screen: 'champion-chooser',
+    id: 'years-multi', screen: 'years-multi', category: 'multi',
+    icon: '🏆', label: 'זיהוי שנים — קבוצתי',
+    descKey: 'ygm_desc',
+    bg: '#e67e22', subColor: '#fdd5b0',
+  },
+  {
+    id: 'champion', screen: 'champion', category: 'solo',
     icon: '🥇', label: 'אלוף הזיהויים',
     descRaw: 'זמר, שיר ושנה — 3 קוביות לכל שיר',
     bg: '#C9A227', subColor: '#fff5c5',
   },
   {
-    id: 'ladders-hits', screen: 'ladders-hits',
+    id: 'champion-multi', screen: 'champion-multi', category: 'multi',
+    icon: '🏅', label: 'אלוף הזיהויים — קבוצתי',
+    descRaw: 'מי שצובר הכי הרבה נקודות מנצח',
+    bg: '#DAA520', subColor: '#fff8c5',
+  },
+  {
+    id: 'ladders-hits', screen: 'ladders-hits', category: 'multi',
     icon: '🎲', label: 'סולמות ולהיטים',
     descRaw: 'משחק קבוצתי על לוח — נחש, הטל קובייה והגיע ראשון לסיום',
     bg: '#16a085', subColor: '#a8f5e1',
   },
   {
-    id: 'favorites', screen: 'favorites',
+    id: 'favorites', screen: 'favorites', category: 'personal',
     icon: '❤️', label: 'המועדפים שלי',
     descKey: 'favorites_desc',
     bg: '#e74c3c', subColor: '#f5a8a8',
