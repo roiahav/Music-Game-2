@@ -6,7 +6,7 @@
 import { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
 import {
   getMusicStats, getMusicDuplicates, listMusicFiles, deleteMusicFile, uploadMusicFiles, updateMusicMetadata,
-  moveMusicFile, setPlaylistHidden, addToBlacklist, removeFromBlacklist,
+  moveMusicFile, setPlaylistHidden, createMusicPlaylist, addToBlacklist, removeFromBlacklist,
 } from '../api/client.js';
 
 export default function MusicLibraryPanel() {
@@ -17,6 +17,8 @@ export default function MusicLibraryPanel() {
   const [dupResult, setDupResult] = useState(null);
   const [dupOpen, setDupOpen] = useState(false);
   const [dupLoading, setDupLoading] = useState(false);
+  // "+ פלייליסט חדש" modal state
+  const [createOpen, setCreateOpen] = useState(false);
 
   async function runDuplicateScan() {
     setDupOpen(true);
@@ -138,13 +140,24 @@ export default function MusicLibraryPanel() {
         <Stat label="סה״כ קבצים"     value={totalFiles} />
         <Stat label="סה״כ נפח"        value={fmtBytes(totalSize)} />
         <button
+          onClick={() => setCreateOpen(true)}
+          title="צור פלייליסט מקומי חדש (תיקייה תיווצר אוטומטית בשרת)"
+          style={{
+            background: '#1db95433', border: '1px solid #1db954', color: '#1db954',
+            borderRadius: 10, padding: '10px 16px', fontSize: 13, fontWeight: 700,
+            cursor: 'pointer', marginInlineStart: 'auto',
+          }}
+        >
+          + פלייליסט חדש
+        </button>
+        <button
           onClick={runDuplicateScan}
           disabled={dupLoading}
           title="חיפוש שירים כפולים על פני כל הפלייליסטים"
           style={{
             background: '#2a2a2a', border: '1px solid #3a3a3a', color: '#ddd',
             borderRadius: 10, padding: '10px 16px', fontSize: 13, fontWeight: 700,
-            cursor: dupLoading ? 'progress' : 'pointer', marginInlineStart: 'auto',
+            cursor: dupLoading ? 'progress' : 'pointer',
           }}
         >
           {dupLoading ? '⏳ סורק…' : '🔍 בדיקת כפילויות'}
@@ -236,6 +249,14 @@ export default function MusicLibraryPanel() {
             playFile(playlistId, playlistPath, filename, []);
           }}
           stats={stats}
+        />
+      )}
+
+      {/* Create-playlist modal */}
+      {createOpen && (
+        <CreatePlaylistModal
+          onClose={() => setCreateOpen(false)}
+          onCreated={() => { setCreateOpen(false); refresh(); }}
         />
       )}
     </div>
@@ -341,6 +362,62 @@ function DuplicatesModal({ loading, duplicates, onClose, onDelete, onPlay, stats
         )}
         <div style={modalFooter}>
           <button onClick={onClose} style={btnSave}>סגור</button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ─── New-playlist modal — name only; server creates the folder ───────────────
+function CreatePlaylistModal({ onClose, onCreated }) {
+  const [name, setName] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  async function submit() {
+    if (!name.trim() || busy) return;
+    setBusy(true); setError('');
+    try {
+      await createMusicPlaylist(name.trim());
+      onCreated?.();
+    } catch (e) {
+      setError(e.response?.data?.error || e.message);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <div onClick={onClose} style={modalBackdrop} />
+      <div style={{ ...modalBox, maxWidth: 460 }}>
+        <div style={modalHeader}>
+          <span style={{ fontSize: 16, fontWeight: 800 }}>+ פלייליסט חדש</span>
+          <button onClick={onClose} style={modalCloseBtn}>✕</button>
+        </div>
+        <div style={modalBody}>
+          <div style={{ color: '#aaa', fontSize: 13, lineHeight: 1.6 }}>
+            הזן שם לפלייליסט. השרת ייצור תיקייה חדשה באותו שם תחת תיקיית המוזיקה הראשית, ותוכל מיד להעלות אליה שירים.
+          </div>
+          <input
+            autoFocus
+            type="text"
+            value={name}
+            onChange={e => setName(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') submit(); }}
+            placeholder="למשל: שירים בעברית, פופ 90s"
+            style={fldInput}
+            disabled={busy}
+          />
+          {error && <div style={errBox}>{error}</div>}
+          <div style={{ color: '#666', fontSize: 11, lineHeight: 1.6 }}>
+            💡 התיקייה תיווצר ליד שאר הפלייליסטים הקיימים. אם אין עדיין כלום, היא תיווצר תחת תיקיית `music/` של האפליקציה בשרת.
+          </div>
+        </div>
+        <div style={modalFooter}>
+          <button onClick={onClose} disabled={busy} style={btnCancel}>ביטול</button>
+          <button onClick={submit} disabled={busy || !name.trim()} style={{ ...btnSave, opacity: (busy || !name.trim()) ? 0.5 : 1 }}>
+            {busy ? '⏳ יוצר…' : '✓ צור פלייליסט'}
+          </button>
         </div>
       </div>
     </>

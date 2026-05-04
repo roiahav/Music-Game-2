@@ -8,11 +8,24 @@ import multer from 'multer';
 import NodeID3 from 'node-id3';
 import { parseFile } from 'music-metadata';
 import { promises as fs, existsSync, statSync } from 'fs';
-import { join, basename, normalize, resolve, extname } from 'path';
+import { join, basename, normalize, resolve, extname, dirname } from 'path';
 import { createHash } from 'crypto';
+import { v4 as uuidv4 } from 'uuid';
+import { fileURLToPath } from 'url';
 import { getSettings, saveSettings } from '../services/SettingsStore.js';
 
 const sha1 = s => createHash('sha1').update(s).digest('hex');
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+// Where new local playlists are created when the admin uses the "Add new
+// playlist" shortcut. We pick the parent dir of an existing local playlist
+// (so all music sits next to each other), falling back to `<app>/music/`.
+function getMusicRoot() {
+  const { playlists = [] } = getSettings();
+  const local = playlists.find(p => p.type === 'local' && p.path);
+  if (local) return dirname(local.path);
+  return resolve(__dirname, '..', '..', 'music');
+}
 
 const router = Router();
 
@@ -259,6 +272,50 @@ router.post('/upload', upload.array('files', 50), (req, res) => {
 // Surface multer errors as friendly JSON
 router.use((err, _req, res, _next) => {
   if (err) return res.status(400).json({ error: err.message });
+});
+
+// ── POST /api/admin/music/playlist-create — create a new local playlist ──
+// Body: { name }. Sanitises the name into a folder, creates it on disk
+// under the auto-detected music root, and appends a new local-playlist
+// entry to settings.json. Used by the "+ פלייליסט חדש" shortcut in the
+// music library so the admin doesn't have to edit settings or pick a path.
+router.post('/playlist-create', async (req, res) => {
+  const trimmed = String(req.body?.name || '').trim();
+  if (!trimmed) return res.status(400).json({ error: 'יש להזין שם' });
+  // Strip characters that are illegal in Windows / problematic on Linux.
+  const folderName = trimmed.replace(/[\\/:*?"<>|]+/g, '').trim();
+  if (!folderName || folderName === '.' || folderName === '..') {
+    return res.status(400).json({ error: 'שם תיקייה לא תקין' });
+  }
+  const root = getMusicRoot();
+  const folderPath = join(root, folderName);
+  // Path-traversal guard — ensure the resolved path stays inside the root
+  const resolvedRoot   = resolve(root);
+  const resolvedFolder = resolve(folderPath);
+  if (!resolvedFolder.startsWith(resolvedRoot)) {
+    return res.status(400).json({ error: 'נתיב לא תקין' });
+  }
+  const settings = getSettings();
+  if ((settings.playlists || []).some(p => p.path === folderPath)) {
+    return res.status(409).json({ error: 'כבר קיים פלייליסט בנתיב זה' });
+  }
+  try {
+    if (!existsSync(folderPath)) await fs.mkdir(folderPath, { recursive: true });
+    const playlist = {
+      id: uuidv4(),
+      name: trimmed,
+      type: 'local',
+      path: folderPath,
+      spotifyUri: '',
+      hidden: false,
+    };
+    settings.playlists = settings.playlists || [];
+    settings.playlists.push(playlist);
+    saveSettings(settings);
+    res.json({ playlist });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ── POST /api/admin/music/move — move a file across local playlists ───────
