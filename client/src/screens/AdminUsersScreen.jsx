@@ -32,6 +32,7 @@ function UsersTab({ defaultFilter = 'all', onFilterConsumed }) {
   const [userLogFor, setUserLogFor] = useState(null); // user object for the log modal
   const [expiryFor, setExpiryFor] = useState(null);   // user object for the expiry-limit modal
   const [inviteOpen, setInviteOpen] = useState(false); // invite modal
+  const [expandedUserId, setExpandedUserId] = useState(null); // collapsible user rows
 
   async function load() {
     setLoading(true);
@@ -155,15 +156,41 @@ function UsersTab({ defaultFilter = 'all', onFilterConsumed }) {
             const busyRole = toggling.has(u.id + '_role');
             const busyHost = toggling.has(u.id + '_canHostRoom');
             const busyBlock = toggling.has(u.id + '_blocked');
+            const isExpanded = expandedUserId === u.id;
 
             return (
               <div key={u.id} style={{
                 background: isBlocked ? '#2a1010' : '#2d2d30',
-                borderRadius: 14, padding: '12px 14px',
+                borderRadius: 14,
                 border: `1px solid ${isBlocked ? '#dc354544' : '#3a3a3a'}`,
                 opacity: isBlocked ? 0.85 : 1,
                 transition: 'all 0.15s',
+                overflow: 'hidden',
               }}>
+                {/* Collapsed header — username only + chevron, always visible. Tapping toggles expand. */}
+                <button
+                  onClick={() => setExpandedUserId(isExpanded ? null : u.id)}
+                  style={{
+                    width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '12px 14px', background: 'none', border: 'none',
+                    cursor: 'pointer', textAlign: 'right', color: 'inherit',
+                  }}
+                >
+                  <span style={{
+                    flex: 1, minWidth: 0, color: isBlocked ? '#ff6b6b' : '#fff',
+                    fontWeight: 700, fontSize: 15,
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                  }}>
+                    {u.username}
+                  </span>
+                  {isBlocked && <span style={{ fontSize: 13, color: '#ff6b6b' }}>🚫</span>}
+                  {u.approved === false && <span style={{ fontSize: 13, color: '#e67e22' }}>⏳</span>}
+                  {isAdmin && <span style={{ fontSize: 13, color: '#5bb8ff' }}>👑</span>}
+                  <span style={{ color: '#888', fontSize: 14, flexShrink: 0 }}>{isExpanded ? '▲' : '▼'}</span>
+                </button>
+
+                {isExpanded && (
+                <div style={{ padding: '0 14px 12px' }}>
                 {/* Row 1: name + status badges + action buttons */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -307,6 +334,8 @@ function UsersTab({ defaultFilter = 'all', onFilterConsumed }) {
                     label={isBlocked ? '✅ בטל חסימה' : '🚫 חסום משתמש'}
                   />
                 </div>
+                </div>
+                )}
               </div>
             );
           })}

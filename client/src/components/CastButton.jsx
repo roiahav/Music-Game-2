@@ -1,41 +1,37 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 
 /**
  * Cast / AirPlay button. Calls the W3C Remote Playback API
  * (audio.remote.prompt) which surfaces the OS-native picker:
  * Chromecast in Chrome/Android, AirPlay in Safari/iOS.
  *
- * Hidden automatically if the browser has no remote-playback support
- * or the audio element isn't ready yet.
+ * Always renders when the browser advertises the API. We don't gate on
+ * `watchAvailability` — many browsers report "no devices" until the
+ * picker is actually opened, which would cause the button to vanish even
+ * when a cast target is reachable. If the user taps and there's nothing
+ * around, the OS picker says so itself.
  */
-export default function CastButton({ audioRef, size = 46 }) {
-  const [supported, setSupported] = useState(false);
-  const [available, setAvailable] = useState(true); // optimistic — many browsers don't fire watchAvailability
+const REMOTE_PLAYBACK_SUPPORTED =
+  typeof window !== 'undefined' &&
+  typeof window.HTMLMediaElement !== 'undefined' &&
+  'remote' in window.HTMLMediaElement.prototype;
 
+export default function CastButton({ audioRef, size = 46 }) {
+  // Mark the audio element as AirPlay-eligible (Safari/iOS). Re-runs whenever
+  // the ref gets attached so we don't miss elements that mount later.
   useEffect(() => {
     const el = audioRef?.current;
     if (!el) return;
     try { el.setAttribute('x-webkit-airplay', 'allow'); } catch {}
-    if (!('remote' in el) || !el.remote) {
-      setSupported(false);
-      return;
-    }
-    setSupported(true);
-    let cb;
-    try {
-      cb = el.remote.watchAvailability(a => setAvailable(!!a));
-    } catch {}
-    return () => {
-      try { if (cb && el.remote) el.remote.cancelWatchAvailability(cb); } catch {}
-    };
-  }, [audioRef]);
+  });
 
-  if (!supported || !available) return null;
+  if (!REMOTE_PLAYBACK_SUPPORTED) return null;
 
   function onClick() {
     const el = audioRef?.current;
-    if (!el?.remote) return;
-    el.remote.prompt().catch(() => {});
+    if (el?.remote?.prompt) {
+      el.remote.prompt().catch(() => {});
+    }
   }
 
   return (

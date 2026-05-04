@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, Fragment } from 'react';
 import { useSettingsStore } from '../store/settingsStore.js';
 import { addPlaylist, getPlaylists, getSettings as getSettingsApi, saveSettings, testEmailSettings, createInviteApi, getUsers } from '../api/client.js';
 import { useLang } from '../i18n/useLang.js';
@@ -1396,14 +1396,24 @@ function GamesManagementPanel() {
     }
   }, [open]);
 
-  // Resolved order — falls back to defaults for games not in the saved order
+  // Resolved order — falls back to defaults for games not in the saved order.
+  // Always grouped by category (solo → multi → personal) so the home-screen
+  // group buttons reflect what the admin sees here.
+  const CATEGORY_RANK = { solo: 0, multi: 1, personal: 2 };
   const order = useMemo(() => {
     const saved = Array.isArray(gamesConfig?.order) ? gamesConfig.order : [];
     const known = new Set(GAMES.map(g => g.id));
-    const ordered = [...saved.filter(id => known.has(id)),
-                     ...DEFAULT_GAME_ORDER.filter(id => !saved.includes(id))];
-    return ordered;
+    const merged = [
+      ...saved.filter(id => known.has(id)),
+      ...DEFAULT_GAME_ORDER.filter(id => !saved.includes(id)),
+    ];
+    const cat = id => CATEGORY_RANK[GAMES.find(g => g.id === id)?.category] ?? 99;
+    return [...merged].sort((a, b) => cat(a) - cat(b));
   }, [gamesConfig]);
+
+  function categoryOf(id) {
+    return GAMES.find(g => g.id === id)?.category || 'personal';
+  }
 
   const hidden       = useMemo(() => new Set(gamesConfig?.hidden || []), [gamesConfig]);
   const allowedUsers = gamesConfig?.allowedUsers || {};
@@ -1439,6 +1449,9 @@ function GamesManagementPanel() {
 
   function moveTo(fromId, toId) {
     if (fromId === toId) return;
+    // Only allow reorder within the same category — keeps the home-screen groups
+    // consistent with what the admin sees here.
+    if (categoryOf(fromId) !== categoryOf(toId)) return;
     const next = [...order];
     const fromIdx = next.indexOf(fromId);
     const toIdx   = next.indexOf(toId);
@@ -1525,18 +1538,38 @@ function GamesManagementPanel() {
             </div>
           )}
 
-          {order.map(id => {
-            const g = GAMES.find(gg => gg.id === id);
-            if (!g) return null;
-            const isHidden     = hidden.has(id);
-            const isExpanded   = expandedGameId === id;
-            const restrictedTo = allowedUsers[id] || [];
-            const isDragging   = dragId === id && dragActive;
-            const isDragOver   = dragOverId === id && dragId !== id && dragActive;
+          {(() => {
+            const CATEGORY_LABELS = {
+              solo:     { icon: '🎧', text: 'משחקים יחידים' },
+              multi:    { icon: '👥', text: 'משחקים קבוצתיים' },
+              personal: { icon: '⭐', text: 'אישי' },
+            };
+            let lastCategory = null;
+            return order.map(id => {
+              const g = GAMES.find(gg => gg.id === id);
+              if (!g) return null;
+              const isHidden     = hidden.has(id);
+              const isExpanded   = expandedGameId === id;
+              const restrictedTo = allowedUsers[id] || [];
+              const isDragging   = dragId === id && dragActive;
+              const isDragOver   = dragOverId === id && dragId !== id && dragActive;
+              const showHeading  = g.category !== lastCategory;
+              lastCategory = g.category;
+              const heading = showHeading ? CATEGORY_LABELS[g.category] : null;
 
             return (
+              <Fragment key={id}>
+              {heading && (
+                <div style={{
+                  marginTop: showHeading && lastCategory ? 10 : 0,
+                  color: '#bbb', fontSize: 12, fontWeight: 700,
+                  padding: '4px 4px 2px', display: 'flex', alignItems: 'center', gap: 6,
+                }}>
+                  <span style={{ fontSize: 14 }}>{heading.icon}</span>
+                  <span>{heading.text}</span>
+                </div>
+              )}
               <div
-                key={id}
                 data-game-id={id}
                 style={{
                   background: isDragging
@@ -1657,8 +1690,10 @@ function GamesManagementPanel() {
                   </div>
                 )}
               </div>
+              </Fragment>
             );
-          })}
+            });
+          })()}
         </div>
       )}
     </div>
