@@ -8,7 +8,7 @@
  * on a phone, autocomplete from every playlist's artists.
  */
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   getMusicStats, listMusicFiles, updateMusicMetadata, getMusicArtists,
 } from '../api/client.js';
@@ -19,6 +19,50 @@ export default function MobileMetadataPanel() {
   const [expandedId, setExpandedId] = useState(null);
   const [error, setError] = useState('');
   const [globalArtists, setGlobalArtists] = useState([]);
+
+  // Shared mini-player state — one <audio> for the whole panel so only ever
+  // one song plays at a time, with a sticky controller at the bottom.
+  const audioRef = useRef(null);
+  const [nowPlaying, setNowPlaying] = useState(null); // { playlistId, playlistPath, filename, title, artist }
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [duration, setDuration] = useState(0);
+
+  function playFile(playlistId, playlistPath, file) {
+    const fullPath = playlistPath.endsWith('/') ? `${playlistPath}${file.name}` : `${playlistPath}/${file.name}`;
+    // Tap a row that's already loaded → toggle play/pause without restarting
+    if (nowPlaying && nowPlaying.fullPath === fullPath) {
+      const a = audioRef.current; if (!a) return;
+      if (a.paused) a.play().catch(() => {}); else a.pause();
+      return;
+    }
+    setNowPlaying({ playlistId, playlistPath, filename: file.name, fullPath, title: file.title || file.name, artist: file.artist || '' });
+    setTimeout(() => {
+      const a = audioRef.current; if (!a) return;
+      a.src = `/api/audio/${encodeURIComponent(fullPath)}`;
+      a.load();
+      a.play().catch(() => {});
+    }, 30);
+  }
+  function togglePlayPause() {
+    const a = audioRef.current; if (!a) return;
+    if (a.paused) a.play().catch(() => {}); else a.pause();
+  }
+  function skip(deltaSec) {
+    const a = audioRef.current; if (!a) return;
+    a.currentTime = Math.max(0, Math.min((a.duration || 0), (a.currentTime || 0) + deltaSec));
+  }
+  function seekTo(ratio) {
+    const a = audioRef.current; if (!a || !duration) return;
+    a.currentTime = Math.max(0, Math.min(duration, ratio * duration));
+  }
+  function closePlayer() {
+    const a = audioRef.current; if (a) { try { a.pause(); a.src = ''; } catch {} }
+    setNowPlaying(null);
+    setIsPlaying(false);
+    setProgress(0);
+    setDuration(0);
+  }
 
   useEffect(() => {
     if (!open || playlists !== null) return;
@@ -53,16 +97,72 @@ export default function MobileMetadataPanel() {
               onToggle={() => setExpandedId(id => id === pl.id ? null : pl.id)}
               globalArtists={globalArtists}
               onArtistsChanged={() => getMusicArtists().then(r => setGlobalArtists(r.artists || [])).catch(() => {})}
+              onPlay={playFile}
+              nowPlaying={nowPlaying}
+              isPlaying={isPlaying}
             />
           ))}
+        </div>
+      )}
+
+      {/* Shared audio + sticky mini-player */}
+      <audio
+        ref={audioRef}
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
+        onEnded={() => setIsPlaying(false)}
+        onTimeUpdate={() => {
+          const a = audioRef.current; if (!a) return;
+          const d = a.duration; if (d > 0) setProgress(a.currentTime / d);
+        }}
+        onDurationChange={() => setDuration(audioRef.current?.duration || 0)}
+        onLoadStart={() => { setProgress(0); setDuration(0); }}
+      />
+      {nowPlaying && (
+        <div style={miniPlayer}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nowPlaying.title}</div>
+              {nowPlaying.artist && <div style={{ fontSize: 11, color: '#aaa', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nowPlaying.artist}</div>}
+            </div>
+            <button onClick={closePlayer} title="סגור נגן" style={miniIconBtn}>✕</button>
+          </div>
+          <div
+            onClick={e => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              const ratio = (rect.right - e.clientX) / rect.width; // RTL
+              seekTo(ratio);
+            }}
+            style={{ background: '#1a1a1a', borderRadius: 4, height: 6, overflow: 'hidden', border: '1px solid #2d2d33', cursor: 'pointer' }}
+          >
+            <div style={{ width: `${progress * 100}%`, height: '100%', background: 'var(--accent)', transition: 'width 0.1s linear' }} />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 10, color: '#888', fontVariantNumeric: 'tabular-nums' }}>
+            <span>{fmtTime(duration ? duration * progress : 0)}</span>
+            <span>{fmtTime(duration)}</span>
+          </div>
+          <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+            <button onClick={() => skip(-10)} title="‎-10 שניות" style={miniCtrlBtn}>⏪10</button>
+            <button onClick={togglePlayPause} title={isPlaying ? 'השהה' : 'נגן'} style={{ ...miniCtrlBtn, background: 'var(--accent)', color: '#fff', minWidth: 56 }}>
+              {isPlaying ? '⏸' : '▶'}
+            </button>
+            <button onClick={() => skip(10)} title="‎+10 שניות" style={miniCtrlBtn}>10⏩</button>
+          </div>
         </div>
       )}
     </div>
   );
 }
 
+function fmtTime(sec) {
+  if (!sec || !isFinite(sec)) return '0:00';
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
 // ── A single playlist row that expands into a song list ─────────────────────
-function PlaylistRow({ playlist, expanded, onToggle, globalArtists, onArtistsChanged }) {
+function PlaylistRow({ playlist, expanded, onToggle, globalArtists, onArtistsChanged, onPlay, nowPlaying, isPlaying }) {
   const [files, setFiles] = useState(null);
   const [filter, setFilter] = useState('');
   const [editing, setEditing] = useState(null);
@@ -120,28 +220,70 @@ function PlaylistRow({ playlist, expanded, onToggle, globalArtists, onArtistsCha
           />
           {files === null && <div style={{ color: '#888', fontSize: 13, padding: 10, textAlign: 'center' }}>טוען שירים…</div>}
           {filtered && filtered.length === 0 && <div style={{ color: '#888', fontSize: 13, padding: 10, textAlign: 'center' }}>אין שירים תואמים</div>}
-          {filtered && filtered.map(f => (
-            <button
-              key={f.name}
-              onClick={() => setEditing(f)}
-              style={{
-                background: '#0f0f12', border: '1px solid #2d2d33', borderRadius: 10,
-                padding: '10px 12px', textAlign: 'right', cursor: 'pointer', color: '#fff',
-                display: 'flex', alignItems: 'center', gap: 10,
-              }}
-            >
-              <span style={{ fontSize: 22, flexShrink: 0 }}>✎</span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {f.title || f.name}
-                </div>
-                <div style={{ fontSize: 12, color: '#aaa', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {f.artist || <span style={{ color: '#555' }}>— ללא אמן —</span>}
-                  {f.year && <span style={{ color: '#666' }}> · {f.year}</span>}
-                </div>
+          {filtered && filtered.map(f => {
+            const fullPath = playlist.path.endsWith('/') ? `${playlist.path}${f.name}` : `${playlist.path}/${f.name}`;
+            const isActive = nowPlaying?.fullPath === fullPath;
+            const isThisPlaying = isActive && isPlaying;
+            return (
+              <div
+                key={f.name}
+                style={{
+                  background: isActive ? '#0d2e0d33' : '#0f0f12',
+                  border: `1px solid ${isActive ? '#1db954' : '#2d2d33'}`,
+                  borderRadius: 10,
+                  padding: '8px 10px',
+                  display: 'flex', alignItems: 'center', gap: 8,
+                }}
+              >
+                {/* Play / Pause */}
+                <button
+                  onClick={() => onPlay?.(playlist.id, playlist.path, f)}
+                  title={isThisPlaying ? 'השהה' : 'נגן'}
+                  style={{
+                    width: 40, height: 40, borderRadius: 20,
+                    background: isActive ? '#1db954' : '#2d2d30',
+                    color: isActive ? '#000' : '#1db954',
+                    border: `1px solid ${isActive ? '#1db954' : '#3a3a3a'}`,
+                    fontSize: 16, fontWeight: 800, cursor: 'pointer', flexShrink: 0,
+                  }}
+                >
+                  {isThisPlaying ? '⏸' : '▶'}
+                </button>
+
+                {/* Song title / artist — tap to open editor */}
+                <button
+                  onClick={() => setEditing(f)}
+                  style={{
+                    flex: 1, minWidth: 0,
+                    background: 'transparent', border: 'none',
+                    textAlign: 'right', cursor: 'pointer', color: '#fff',
+                    padding: '4px 0',
+                  }}
+                >
+                  <div style={{ fontWeight: 700, fontSize: 14, color: isActive ? '#1db954' : '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {f.title || f.name}
+                  </div>
+                  <div style={{ fontSize: 12, color: '#aaa', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {f.artist || <span style={{ color: '#555' }}>— ללא אמן —</span>}
+                    {f.year && <span style={{ color: '#666' }}> · {f.year}</span>}
+                  </div>
+                </button>
+
+                {/* Edit pencil */}
+                <button
+                  onClick={() => setEditing(f)}
+                  title="עריכת תגיות"
+                  style={{
+                    width: 36, height: 36, borderRadius: 18,
+                    background: 'transparent', border: '1px solid #3a3a3a',
+                    color: '#aaa', fontSize: 14, cursor: 'pointer', flexShrink: 0,
+                  }}
+                >
+                  ✎
+                </button>
               </div>
-            </button>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -382,4 +524,24 @@ const fullscreen = {
   background: 'rgba(0,0,0,0.7)',
   display: 'flex', alignItems: 'center', justifyContent: 'center',
   padding: 12,
+};
+const miniPlayer = {
+  position: 'sticky', bottom: 8,
+  marginTop: 12,
+  background: '#1a1a1f', border: '1px solid #2d2d33',
+  borderRadius: 14, padding: 10,
+  boxShadow: '0 -4px 16px rgba(0,0,0,0.5)',
+  display: 'flex', flexDirection: 'column', gap: 6,
+  zIndex: 5,
+};
+const miniIconBtn = {
+  width: 30, height: 30, borderRadius: 15,
+  background: 'transparent', border: '1px solid #3a3a3a',
+  color: '#aaa', fontSize: 13, cursor: 'pointer', flexShrink: 0,
+};
+const miniCtrlBtn = {
+  background: '#2a2a2a', border: '1px solid #3a3a3a',
+  color: '#ddd', borderRadius: 10, padding: '8px 14px',
+  fontSize: 13, fontWeight: 700, cursor: 'pointer',
+  minWidth: 50,
 };
