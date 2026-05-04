@@ -11,6 +11,7 @@ import AutocompleteInput from '../components/AutocompleteInput.jsx';
 import { AvatarCircle } from '../App.jsx';
 import { useLang } from '../i18n/useLang.js';
 import { unlockAudio } from '../utils/audioUnlock.js';
+import CastButton from '../components/CastButton.jsx';
 
 const DEFAULT_YEAR = 2000;
 const MEDALS = ['🥇', '🥈', '🥉'];
@@ -914,6 +915,7 @@ export default function MultiplayerScreen({ onExit }) {
               +30s
             </button>
           )}
+          <CastButton audioRef={audioRef} size={44} />
         </div>
       )}
     </div>

@@ -7,6 +7,7 @@ import { AvatarCircle } from '../App.jsx';
 import { useLang } from '../i18n/useLang.js';
 import { unlockAudio } from '../utils/audioUnlock.js';
 import { useFavorites } from '../hooks/useFavorites.js';
+import CastButton from '../components/CastButton.jsx';
 
 const SERVER = import.meta.env.VITE_SERVER_URL || '';
 const DECADES = [1950, 1960, 1970, 1980, 1990, 2000, 2010, 2020];
@@ -501,7 +502,7 @@ export default function ChampionMultiplayerScreen({ onExit }) {
               })}
               title={currentSong && favoriteIds.has(currentSong.id) ? 'הסרה מהמועדפים' : 'הוספה למועדפים'}
               style={{
-                flex: isHost ? 1 : '0 0 56px', height: 44,
+                flex: '0 0 56px', height: 44,
                 background: currentSong && favoriteIds.has(currentSong.id) ? '#dc354522' : 'var(--bg2)',
                 color: currentSong && favoriteIds.has(currentSong.id) ? '#ff6b6b' : 'var(--text)',
                 border: `1px solid ${currentSong && favoriteIds.has(currentSong.id) ? '#dc3545' : 'var(--border)'}`,
@@ -510,6 +511,7 @@ export default function ChampionMultiplayerScreen({ onExit }) {
             >
               {currentSong && favoriteIds.has(currentSong.id) ? '💔' : '❤️'}
             </button>
+            <CastButton audioRef={audioRef} size={44} />
           </div>
 
           {submitted ? (

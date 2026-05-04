@@ -7,6 +7,7 @@ import PlaylistSelector from '../components/PlaylistSelector.jsx';
 import TimerBar from '../components/TimerBar.jsx';
 import { AvatarCircle } from '../App.jsx';
 import { useLang } from '../i18n/useLang.js';
+import CastButton from '../components/CastButton.jsx';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const DECADES = [1950, 1960, 1970, 1980, 1990, 2000, 2010, 2020];
@@ -461,6 +462,7 @@ export default function ChampionGameScreen({ onExit }) {
           >
             {currentSong && favoriteIds.has(currentSong.id) ? '💔' : '❤️'}
           </button>
+          <CastButton audioRef={audioRef} />
         </div>
 
         {/* Selection boxes — 2x2 grid: artist, title, year, submit */}

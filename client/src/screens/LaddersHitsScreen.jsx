@@ -19,6 +19,7 @@ import { Figurine, FIGURINE_OPTIONS } from '../components/Figurine.jsx';
 import { useFavorites } from '../hooks/useFavorites.js';
 import SnakeLadderBoard from '../components/SnakeLadderBoard.jsx';
 import DiceRoller from '../components/DiceRoller.jsx';
+import CastButton from '../components/CastButton.jsx';
 
 const COLORS = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c', '#e67e22', '#34495e', '#d35400', '#16a085', '#c0392b', '#8e44ad'];
 
@@ -584,6 +585,7 @@ export default function LaddersHitsScreen({ onExit }) {
             >
               {isFavorited ? '💔' : '❤️'}
             </button>
+            <CastButton audioRef={audioRef} />
           </div>
 
           {/* Timer bar */}
