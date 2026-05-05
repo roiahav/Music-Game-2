@@ -518,7 +518,7 @@ export default function MultiplayerScreen({ onExit }) {
 
       {!connected && (
         <div style={{ background: '#1a1a0d', border: '1px solid #ffb347', borderRadius: 10, padding: '10px 14px', color: '#ffb347', fontSize: 13, textAlign: 'center' }}>
-          ⚠️ יש לאתחל מחדש את השרת (סגור והפעל start.bat שוב) לאחר עדכון הקוד
+          ⏳ מתחבר לשרת… אם זה לא חולף תוך כמה שניות, רענן את הדף.
         </div>
       )}
 

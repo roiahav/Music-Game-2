@@ -1,7 +1,7 @@
-import { pbkdf2Sync, randomBytes } from 'crypto';
 import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { hashPassword, createHash, verifyPassword } from './passwordHash.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = join(__dirname, '..', 'data');
@@ -16,16 +16,6 @@ function isProtected(user) {
   return PROTECTED_IDS.includes(user.id) || PROTECTED_USERNAMES.includes(user.username);
 }
 
-function hashPassword(password, salt) {
-  return pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
-}
-function createHash(password) {
-  const salt = randomBytes(16).toString('hex');
-  return { salt, hash: hashPassword(password, salt) };
-}
-function verifyPassword(password, salt, storedHash) {
-  return hashPassword(password, salt) === storedHash;
-}
 function load() {
   if (!existsSync(USERS_FILE)) return [];
   try { return JSON.parse(readFileSync(USERS_FILE, 'utf8')); } catch { return []; }

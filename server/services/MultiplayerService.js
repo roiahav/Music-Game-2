@@ -1,10 +1,9 @@
+import { generateRoomCode } from '../utils/roomCode.js';
+
 const rooms = new Map();
 
 function generateCode() {
-  let code;
-  do { code = String(Math.floor(1000 + Math.random() * 9000)); }
-  while (rooms.has(code));
-  return code;
+  return generateRoomCode(c => rooms.has(c));
 }
 
 export function createRoom(hostSocketId, hostName, hostUserId) {

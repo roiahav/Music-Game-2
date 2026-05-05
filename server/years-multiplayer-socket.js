@@ -4,6 +4,7 @@ import { getSongMetadata } from './services/MetadataService.js';
 import { getPlaylistTracks } from './services/SpotifyService.js';
 import { readdirSync, existsSync } from 'fs';
 import { join, extname } from 'path';
+import { generateRoomCode } from './utils/roomCode.js';
 
 const AUDIO_EXT = new Set(['.mp3', '.m4a', '.flac', '.wav', '.ogg', '.aac']);
 
@@ -35,9 +36,7 @@ function shuffle(arr) {
 }
 
 function makeCode() {
-  let code;
-  do { code = String(Math.floor(1000 + Math.random() * 9000)); } while (rooms.has(code));
-  return code;
+  return generateRoomCode(c => rooms.has(c));
 }
 
 function serializePlayers(room) {
