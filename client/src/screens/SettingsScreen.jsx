@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useSettingsStore } from '../store/settingsStore.js';
-import { addPlaylist, getPlaylists } from '../api/client.js';
+import { addPlaylist, getPlaylists, getUsers } from '../api/client.js';
 import { useLang } from '../i18n/useLang.js';
 import SpotifyConnectPanel from '../components/SpotifyConnectPanel.jsx';
 import SettingsPlaylistRow from '../components/SettingsPlaylistRow.jsx';
