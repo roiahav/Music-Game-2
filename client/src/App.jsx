@@ -1,27 +1,42 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { useSettingsStore } from './store/settingsStore.js';
 import { useAuthStore } from './store/authStore.js';
 import { useThemeStore } from './store/themeStore.js';
 import { THEMES, THEME_LIST, applyTheme } from './themes.js';
-import GameScreen from './screens/GameScreen.jsx';
-import SettingsScreen from './screens/SettingsScreen.jsx';
-import MultiplayerScreen from './screens/MultiplayerScreen.jsx';
-import SoloTypingScreen from './screens/SoloTypingScreen.jsx';
+// Eager — used during the auth flow + home screen, so we want them in the
+// initial bundle for fast first paint.
 import LoginScreen from './screens/LoginScreen.jsx';
 import CompleteProfileScreen from './screens/CompleteProfileScreen.jsx';
 import ResetPasswordScreen from './screens/ResetPasswordScreen.jsx';
 import RegisterScreen from './screens/RegisterScreen.jsx';
-import AdminDashboardScreen from './screens/AdminDashboardScreen.jsx';
-import AdminUsersScreen from './screens/AdminUsersScreen.jsx';
-import FavoritesScreen from './screens/FavoritesScreen.jsx';
-import YearsGameScreen from './screens/YearsGameScreen.jsx';
-import YearsMultiplayerScreen from './screens/YearsMultiplayerScreen.jsx';
-import ChampionGameScreen from './screens/ChampionGameScreen.jsx';
-import ChampionMultiplayerScreen from './screens/ChampionMultiplayerScreen.jsx';
-import LaddersHitsScreen from './screens/LaddersHitsScreen.jsx';
+// Lazy — every game mode + the admin dashboard. Each gets its own chunk so
+// the initial bundle stays small (matters most on cellular connections).
+const GameScreen                 = lazy(() => import('./screens/GameScreen.jsx'));
+const SettingsScreen             = lazy(() => import('./screens/SettingsScreen.jsx'));
+const MultiplayerScreen          = lazy(() => import('./screens/MultiplayerScreen.jsx'));
+const SoloTypingScreen           = lazy(() => import('./screens/SoloTypingScreen.jsx'));
+const AdminDashboardScreen       = lazy(() => import('./screens/AdminDashboardScreen.jsx'));
+const FavoritesScreen            = lazy(() => import('./screens/FavoritesScreen.jsx'));
+const YearsGameScreen            = lazy(() => import('./screens/YearsGameScreen.jsx'));
+const YearsMultiplayerScreen     = lazy(() => import('./screens/YearsMultiplayerScreen.jsx'));
+const ChampionGameScreen         = lazy(() => import('./screens/ChampionGameScreen.jsx'));
+const ChampionMultiplayerScreen  = lazy(() => import('./screens/ChampionMultiplayerScreen.jsx'));
+const LaddersHitsScreen          = lazy(() => import('./screens/LaddersHitsScreen.jsx'));
 import { logoutApi, uploadAvatar, getAvatarUrl, getUsers } from './api/client.js';
 import { useLang } from './i18n/useLang.js';
 import { getVisibleGames } from './games-config.js';
+
+/** Loading state shown while a lazy-loaded screen chunk is being fetched. */
+function ScreenLoading() {
+  return (
+    <div style={{
+      flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: 'var(--bg)', color: 'var(--text2)', fontSize: 14,
+    }}>
+      <div>טוען…</div>
+    </div>
+  );
+}
 
 const shell = {
   display: 'flex', flexDirection: 'column', height: '100dvh',
@@ -102,7 +117,11 @@ export default function App() {
 
   // Desktop admin dashboard (full-screen takeover, ignores normal home/solo flow)
   if (screen === 'admin-dashboard') {
-    return <AdminDashboardScreen onExit={() => { setScreen('home'); setTab('game'); }} />;
+    return (
+      <Suspense fallback={<ScreenLoading />}>
+        <AdminDashboardScreen onExit={() => { setScreen('home'); setTab('game'); }} />
+      </Suspense>
+    );
   }
 
   const isAdmin = user?.role === 'admin';
@@ -329,72 +348,88 @@ export default function App() {
   // ── Years game (solo) ─────────────────────────────────────────────────────────
   if (screen === 'years') return (
     <div style={{ ...shell }}>
-      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        <YearsGameScreen onExit={() => setScreen('home')} />
-      </div>
+      <Suspense fallback={<ScreenLoading />}>
+        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <YearsGameScreen onExit={() => setScreen('home')} />
+        </div>
+      </Suspense>
     </div>
   );
 
   // ── Years game (multiplayer) ───────────────────────────────────────────────────
   if (screen === 'years-multi') return (
     <div style={{ ...shell }}>
-      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        <YearsMultiplayerScreen onExit={() => setScreen('home')} />
-      </div>
+      <Suspense fallback={<ScreenLoading />}>
+        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <YearsMultiplayerScreen onExit={() => setScreen('home')} />
+        </div>
+      </Suspense>
     </div>
   );
 
   // ── Champion of identifications (solo) ────────────────────────────────────────
   if (screen === 'champion') return (
     <div style={{ ...shell }}>
-      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        <ChampionGameScreen onExit={() => setScreen('home')} />
-      </div>
+      <Suspense fallback={<ScreenLoading />}>
+        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <ChampionGameScreen onExit={() => setScreen('home')} />
+        </div>
+      </Suspense>
     </div>
   );
 
   // ── Champion of identifications (multiplayer) ────────────────────────────────
   if (screen === 'champion-multi') return (
     <div style={{ ...shell }}>
-      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        <ChampionMultiplayerScreen onExit={() => setScreen('home')} />
-      </div>
+      <Suspense fallback={<ScreenLoading />}>
+        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <ChampionMultiplayerScreen onExit={() => setScreen('home')} />
+        </div>
+      </Suspense>
     </div>
   );
 
   // ── Ladders & Hits (multiplayer board game) ──────────────────────────────────
   if (screen === 'ladders-hits') return (
     <div style={{ ...shell }}>
-      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        <LaddersHitsScreen onExit={() => setScreen('home')} />
-      </div>
+      <Suspense fallback={<ScreenLoading />}>
+        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <LaddersHitsScreen onExit={() => setScreen('home')} />
+        </div>
+      </Suspense>
     </div>
   );
 
   // ── Favorites ────────────────────────────────────────────────────────────────
   if (screen === 'favorites') return (
     <div style={{ ...shell }}>
-      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        <FavoritesScreen onExit={() => setScreen('home')} />
-      </div>
+      <Suspense fallback={<ScreenLoading />}>
+        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <FavoritesScreen onExit={() => setScreen('home')} />
+        </div>
+      </Suspense>
     </div>
   );
 
   // ── Multiplayer ──────────────────────────────────────────────────────────────
   if (screen === 'multiplayer') return (
     <div style={{ ...shell, direction: 'rtl' }}>
-      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        <MultiplayerScreen onExit={() => setScreen('home')} />
-      </div>
+      <Suspense fallback={<ScreenLoading />}>
+        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <MultiplayerScreen onExit={() => setScreen('home')} />
+        </div>
+      </Suspense>
     </div>
   );
 
   // ── Solo typing ───────────────────────────────────────────────────────────────
   if (screen === 'solo-typing') return (
     <div style={{ ...shell }}>
-      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        <SoloTypingScreen onExit={() => setScreen('home')} />
-      </div>
+      <Suspense fallback={<ScreenLoading />}>
+        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <SoloTypingScreen onExit={() => setScreen('home')} />
+        </div>
+      </Suspense>
     </div>
   );
 
@@ -425,16 +460,18 @@ export default function App() {
         </div>
       </div>
       <div className="flex-1 flex flex-col overflow-hidden">
-        {tab === 'game' && <GameScreen />}
-        {tab === 'settings' && (
-          <div className="flex-1 overflow-y-auto">
-            <SettingsScreen
-              isAdmin={isAdmin}
-              usersDefaultFilter={usersDefaultFilter}
-              onUsersFilterConsumed={() => setUsersDefaultFilter('all')}
-            />
-          </div>
-        )}
+        <Suspense fallback={<ScreenLoading />}>
+          {tab === 'game' && <GameScreen />}
+          {tab === 'settings' && (
+            <div className="flex-1 overflow-y-auto">
+              <SettingsScreen
+                isAdmin={isAdmin}
+                usersDefaultFilter={usersDefaultFilter}
+                onUsersFilterConsumed={() => setUsersDefaultFilter('all')}
+              />
+            </div>
+          )}
+        </Suspense>
       </div>
     </div>
   );
