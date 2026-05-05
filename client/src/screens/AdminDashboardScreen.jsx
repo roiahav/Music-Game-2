@@ -10,6 +10,7 @@ import InvitesSection from './admin/InvitesSection.jsx';
 import PlaylistsSection from './admin/PlaylistsSection.jsx';
 import MessagesSection from './admin/MessagesSection.jsx';
 import BackupSection from './admin/BackupSection.jsx';
+import EmailSection from './admin/EmailSection.jsx';
 
 const ZOOM_KEY = 'mg2-dashboard-zoom';
 const ZOOM_MIN = 0.8;
@@ -79,6 +80,7 @@ export default function AdminDashboardScreen({ onExit }) {
           <NavItem icon="📨" label="הזמנות"       active={section === 'invites'}  onClick={() => setSection('invites')} />
           <NavItem icon="🎵" label="פלייליסטים"   active={section === 'playlists'} onClick={() => setSection('playlists')} />
           <NavItem icon="🎶" label="ספריית מוזיקה" active={section === 'music'}    onClick={() => setSection('music')} />
+          <NavItem icon="📧" label="הגדרות מייל"   active={section === 'email'}    onClick={() => setSection('email')} />
           <NavItem icon="💾" label="גיבוי / שחזור" active={section === 'backup'}    onClick={() => setSection('backup')} />
         </nav>
 
@@ -129,6 +131,7 @@ export default function AdminDashboardScreen({ onExit }) {
         {section === 'invites'   && <InvitesSection />}
         {section === 'playlists' && <PlaylistsSection />}
         {section === 'music'     && <MusicLibraryPanel />}
+        {section === 'email'     && <EmailSection />}
         {section === 'backup'    && <BackupSection />}
         {section === 'messages'  && <MessagesSection onChange={refreshPending} />}
       </main>
