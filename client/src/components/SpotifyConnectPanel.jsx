@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useSettingsStore } from '../store/settingsStore.js';
 import { getSpotifyStatus } from '../api/client.js';
 import { useLang } from '../i18n/useLang.js';
+import { useSpotifyPlayer } from '../hooks/useSpotifyPlayer.js';
 
 export default function SpotifyConnectPanel() {
   const { spotify, saveSpotify, spotifyStatus, setSpotifyStatus } = useSettingsStore();
@@ -10,6 +11,9 @@ export default function SpotifyConnectPanel() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const { t } = useLang();
+  // The Web Playback SDK only has anything to talk to once OAuth is done, so
+  // gate it on the connection status to avoid pointless 401s + warnings.
+  const { ready: playerReady, deviceId, error: playerError } = useSpotifyPlayer(spotifyStatus.connected);
 
   useEffect(() => {
     getSpotifyStatus().then(setSpotifyStatus).catch(() => {});
@@ -104,6 +108,36 @@ export default function SpotifyConnectPanel() {
       <p className="text-xs text-center" style={{ color: '#555' }}>
         {t('spotify_premium')}
       </p>
+
+      {/* Web Playback SDK status — only meaningful once OAuth is complete. */}
+      {spotifyStatus.connected && (
+        <div className="rounded-lg p-3 text-xs flex items-center justify-between gap-2"
+          style={{
+            background: '#1e1e1e',
+            border: `1px solid ${playerError ? '#dc354555' : (playerReady ? '#1db95455' : '#444')}`,
+          }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ color: '#aaa', fontWeight: 700 }}>🎧 Web Player</div>
+            {playerError ? (
+              <div style={{ color: '#ff6b6b', marginTop: 2, fontSize: 11 }}>{playerError}</div>
+            ) : playerReady ? (
+              <div style={{ color: '#888', marginTop: 2, fontSize: 11, direction: 'ltr', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                ✓ device {deviceId.slice(0, 8)}…
+              </div>
+            ) : (
+              <div style={{ color: '#666', marginTop: 2, fontSize: 11 }}>טוען נגן…</div>
+            )}
+          </div>
+          <span style={{
+            fontSize: 10, fontWeight: 700,
+            padding: '3px 9px', borderRadius: 10,
+            background: playerError ? '#3a1010' : (playerReady ? '#1a3a1a' : '#2d2d30'),
+            color: playerError ? '#ff6b6b' : (playerReady ? '#1db954' : '#888'),
+          }}>
+            {playerError ? '⚠️ שגיאה' : playerReady ? 'מוכן' : '⏳'}
+          </span>
+        </div>
+      )}
     </div>
   );
 }

@@ -10,6 +10,11 @@ const SCOPES = [
   'user-read-currently-playing',
   'playlist-read-private',
   'playlist-read-collaborative',
+  // Required by the Web Playback SDK so the browser can act as a Spotify
+  // device and play tracks directly without an external client.
+  'streaming',
+  'user-read-email',
+  'user-read-private',
 ].join(' ');
 
 // GET /api/spotify/login
@@ -60,6 +65,21 @@ router.get('/status', async (req, res) => {
     res.json(status);
   } catch {
     res.json({ connected: false });
+  }
+});
+
+// GET /api/spotify/access-token
+// Returns a fresh OAuth access token for the Web Playback SDK's getOAuthToken
+// callback. The SDK calls this every ~50 minutes to refresh; the underlying
+// SpotifyService.getToken() already handles the refresh-token dance.
+router.get('/access-token', async (req, res) => {
+  try {
+    const accessToken = await Spotify.getToken();
+    if (!accessToken) return res.status(401).json({ error: 'not_connected' });
+    const { tokenExpiresAt } = getSettings().spotify;
+    res.json({ accessToken, expiresAt: tokenExpiresAt });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
   }
 });
 

@@ -81,6 +81,7 @@ export const deletePlaylist = id => api.delete(`/settings/playlists/${id}`);
 
 // Spotify
 export const getSpotifyStatus = () => api.get('/spotify/status').then(r => r.data);
+export const getSpotifyAccessToken = () => api.get('/spotify/access-token').then(r => r.data);
 export const getUserSpotifyPlaylists = () => api.get('/spotify/playlists').then(r => r.data);
 export const spotifyPlay = (uris, deviceId) => api.post('/spotify/play', { uris, deviceId });
 export const spotifyPause = () => api.post('/spotify/pause');
