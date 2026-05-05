@@ -8,6 +8,7 @@ import { useLang } from '../i18n/useLang.js';
 import { unlockAudio } from '../utils/audioUnlock.js';
 import { useFavorites } from '../hooks/useFavorites.js';
 import CastButton from '../components/CastButton.jsx';
+import { useConnectionLostBanner } from '../hooks/useConnectionLostBanner.js';
 
 const SERVER = import.meta.env.VITE_SERVER_URL || '';
 const DECADES = [1950, 1960, 1970, 1980, 1990, 2000, 2010, 2020];
@@ -36,6 +37,8 @@ export default function ChampionMultiplayerScreen({ onExit }) {
   // Lobby
   const [players, setPlayers] = useState([]);
   const [mySocketId, setMySocketId] = useState('');
+  const [connected, setConnected] = useState(false);
+  useConnectionLostBanner(connected);
   const [roomCode, setRoomCode] = useState('');
   const [selectedPlaylistIds, setSelectedPlaylistIds] = useState(
     playlists[0] ? new Set([playlists[0].id]) : new Set()
@@ -87,7 +90,9 @@ export default function ChampionMultiplayerScreen({ onExit }) {
     const socket = ioClient(SERVER, { transports: ['websocket'] });
     socketRef.current = socket;
     setMySocketId(socket.id || '');
-    socket.on('connect', () => setMySocketId(socket.id));
+    socket.on('connect', () => { setMySocketId(socket.id); setConnected(true); });
+    socket.on('disconnect', () => setConnected(false));
+    socket.on('connect_error', () => setConnected(false));
 
     socket.on('champ:created', ({ code, players }) => {
       setRoomCode(code); setPlayers(players); setPhase('lobby');

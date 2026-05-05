@@ -20,6 +20,7 @@ import { useFavorites } from '../hooks/useFavorites.js';
 import SnakeLadderBoard from '../components/SnakeLadderBoard.jsx';
 import DiceRoller from '../components/DiceRoller.jsx';
 import CastButton from '../components/CastButton.jsx';
+import { useConnectionLostBanner } from '../hooks/useConnectionLostBanner.js';
 
 const COLORS = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c', '#e67e22', '#34495e', '#d35400', '#16a085', '#c0392b', '#8e44ad'];
 
@@ -37,6 +38,8 @@ export default function LaddersHitsScreen({ onExit }) {
   const [room, setRoom] = useState(null);
   const [isHost, setIsHost] = useState(false);
   const [mySocketId, setMySocketId] = useState(null);
+  const [connected, setConnected] = useState(false);
+  useConnectionLostBanner(connected);
 
   // Phase 2 — round state
   const [autocomplete, setAutocomplete] = useState({ artists: [] });
@@ -86,7 +89,9 @@ export default function LaddersHitsScreen({ onExit }) {
     function onError({ message }) {
       setError(message || 'שגיאה');
     }
-    function onConnect() { setMySocketId(s.id); }
+    function onConnect() { setMySocketId(s.id); setConnected(true); }
+    function onDisconnect() { setConnected(false); }
+    function onConnectError() { setConnected(false); }
 
     function onStarted({ autocomplete: ac }) {
       setAutocomplete(ac || { artists: [] });
@@ -190,6 +195,8 @@ export default function LaddersHitsScreen({ onExit }) {
     }
 
     s.on('connect', onConnect);
+    s.on('disconnect', onDisconnect);
+    s.on('connect_error', onConnectError);
     s.on('lh:created', onCreated);
     s.on('lh:joined', onJoined);
     s.on('lh:room_update', onRoomUpdate);
@@ -203,6 +210,8 @@ export default function LaddersHitsScreen({ onExit }) {
 
     return () => {
       s.off('connect', onConnect);
+      s.off('disconnect', onDisconnect);
+      s.off('connect_error', onConnectError);
       s.off('lh:created', onCreated);
       s.off('lh:joined', onJoined);
       s.off('lh:room_update', onRoomUpdate);

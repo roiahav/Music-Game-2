@@ -12,6 +12,7 @@ import { AvatarCircle } from '../App.jsx';
 import { useLang } from '../i18n/useLang.js';
 import { unlockAudio } from '../utils/audioUnlock.js';
 import CastButton from '../components/CastButton.jsx';
+import { useConnectionLostBanner } from '../hooks/useConnectionLostBanner.js';
 
 const DEFAULT_YEAR = 2000;
 const MEDALS = ['🥇', '🥈', '🥉'];
@@ -218,6 +219,7 @@ export default function MultiplayerScreen({ onExit }) {
 
   // Socket connection state
   const [connected, setConnected] = useState(false);
+  useConnectionLostBanner(connected);
 
   // Entry form — pre-fill with logged-in username
   const [myName, setMyName] = useState(authUser?.username || '');

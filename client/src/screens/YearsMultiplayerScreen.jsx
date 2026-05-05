@@ -7,6 +7,7 @@ import TimerBar from '../components/TimerBar.jsx';
 import { AvatarCircle } from '../App.jsx';
 import { useLang } from '../i18n/useLang.js';
 import { useFavorites } from '../hooks/useFavorites.js';
+import { useConnectionLostBanner } from '../hooks/useConnectionLostBanner.js';
 
 const SERVER = import.meta.env.VITE_SERVER_URL || '';
 const TIMER_OPTIONS = [0, 15, 30, 45, 60];
@@ -257,6 +258,8 @@ export default function YearsMultiplayerScreen({ onExit }) {
   const [codeInput, setCodeInput] = useState('');
   const [isHost, setIsHost] = useState(false);
   const [mySocketId, setMySocketId] = useState('');
+  const [connected, setConnected] = useState(false);
+  useConnectionLostBanner(connected);
   const [roomCode, setRoomCode] = useState('');
   const [players, setPlayers] = useState([]);
   const [error, setError] = useState('');
@@ -293,7 +296,9 @@ export default function YearsMultiplayerScreen({ onExit }) {
     const socket = ioClient(SERVER, { transports: ['websocket'] });
     socketRef.current = socket;
     setMySocketId(socket.id || '');
-    socket.on('connect', () => setMySocketId(socket.id));
+    socket.on('connect', () => { setMySocketId(socket.id); setConnected(true); });
+    socket.on('disconnect', () => setConnected(false));
+    socket.on('connect_error', () => setConnected(false));
 
     socket.on('ygm:created', ({ code, players }) => {
       setRoomCode(code);
