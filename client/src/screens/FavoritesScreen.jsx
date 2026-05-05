@@ -629,13 +629,18 @@ export default function FavoritesScreen({ onExit }) {
                 )}
               </div>
 
-              {/* Playing indicator + Remove (always visible) */}
+              {/* Playing indicator + Remove (always visible).
+                  The ▶/⏸ slot is always rendered with a fixed width so the
+                  row layout doesn't reflow when the active song changes —
+                  previously the title column visibly shrank/grew on tap. */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                {isActive && (
-                  <span style={{ color: accentColor, fontSize: 14 }}>
-                    {isPlaying ? '▶' : '⏸'}
-                  </span>
-                )}
+                <span style={{
+                  width: 14, fontSize: 14, color: accentColor,
+                  textAlign: 'center', display: 'inline-block', flexShrink: 0,
+                  visibility: isActive ? 'visible' : 'hidden',
+                }}>
+                  {isPlaying ? '▶' : '⏸'}
+                </span>
                 <button
                   onClick={e => handleRemove(e, s)}
                   title={t('remove_fav')}
