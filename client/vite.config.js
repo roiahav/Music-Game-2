@@ -10,4 +10,8 @@ export default defineConfig({
       '/socket.io': { target: 'http://localhost:3000', ws: true },
     },
   },
+  test: {
+    environment: 'happy-dom',
+    include: ['src/**/*.test.{js,jsx}'],
+  },
 })
