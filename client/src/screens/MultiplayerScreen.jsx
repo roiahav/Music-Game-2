@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useSettingsStore } from '../store/settingsStore.js';
 import { useAuthStore } from '../store/authStore.js';
-import { getSocket } from '../services/socket.js';
 import { getPlaylistSongs } from '../api/client.js';
 import { useFavorites } from '../hooks/useFavorites.js';
 import { useBlacklist } from '../hooks/useBlacklist.js';
@@ -12,7 +11,7 @@ import { AvatarCircle } from '../App.jsx';
 import { useLang } from '../i18n/useLang.js';
 import { unlockAudio } from '../utils/audioUnlock.js';
 import CastButton from '../components/CastButton.jsx';
-import { useConnectionLostBanner } from '../hooks/useConnectionLostBanner.js';
+import { useMultiplayerSocket } from '../hooks/useMultiplayerSocket.js';
 
 const DEFAULT_YEAR = 2000;
 const MEDALS = ['🥇', '🥈', '🥉'];
@@ -209,17 +208,13 @@ export default function MultiplayerScreen({ onExit }) {
   const { t, dir } = useLang();
   const { favoriteIds, toggle: toggleFavorite } = useFavorites();
   const { blacklistIds, toggleBlacklist } = useBlacklist();
-  const socket = useMemo(() => getSocket(), []);
+  const { socket, connected } = useMultiplayerSocket();
   const { playlists } = useSettingsStore();
   const authUser = useAuthStore(s => s.user);
   const canHost = authUser?.role === 'admin' || authUser?.canHostRoom === true;
 
   // Navigation
   const [view, setView] = useState('entry'); // entry | lobby | game | results
-
-  // Socket connection state
-  const [connected, setConnected] = useState(false);
-  useConnectionLostBanner(connected);
 
   // Entry form — pre-fill with logged-in username
   const [myName, setMyName] = useState(authUser?.username || '');
@@ -330,16 +325,12 @@ export default function MultiplayerScreen({ onExit }) {
     });
   }
 
-  // ── Socket wiring ──────────────────────────────────────────────────────────
+  // ── MP-specific socket events. Connection lifecycle + reconnect banner are
+  // handled by useMultiplayerSocket; this effect only wires the mp:* events.
   useEffect(() => {
-    socket.connect();
-
-    socket.on('connect', () => {
-      myIdRef.current = socket.id;
-      setConnected(true);
-    });
-    socket.on('disconnect', () => setConnected(false));
-    socket.on('connect_error', () => setConnected(false));
+    function captureMyId() { myIdRef.current = socket.id; }
+    socket.on('connect', captureMyId);
+    if (socket.connected) captureMyId();
 
     socket.on('mp:created', ({ code, players: ps }) => {
       setRoomCode(code);
@@ -424,11 +415,12 @@ export default function MultiplayerScreen({ onExit }) {
     });
 
     return () => {
-      ['connect','disconnect','connect_error','mp:created','mp:joined','mp:error','mp:room_update','mp:song','mp:score_update','mp:reveal','mp:ended','mp:muted','mp:seek']
+      socket.off('connect', captureMyId);
+      ['mp:created','mp:joined','mp:error','mp:room_update','mp:song',
+       'mp:score_update','mp:reveal','mp:ended','mp:muted','mp:seek']
         .forEach(e => socket.off(e));
-      socket.disconnect();
     };
-  }, []); // eslint-disable-line
+  }, [socket]); // eslint-disable-line
 
   // Play victory audio when URL arrives and we're in results
   useEffect(() => {

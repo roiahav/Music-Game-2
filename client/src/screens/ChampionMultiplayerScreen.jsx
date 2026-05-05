@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { io as ioClient } from 'socket.io-client';
 import { useSettingsStore } from '../store/settingsStore.js';
 import { useAuthStore } from '../store/authStore.js';
 import TimerBar from '../components/TimerBar.jsx';
@@ -8,9 +7,8 @@ import { useLang } from '../i18n/useLang.js';
 import { unlockAudio } from '../utils/audioUnlock.js';
 import { useFavorites } from '../hooks/useFavorites.js';
 import CastButton from '../components/CastButton.jsx';
-import { useConnectionLostBanner } from '../hooks/useConnectionLostBanner.js';
+import { useMultiplayerSocket } from '../hooks/useMultiplayerSocket.js';
 
-const SERVER = import.meta.env.VITE_SERVER_URL || '';
 const DECADES = [1950, 1960, 1970, 1980, 1990, 2000, 2010, 2020];
 const TIMER_OPTIONS = [0, 15, 30, 45, 60];
 const SONG_COUNT_OPTIONS = [
@@ -36,9 +34,7 @@ export default function ChampionMultiplayerScreen({ onExit }) {
 
   // Lobby
   const [players, setPlayers] = useState([]);
-  const [mySocketId, setMySocketId] = useState('');
-  const [connected, setConnected] = useState(false);
-  useConnectionLostBanner(connected);
+  const { socket, connected, mySocketId } = useMultiplayerSocket();
   const [roomCode, setRoomCode] = useState('');
   const [selectedPlaylistIds, setSelectedPlaylistIds] = useState(
     playlists[0] ? new Set([playlists[0].id]) : new Set()
@@ -76,7 +72,6 @@ export default function ChampionMultiplayerScreen({ onExit }) {
   const [victoryStartSeconds, setVictoryStartSeconds] = useState(0);
   const [endedTotalSongs, setEndedTotalSongs] = useState(0);
 
-  const socketRef = useRef(null);
   const audioRef = useRef(null);
   const victoryRef = useRef(null);
   const [audioPlaying, setAudioPlaying] = useState(false);
@@ -85,15 +80,11 @@ export default function ChampionMultiplayerScreen({ onExit }) {
   const isHost = me?.isHost;
   useEffect(() => { isHostRef.current = !!isHost; }, [isHost]);
 
-  // Socket setup
+  // Champion-specific socket events. Connection state + cleanup are handled
+  // by useMultiplayerSocket. Each event listener is removed in the cleanup
+  // below so unmounting / remounting doesn't pile up duplicates on the shared
+  // singleton socket.
   useEffect(() => {
-    const socket = ioClient(SERVER, { transports: ['websocket'] });
-    socketRef.current = socket;
-    setMySocketId(socket.id || '');
-    socket.on('connect', () => { setMySocketId(socket.id); setConnected(true); });
-    socket.on('disconnect', () => setConnected(false));
-    socket.on('connect_error', () => setConnected(false));
-
     socket.on('champ:created', ({ code, players }) => {
       setRoomCode(code); setPlayers(players); setPhase('lobby');
     });
@@ -149,8 +140,12 @@ export default function ChampionMultiplayerScreen({ onExit }) {
     });
     socket.on('champ:error', ({ message }) => setError(message));
 
-    return () => socket.disconnect();
-  }, []);
+    return () => {
+      ['champ:created','champ:joined','champ:room_update','champ:started',
+       'champ:song','champ:reveal','champ:muted','champ:ended','champ:error']
+        .forEach(e => socket.off(e));
+    };
+  }, [socket]);
 
   // Victory audio playback
   useEffect(() => {
@@ -170,17 +165,17 @@ export default function ChampionMultiplayerScreen({ onExit }) {
   function handleCreate() {
     if (!playerName.trim()) return;
     unlockAudio(audioRef.current);
-    socketRef.current?.emit('champ:create', { name: playerName.trim(), userId: user?.id });
+    socket.emit('champ:create', { name: playerName.trim(), userId: user?.id });
   }
   function handleJoin() {
     if (!playerName.trim() || !code.trim()) return;
     unlockAudio(audioRef.current);
-    socketRef.current?.emit('champ:join', { code: code.trim().toUpperCase(), name: playerName.trim(), userId: user?.id });
+    socket.emit('champ:join', { code: code.trim().toUpperCase(), name: playerName.trim(), userId: user?.id });
   }
   function startGame() {
     if (selectedPlaylistIds.size === 0) return setError('בחר פלייליסט');
     setError('');
-    socketRef.current?.emit('champ:start', {
+    socket.emit('champ:start', {
       playlistIds: [...selectedPlaylistIds],
       songCount,
       timerSec,
@@ -189,7 +184,7 @@ export default function ChampionMultiplayerScreen({ onExit }) {
   }
   function handleSubmit() {
     if (submitted || !currentSong) return;
-    socketRef.current?.emit('champ:submit', {
+    socket.emit('champ:submit', {
       artist: pickedArtist,
       title: pickedTitle,
       year: pickedYear,
@@ -200,15 +195,15 @@ export default function ChampionMultiplayerScreen({ onExit }) {
   }
   // Always-fresh ref for the timer's onExpire callback
   submitRef.current = handleSubmit;
-  function nextSong() { socketRef.current?.emit('champ:next'); }
-  function endNow()   { socketRef.current?.emit('champ:end'); }
+  function nextSong() { socket.emit('champ:next'); }
+  function endNow()   { socket.emit('champ:end'); }
   function hostMuteToggle() {
     if (allMuted) {
       setAllMuted(false);
-      socketRef.current?.emit('champ:unmute_all');
+      socket.emit('champ:unmute_all');
     } else {
       setAllMuted(true);
-      socketRef.current?.emit('champ:mute_all');
+      socket.emit('champ:mute_all');
     }
   }
   function togglePlayPause() {
@@ -564,7 +559,7 @@ export default function ChampionMultiplayerScreen({ onExit }) {
           </div>
 
           {isHost && (
-            <button onClick={() => socketRef.current?.emit('champ:reveal')} style={secondaryBtn}>
+            <button onClick={() => socket.emit('champ:reveal')} style={secondaryBtn}>
               💡 חשוף תשובה (עוקף ממתינים)
             </button>
           )}

@@ -14,13 +14,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuthStore } from '../store/authStore.js';
 import { useSettingsStore } from '../store/settingsStore.js';
-import { getSocket } from '../services/socket.js';
 import { Figurine, FIGURINE_OPTIONS } from '../components/Figurine.jsx';
 import { useFavorites } from '../hooks/useFavorites.js';
 import SnakeLadderBoard from '../components/SnakeLadderBoard.jsx';
 import DiceRoller from '../components/DiceRoller.jsx';
 import CastButton from '../components/CastButton.jsx';
-import { useConnectionLostBanner } from '../hooks/useConnectionLostBanner.js';
+import { useMultiplayerSocket } from '../hooks/useMultiplayerSocket.js';
 
 const COLORS = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c', '#e67e22', '#34495e', '#d35400', '#16a085', '#c0392b', '#8e44ad'];
 
@@ -37,9 +36,7 @@ export default function LaddersHitsScreen({ onExit }) {
   // Room state — populated from lh:room_update / lh:created / lh:joined
   const [room, setRoom] = useState(null);
   const [isHost, setIsHost] = useState(false);
-  const [mySocketId, setMySocketId] = useState(null);
-  const [connected, setConnected] = useState(false);
-  useConnectionLostBanner(connected);
+  const { socket, connected, mySocketId } = useMultiplayerSocket();
 
   // Phase 2 — round state
   const [autocomplete, setAutocomplete] = useState({ artists: [] });
@@ -59,13 +56,10 @@ export default function LaddersHitsScreen({ onExit }) {
   const timerIntervalRef = useRef(null);
   const dicePhaseTimers = useRef([]);
 
-  const socketRef = useRef(null);
-
+  // The shared multiplayer socket is wired (connect/banner/cleanup) by
+  // useMultiplayerSocket above. This effect only attaches lh:* listeners.
   useEffect(() => {
-    const s = getSocket();
-    socketRef.current = s;
-    if (!s.connected) s.connect();
-    setMySocketId(s.id);
+    const s = socket;
 
     function onCreated({ code, room }) {
       setRoom(room);
@@ -82,16 +76,13 @@ export default function LaddersHitsScreen({ onExit }) {
     function onRoomUpdate({ room }) {
       setRoom(room);
       // Host status may change if the original host disconnected
-      if (room && socketRef.current && room.hostSocketId === socketRef.current.id) {
+      if (room && room.hostSocketId === s.id) {
         setIsHost(true);
       }
     }
     function onError({ message }) {
       setError(message || 'שגיאה');
     }
-    function onConnect() { setMySocketId(s.id); setConnected(true); }
-    function onDisconnect() { setConnected(false); }
-    function onConnectError() { setConnected(false); }
 
     function onStarted({ autocomplete: ac }) {
       setAutocomplete(ac || { artists: [] });
@@ -194,9 +185,6 @@ export default function LaddersHitsScreen({ onExit }) {
       }, 100);
     }
 
-    s.on('connect', onConnect);
-    s.on('disconnect', onDisconnect);
-    s.on('connect_error', onConnectError);
     s.on('lh:created', onCreated);
     s.on('lh:joined', onJoined);
     s.on('lh:room_update', onRoomUpdate);
@@ -209,9 +197,6 @@ export default function LaddersHitsScreen({ onExit }) {
     s.on('lh:ended', onEnded);
 
     return () => {
-      s.off('connect', onConnect);
-      s.off('disconnect', onDisconnect);
-      s.off('connect_error', onConnectError);
       s.off('lh:created', onCreated);
       s.off('lh:joined', onJoined);
       s.off('lh:room_update', onRoomUpdate);
@@ -227,30 +212,30 @@ export default function LaddersHitsScreen({ onExit }) {
       // Tell the server we're leaving when the screen unmounts
       try { s.emit('lh:leave'); } catch {}
     };
-  }, []);
+  }, [socket]); // eslint-disable-line
 
   function handleCreate() {
     setError('');
-    socketRef.current?.emit('lh:create', { name: user?.name || user?.username || 'אורח', userId: user?.id });
+    socket.emit('lh:create', { name: user?.name || user?.username || 'אורח', userId: user?.id });
   }
 
   function handleJoin() {
     setError('');
     const code = joinCode.trim().toUpperCase();
     if (!code) { setError('יש להזין קוד חדר'); return; }
-    socketRef.current?.emit('lh:join', { code, name: user?.name || user?.username || 'אורח', userId: user?.id });
+    socket.emit('lh:join', { code, name: user?.name || user?.username || 'אורח', userId: user?.id });
   }
 
   function handleSetAvatar(figurineId, color) {
-    socketRef.current?.emit('lh:set_avatar', { figurineId, color });
+    socket.emit('lh:set_avatar', { figurineId, color });
   }
 
   function handleSetConfig(patch) {
-    socketRef.current?.emit('lh:set_config', patch);
+    socket.emit('lh:set_config', patch);
   }
 
   function handleLeaveRoom() {
-    try { socketRef.current?.emit('lh:leave'); } catch {}
+    try { socket.emit('lh:leave'); } catch {}
     if (audioRef.current) try { audioRef.current.pause(); } catch {}
     setRoom(null);
     setIsHost(false);
@@ -263,7 +248,7 @@ export default function LaddersHitsScreen({ onExit }) {
   function handleSubmitAnswer() {
     if (!answer.trim() || submitting) return;
     setSubmitting(true);
-    socketRef.current?.emit('lh:answer', { value: answer.trim() });
+    socket.emit('lh:answer', { value: answer.trim() });
   }
 
   // ── Entry view: create or join ─────────────────────────────────────────
@@ -461,7 +446,7 @@ export default function LaddersHitsScreen({ onExit }) {
                 disabled={room.playlistIds.length === 0}
                 style={{ ...primaryBtn, opacity: (room.playlistIds.length === 0) ? 0.4 : 1 }}
                 title={room.playlistIds.length === 0 ? 'בחר לפחות פלייליסט אחד' : 'התחל משחק'}
-                onClick={() => socketRef.current?.emit('lh:start')}
+                onClick={() => socket.emit('lh:start')}
               >
                 ▶ התחל משחק
               </button>
@@ -636,7 +621,7 @@ export default function LaddersHitsScreen({ onExit }) {
                 if (roundEnd.winnerSocketId && !diceAlreadyRolled && iAmRoundWinner) {
                   return (
                     <button
-                      onClick={() => socketRef.current?.emit('lh:roll_dice')}
+                      onClick={() => socket.emit('lh:roll_dice')}
                       style={{ ...primaryBtn, marginTop: 6, fontSize: 18 }}
                     >
                       🎲 הטל קובייה
@@ -653,7 +638,7 @@ export default function LaddersHitsScreen({ onExit }) {
                 if (isHost) {
                   return (
                     <button
-                      onClick={() => socketRef.current?.emit('lh:host_next')}
+                      onClick={() => socket.emit('lh:host_next')}
                       style={{ ...primaryBtn, marginTop: 6 }}
                     >
                       {roundEnd.isLastRound ? '🏁 סיים משחק' : '⏭ הסבב הבא'}
@@ -686,7 +671,7 @@ export default function LaddersHitsScreen({ onExit }) {
               )}
               {isHost && (
                 <button
-                  onClick={() => socketRef.current?.emit('lh:host_reveal')}
+                  onClick={() => socket.emit('lh:host_reveal')}
                   style={{ ...secondaryBtn, padding: '8px', fontSize: 13 }}
                 >
                   גלה תשובה (דלג על הסבב)
