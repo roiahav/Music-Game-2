@@ -56,8 +56,17 @@ function publicFields(u) {
 
 function init() {
   if (!existsSync(USERS_FILE)) {
+    // Initial seed password for the bootstrap admin accounts.
+    // PROD: set ADMIN_INITIAL_PASSWORD in the environment so this never lands
+    // in the codebase. The fallback only fires when the env var is unset and
+    // is intentionally noisy in the logs to make sure we notice in dev.
+    const seedPw = process.env.ADMIN_INITIAL_PASSWORD;
+    if (!seedPw) {
+      console.warn('[UserStore] ADMIN_INITIAL_PASSWORD not set — using insecure dev fallback. Change immediately after first login.');
+    }
+    const password = seedPw || 'changeme-on-first-login';
     const users = ['אורן יהב', 'רותם יהב'].map((username, i) => {
-      const { salt, hash } = createHash('!@A22011979a');
+      const { salt, hash } = createHash(password);
       return {
         id: String(i + 1), username, role: 'admin', canHostRoom: true,
         hasAvatar: false, blocked: false, profileCompleted: true,

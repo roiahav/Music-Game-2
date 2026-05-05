@@ -4,6 +4,7 @@ import { getPlaylistSongs } from '../api/client.js';
 import PlaylistSelector from '../components/PlaylistSelector.jsx';
 import TimerBar from '../components/TimerBar.jsx';
 import { useLang } from '../i18n/useLang.js';
+import { useFavorites } from '../hooks/useFavorites.js';
 
 const TIMER_OPTIONS = [0, 15, 30, 45, 60];
 
@@ -115,6 +116,7 @@ export default function YearsGameScreen({ onExit }) {
   const [yearOptions, setYearOptions] = useState([]);  // 4 shuffled years
   const [activeSongId, setActiveSongId] = useState(null);
   const [results, setResults] = useState({});          // { [songId]: { correct, guessedYear } }
+  const { favoriteIds, toggle: toggleFavorite } = useFavorites();
   const [yearStates, setYearStates] = useState({});    // { [year]: 'idle'|'correct'|'wrong'|'used' }
   const [roundNum, setRoundNum] = useState(0);
 
@@ -399,10 +401,32 @@ export default function YearsGameScreen({ onExit }) {
       {/* Content */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 14, padding: '14px 16px 24px', overflowY: 'auto' }}>
 
-        {/* Instruction */}
-        <p style={{ color: '#666', fontSize: 12, textAlign: 'center', margin: 0 }}>
-          {activeSongId ? t('yg_pick_year') : t('yg_tap_card')}
-        </p>
+        {/* Instruction + heart for active song */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+          <p style={{ color: '#666', fontSize: 12, margin: 0 }}>
+            {activeSongId ? t('yg_pick_year') : t('yg_tap_card')}
+          </p>
+          {activeSong && (
+            <button
+              onClick={() => toggleFavorite({
+                id: activeSong.id,
+                filePath: activeSong.filePath || activeSong.audioUrl || '',
+                title: activeSong.title || '',
+                artist: activeSong.artist || '',
+                year: activeSong.year || '',
+              })}
+              title={favoriteIds.has(activeSong.id) ? 'הסרה מהמועדפים' : 'הוספה למועדפים'}
+              style={{
+                background: favoriteIds.has(activeSong.id) ? '#dc354522' : 'transparent',
+                color: favoriteIds.has(activeSong.id) ? '#ff6b6b' : '#888',
+                border: `1px solid ${favoriteIds.has(activeSong.id) ? '#dc3545' : '#444'}`,
+                borderRadius: 8, padding: '2px 8px', fontSize: 14, cursor: 'pointer',
+              }}
+            >
+              {favoriteIds.has(activeSong.id) ? '💔' : '❤️'}
+            </button>
+          )}
+        </div>
 
         {/* Year buttons — 2 × 2 grid */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>

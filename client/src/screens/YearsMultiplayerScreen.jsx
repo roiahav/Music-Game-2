@@ -6,6 +6,7 @@ import PlaylistSelector from '../components/PlaylistSelector.jsx';
 import TimerBar from '../components/TimerBar.jsx';
 import { AvatarCircle } from '../App.jsx';
 import { useLang } from '../i18n/useLang.js';
+import { useFavorites } from '../hooks/useFavorites.js';
 
 const SERVER = import.meta.env.VITE_SERVER_URL || '';
 const TIMER_OPTIONS = [0, 15, 30, 45, 60];
@@ -277,6 +278,7 @@ export default function YearsMultiplayerScreen({ onExit }) {
   const [claims, setClaims] = useState({});            // songId → {socketId, name, year, points}
   const [wrongSongs, setWrongSongs] = useState(new Set()); // cards I guessed wrong (flashing)
   const [activeSongId, setActiveSongId] = useState(null);
+  const { favoriteIds, toggle: toggleFavorite } = useFavorites();
 
   // ── Round-end ──────────────────────────────────────────────────────────────
   const [roundEndSongs, setRoundEndSongs] = useState([]); // {id, year, title, artist}
@@ -558,7 +560,13 @@ export default function YearsMultiplayerScreen({ onExit }) {
         {/* Room code */}
         <div style={{ textAlign: 'center' }}>
           <div style={{ color: '#555', fontSize: 12, marginBottom: 4 }}>{t('room_code_hint')}</div>
-          <div style={{ fontSize: 36, fontWeight: 900, letterSpacing: 10, color: '#007ACC' }}>{roomCode}</div>
+          <button
+            onClick={() => { try { navigator.clipboard?.writeText(roomCode); } catch {} }}
+            title="העתק קוד"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 36, fontWeight: 900, letterSpacing: 10, color: '#007ACC' }}
+          >
+            {roomCode} 📋
+          </button>
         </div>
 
         {/* Players */}
@@ -677,10 +685,35 @@ export default function YearsMultiplayerScreen({ onExit }) {
         {/* Game area */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12, padding: '10px 14px 28px', overflowY: 'auto' }}>
 
-          {/* Instruction */}
-          <p style={{ color: '#555', fontSize: 11, textAlign: 'center', margin: 0 }}>
-            {activeSongId ? t('yg_pick_year') : t('yg_tap_card')}
-          </p>
+          {/* Instruction + favorite button */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+            <p style={{ color: '#555', fontSize: 11, margin: 0 }}>
+              {activeSongId ? t('yg_pick_year') : t('yg_tap_card')}
+            </p>
+            {activeSongId && (() => {
+              const s = roundSongs.find(rs => rs.id === activeSongId);
+              if (!s) return null;
+              const fav = favoriteIds.has(s.id);
+              return (
+                <button
+                  onClick={() => toggleFavorite({
+                    id: s.id,
+                    filePath: s.filePath || s.audioUrl || '',
+                    title: s.title || '',
+                    artist: s.artist || '',
+                    year: s.year || '',
+                  })}
+                  title={fav ? 'הסרה מהמועדפים' : 'הוספה למועדפים'}
+                  style={{
+                    background: fav ? '#dc354522' : 'transparent',
+                    color: fav ? '#ff6b6b' : '#888',
+                    border: `1px solid ${fav ? '#dc3545' : '#444'}`,
+                    borderRadius: 8, padding: '2px 8px', fontSize: 12, cursor: 'pointer',
+                  }}
+                >{fav ? '💔' : '❤️'}</button>
+              );
+            })()}
+          </div>
 
           {/* Year buttons */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>

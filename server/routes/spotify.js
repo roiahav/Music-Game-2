@@ -1,9 +1,9 @@
 import { Router } from 'express';
 import { getSettings, saveSettings, updateSpotifyTokens } from '../services/SettingsStore.js';
 import * as Spotify from '../services/SpotifyService.js';
+import { spotifyRedirectUri } from '../utils/publicUrl.js';
 
 const router = Router();
-const REDIRECT_URI = 'http://127.0.0.1:3000/callback';
 const SCOPES = [
   'user-read-playback-state',
   'user-modify-playback-state',
@@ -20,12 +20,12 @@ router.get('/login', (req, res) => {
     response_type: 'code',
     client_id: clientId,
     scope: SCOPES,
-    redirect_uri: REDIRECT_URI,
+    redirect_uri: spotifyRedirectUri(req),
   });
   res.redirect(`https://accounts.spotify.com/authorize?${params}`);
 });
 
-// GET /api/spotify/callback
+// GET /api/spotify/callback (alternate handler — main one lives at /callback in index.js)
 router.get('/callback', async (req, res) => {
   const { code, error } = req.query;
   if (error || !code) return res.send(`<h2>שגיאה: ${error || 'אין קוד'}</h2>`);
@@ -39,7 +39,7 @@ router.get('/callback', async (req, res) => {
       'Content-Type': 'application/x-www-form-urlencoded',
       Authorization: 'Basic ' + Buffer.from(`${clientId}:${clientSecret}`).toString('base64'),
     },
-    body: new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: REDIRECT_URI }),
+    body: new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: spotifyRedirectUri(req) }),
   });
 
   if (!tokenRes.ok) return res.send('<h2>שגיאה בקבלת טוקן מ-Spotify</h2>');

@@ -35,7 +35,7 @@ export default function SpotifyConnectPanel() {
       alert(t('save'));
       return;
     }
-    window.open('http://127.0.0.1:3000/api/spotify/login', '_blank');
+    window.open('/api/spotify/login', '_blank');
     const interval = setInterval(() => {
       getSpotifyStatus().then(s => {
         setSpotifyStatus(s);

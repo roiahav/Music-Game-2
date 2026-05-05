@@ -270,7 +270,13 @@ export default function ChampionMultiplayerScreen({ onExit }) {
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 28px', display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div style={{ textAlign: 'center', background: 'var(--accent-alpha)', border: '2px solid var(--accent)', borderRadius: 14, padding: '14px 12px' }}>
             <div style={{ color: 'var(--text2)', fontSize: 11, fontWeight: 700 }}>קוד החדר — שתף עם השחקנים</div>
-            <div style={{ color: 'var(--accent)', fontSize: 36, fontWeight: 900, letterSpacing: 8, marginTop: 4 }}>{roomCode}</div>
+            <button
+              onClick={() => { try { navigator.clipboard?.writeText(roomCode); } catch {} }}
+              title="העתק קוד"
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginTop: 4, color: 'var(--accent)', fontSize: 36, fontWeight: 900, letterSpacing: 8 }}
+            >
+              {roomCode} 📋
+            </button>
           </div>
 
           {/* Players */}

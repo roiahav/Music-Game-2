@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import { authenticate, completeProfile, getAllUsers, resetPassword } from '../services/UserStore.js';
 import { createSession, deleteSession, getSession, getSessionData } from '../services/SessionStore.js';
 import { logLogin, logLogout } from '../services/ActivityLog.js';
@@ -8,7 +9,24 @@ import { sendResetEmail } from '../services/EmailService.js';
 
 const router = Router();
 
-router.post('/login', (req, res) => {
+// Rate limit auth endpoints to slow brute-force attempts. Counted per IP.
+// Standard headers are returned so clients can read remaining quota.
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'יותר מדי ניסיונות התחברות. נסה שוב בעוד כמה דקות.' },
+});
+const resetLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'יותר מדי בקשות איפוס. נסה שוב מאוחר יותר.' },
+});
+
+router.post('/login', loginLimiter, (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) return res.status(400).json({ error: 'שם משתמש וסיסמה נדרשים' });
 
@@ -65,7 +83,7 @@ router.post('/complete-profile', requireAuth, (req, res) => {
  * Body: { email }
  * Finds the user with that email, generates a reset token, sends an email.
  */
-router.post('/forgot-password', async (req, res) => {
+router.post('/forgot-password', resetLimiter, async (req, res) => {
   const { email } = req.body;
   if (!email?.trim()) return res.status(400).json({ error: 'כתובת מייל נדרשת' });
 
@@ -96,7 +114,7 @@ router.post('/forgot-password', async (req, res) => {
  * POST /api/auth/reset-password
  * Body: { token, newPassword }
  */
-router.post('/reset-password', (req, res) => {
+router.post('/reset-password', resetLimiter, (req, res) => {
   const { token, newPassword } = req.body;
   if (!token) return res.status(400).json({ error: 'טוקן חסר' });
   if (!newPassword || newPassword.length < 4) return res.status(400).json({ error: 'סיסמה חייבת להיות לפחות 4 תווים' });

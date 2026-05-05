@@ -30,6 +30,7 @@ import { setupMultiplayer } from './multiplayer-socket.js';
 import { setupYearsMultiplayer } from './years-multiplayer-socket.js';
 import { setupChampionMultiplayer } from './champion-multiplayer-socket.js';
 import { setupLaddersHits } from './ladders-hits-socket.js';
+import { spotifyRedirectUri } from './utils/publicUrl.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
@@ -65,7 +66,7 @@ app.get('/callback', async (req, res) => {
   if (error || !code) return res.send(`<h2 dir="rtl">שגיאה: ${error || 'אין קוד'}</h2>`);
 
   const { clientId, clientSecret } = getSettings().spotify;
-  const REDIRECT_URI = 'http://127.0.0.1:3000/callback';
+  const REDIRECT_URI = spotifyRedirectUri(req);
 
   try {
     const tokenRes = await fetch('https://accounts.spotify.com/api/token', {

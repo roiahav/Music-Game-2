@@ -534,8 +534,12 @@ export default function MultiplayerScreen({ onExit }) {
 
       {!showJoin ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {canHost && (
+          {canHost ? (
             <button onClick={createRoom} disabled={!connected} style={{ ...primaryBtn, opacity: connected ? 1 : 0.4 }}>{t('create_room')}</button>
+          ) : (
+            <div style={{ background: '#1e1e1e', border: '1px solid #3a3a3a', borderRadius: 12, padding: '10px 14px', color: '#888', fontSize: 12, textAlign: 'center' }}>
+              💡 רק משתמשים עם הרשאת פתיחת חדר יכולים ליצור משחק. בקש מהמנהל הרשאה, או הצטרף לחדר עם קוד.
+            </div>
           )}
           <button onClick={() => setShowJoin(true)} disabled={!connected} style={{ ...secondaryBtn, opacity: connected ? 1 : 0.4 }}>{t('join_room')}</button>
         </div>
@@ -575,7 +579,13 @@ export default function MultiplayerScreen({ onExit }) {
       {/* Room code */}
       <div style={{ ...card, textAlign: 'center' }}>
         <p style={{ color: '#888', fontSize: 12, margin: '0 0 4px' }}>{t('room_code_hint')}</p>
-        <div style={{ fontSize: 42, fontWeight: 900, letterSpacing: 12, color: '#007ACC' }}>{roomCode}</div>
+        <button
+          onClick={() => { try { navigator.clipboard?.writeText(roomCode); } catch {} }}
+          title="העתק קוד"
+          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 42, fontWeight: 900, letterSpacing: 12, color: '#007ACC' }}
+        >
+          {roomCode} 📋
+        </button>
       </div>
 
       {/* Players list */}
