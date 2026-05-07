@@ -7,8 +7,9 @@ import { useLang } from '../i18n/useLang.js';
 import { unlockAudio } from '../utils/audioUnlock.js';
 import { useFavorites } from '../hooks/useFavorites.js';
 import CastButton from '../components/CastButton.jsx';
-import MicButton from '../components/MicButton.jsx';
 import { bestMatch } from '../utils/textMatch.js';
+import { useSpeechRecognition, uiLangToBcp47 } from '../hooks/useSpeechRecognition.js';
+import { useLongPress } from '../hooks/useLongPress.js';
 import { useMultiplayerSocket } from '../hooks/useMultiplayerSocket.js';
 
 const DECADES = [1950, 1960, 1970, 1980, 1990, 2000, 2010, 2020];
@@ -24,7 +25,7 @@ const SONG_COUNT_OPTIONS = [
 
 // ─── Main component ─────────────────────────────────────────────────────────
 export default function ChampionMultiplayerScreen({ onExit }) {
-  const { dir } = useLang();
+  const { dir, lang } = useLang();
   const { user } = useAuthStore();
   const { playlists } = useSettingsStore();
 
@@ -78,20 +79,49 @@ export default function ChampionMultiplayerScreen({ onExit }) {
   const victoryRef = useRef(null);
   const [audioPlaying, setAudioPlaying] = useState(false);
 
-  // Voice feedback for the mic button — flashes when speech doesn't match a known artist
-  const [voiceMiss, setVoiceMiss] = useState('');
+  // Voice — long-press the artist or title box to speak the answer.
+  const [voiceTarget, setVoiceTarget] = useState(null); // null | 'artist' | 'title'
+  const [voiceMiss, setVoiceMiss] = useState({ field: null, text: '' });
   const voiceTimerRef = useRef(null);
-  function flashVoiceMiss(text) {
-    setVoiceMiss(text);
+  const voiceTargetRef = useRef(null);
+  voiceTargetRef.current = voiceTarget;
+
+  function flashVoiceMiss(field, text) {
+    setVoiceMiss({ field, text });
     if (voiceTimerRef.current) clearTimeout(voiceTimerRef.current);
-    voiceTimerRef.current = setTimeout(() => setVoiceMiss(''), 1500);
+    voiceTimerRef.current = setTimeout(() => setVoiceMiss({ field: null, text: '' }), 1500);
   }
-  function handleArtistVoice(transcript) {
-    if (!transcript) return;
-    const m = bestMatch(transcript, autocomplete.artists || []);
-    if (m?.best) { setPickedArtist(m.best); setVoiceMiss(''); }
-    else flashVoiceMiss(transcript);
+
+  const speech = useSpeechRecognition({
+    lang: uiLangToBcp47(lang),
+    onResult: (r) => {
+      if (!r.isFinal) return;
+      const target = voiceTargetRef.current;
+      const transcript = r.transcript || '';
+      if (!target) return;
+      const candidates = target === 'artist' ? (autocomplete.artists || []) : (autocomplete.titles || []);
+      const m = bestMatch(transcript, candidates);
+      if (m?.best) {
+        if (target === 'artist') setPickedArtist(m.best);
+        else                     setPickedTitle(m.best);
+        setVoiceMiss({ field: null, text: '' });
+      } else if (transcript) {
+        flashVoiceMiss(target, transcript);
+      }
+      setVoiceTarget(null);
+    },
+    onError: () => { setVoiceTarget(null); },
+  });
+
+  function startVoice(target) {
+    if (!speech.supported || submitted) return;
+    try { audioRef.current?.pause?.(); } catch { /* ignore */ }
+    setVoiceTarget(target);
+    speech.start();
   }
+
+  const artistLongPress = useLongPress({ onLongPress: () => startVoice('artist'), threshold: 450 });
+  const titleLongPress  = useLongPress({ onLongPress: () => startVoice('title'),  threshold: 450 });
 
   const me = useMemo(() => players.find(p => p.socketId === mySocketId) || null, [players, mySocketId]);
   const isHost = me?.isHost;
@@ -546,25 +576,22 @@ export default function ChampionMultiplayerScreen({ onExit }) {
             </div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <div style={{ position: 'relative' }}>
-                <SelectBox label="🎤 זמר"  value={pickedArtist} onClick={() => setPicker('artist')} />
-                <div style={{ position: 'absolute', top: 6, [dir === 'rtl' ? 'left' : 'right']: 6 }}>
-                  <MicButton
-                    audioRef={audioRef}
-                    onResult={handleArtistVoice}
-                    size={30}
-                  />
-                </div>
-                {voiceMiss && (
-                  <div style={{
-                    position: 'absolute', bottom: 4, [dir === 'rtl' ? 'right' : 'left']: 8,
-                    fontSize: 10, color: '#ff9999', fontWeight: 600,
-                  }}>
-                    ❌ {voiceMiss}
-                  </div>
-                )}
-              </div>
-              <SelectBox label="🎵 שיר"  value={pickedTitle}  onClick={() => setPicker('title')} />
+              <VoiceBoxWrap
+                longPress={artistLongPress}
+                listening={voiceTarget === 'artist'}
+                miss={voiceMiss.field === 'artist' ? voiceMiss.text : ''}
+                dir={dir}
+              >
+                <SelectBox label="🎤 זמר"  value={pickedArtist} onClick={artistLongPress.wrapClick(() => setPicker('artist'))} />
+              </VoiceBoxWrap>
+              <VoiceBoxWrap
+                longPress={titleLongPress}
+                listening={voiceTarget === 'title'}
+                miss={voiceMiss.field === 'title' ? voiceMiss.text : ''}
+                dir={dir}
+              >
+                <SelectBox label="🎵 שיר"  value={pickedTitle}  onClick={titleLongPress.wrapClick(() => setPicker('title'))} />
+              </VoiceBoxWrap>
               <SelectBox label="📅 שנה"  value={pickedYear || ''} onClick={() => setPicker('year')} />
               <button
                 onClick={handleSubmit}
@@ -779,6 +806,54 @@ export default function ChampionMultiplayerScreen({ onExit }) {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+// Wrap a SelectBox with long-press handlers + visual cue. While `listening`, a
+// red ring + "🎙 …" badge appears over the box; after a missed match, the
+// heard transcript flashes briefly under the value.
+function VoiceBoxWrap({ longPress, listening, miss, dir, children }) {
+  return (
+    <div
+      {...longPress.handlers}
+      style={{
+        position: 'relative',
+        userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none',
+        borderRadius: 14,
+        boxShadow: listening ? '0 0 0 2px #dc3545' : 'none',
+        transition: 'box-shadow 0.15s',
+      }}
+    >
+      {children}
+      {listening && (
+        <div style={{
+          position: 'absolute', top: 6, [dir === 'rtl' ? 'left' : 'right']: 6,
+          background: '#dc3545', color: '#fff',
+          fontSize: 10, fontWeight: 700,
+          padding: '2px 6px', borderRadius: 8,
+          pointerEvents: 'none',
+          animation: 'mic-pulse-badge 1.1s ease-in-out infinite',
+        }}>
+          🎙 …
+        </div>
+      )}
+      {!listening && miss && (
+        <div style={{
+          position: 'absolute', bottom: 4, [dir === 'rtl' ? 'right' : 'left']: 8,
+          fontSize: 10, color: '#ff9999', fontWeight: 600, pointerEvents: 'none',
+          maxWidth: 'calc(100% - 16px)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>
+          ❌ {miss}
+        </div>
+      )}
+      <style>{`
+        @keyframes mic-pulse-badge {
+          0%, 100% { transform: scale(1); }
+          50%      { transform: scale(1.08); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
 function TopBar({ onExit, title, right }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>

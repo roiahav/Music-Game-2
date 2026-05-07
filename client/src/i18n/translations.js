@@ -72,6 +72,7 @@ export const T = {
   mic_listening:  { he:'מקשיב…',           en:'Listening…',         ar:'يستمع…',                ru:'Слушаю…',              es:'Escuchando…' },
   mic_unsupported:{ he:'הדפדפן לא תומך בקלט קולי', en:'Voice input not supported', ar:'الإدخال الصوتي غير مدعوم', ru:'Голосовой ввод не поддерживается', es:'Entrada de voz no soportada' },
   mic_heard:      { he:'שמעתי',            en:'heard',              ar:'سمعت',                  ru:'услышал',              es:'oí' },
+  mic_long_press_hint: { he:'לחיצה ארוכה לזיהוי קולי', en:'Long-press for voice', ar:'اضغط مطولاً للإدخال الصوتي', ru:'Долгое нажатие — голосом', es:'Mantén pulsado para hablar' },
   // ── Solo Typing ──
   last_song:      { he:'שיר אחרון!',       en:'Last song!',         ar:'آخر أغنية!',            ru:'Последняя песня!',     es:'¡Última canción!' },
   songs_remaining:{ he:'נותרו {n} שירים',  en:'{n} songs left',     ar:'بقي {n} أغاني',        ru:'Осталось {n} песен',   es:'Quedan {n} canciones' },
