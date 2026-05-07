@@ -807,6 +807,8 @@ export default function MultiplayerScreen({ onExit }) {
           disabled={playerConfirmed || songPhase === 'reveal'}
           onAccept={() => { titleAccepted.current = true; }}
           onPenalty={() => { titlePenalty.current = true; }}
+          audioRef={audioRef}
+          enableMic
         />
         <AutocompleteInput
           key={currentSong.songId + '-artist'}
@@ -815,6 +817,8 @@ export default function MultiplayerScreen({ onExit }) {
           disabled={playerConfirmed || songPhase === 'reveal'}
           onAccept={() => { artistAccepted.current = true; }}
           onPenalty={() => { artistPenalty.current = true; }}
+          audioRef={audioRef}
+          enableMic
         />
       </div>
 

@@ -345,6 +345,8 @@ export default function SoloTypingScreen({ onExit }) {
             disabled={phase === 'confirmed'}
             onAccept={() => { titleAccepted.current = true; }}
             onPenalty={() => { titlePenalty.current = true; }}
+            audioRef={audioRef}
+            enableMic
           />
           <AutocompleteInput
             key={`${currentSong?.id}-artist`}
@@ -353,6 +355,8 @@ export default function SoloTypingScreen({ onExit }) {
             disabled={phase === 'confirmed'}
             onAccept={() => { artistAccepted.current = true; }}
             onPenalty={() => { artistPenalty.current = true; }}
+            audioRef={audioRef}
+            enableMic
           />
         </div>
 

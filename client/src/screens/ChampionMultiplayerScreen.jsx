@@ -7,6 +7,9 @@ import { useLang } from '../i18n/useLang.js';
 import { unlockAudio } from '../utils/audioUnlock.js';
 import { useFavorites } from '../hooks/useFavorites.js';
 import CastButton from '../components/CastButton.jsx';
+import { bestMatch } from '../utils/textMatch.js';
+import { useSpeechRecognition, uiLangToBcp47 } from '../hooks/useSpeechRecognition.js';
+import { useLongPress } from '../hooks/useLongPress.js';
 import { useMultiplayerSocket } from '../hooks/useMultiplayerSocket.js';
 
 const DECADES = [1950, 1960, 1970, 1980, 1990, 2000, 2010, 2020];
@@ -22,7 +25,7 @@ const SONG_COUNT_OPTIONS = [
 
 // ─── Main component ─────────────────────────────────────────────────────────
 export default function ChampionMultiplayerScreen({ onExit }) {
-  const { dir } = useLang();
+  const { dir, lang } = useLang();
   const { user } = useAuthStore();
   const { playlists } = useSettingsStore();
 
@@ -75,6 +78,71 @@ export default function ChampionMultiplayerScreen({ onExit }) {
   const audioRef = useRef(null);
   const victoryRef = useRef(null);
   const [audioPlaying, setAudioPlaying] = useState(false);
+
+  // Voice — long-press the artist or title box to speak the answer.
+  const [voiceTarget, setVoiceTarget] = useState(null); // null | 'artist' | 'title'
+  const [voiceFeedback, setVoiceFeedback] = useState({ field: null, kind: null, text: '' });
+  const voiceTimerRef = useRef(null);
+  const voiceTargetRef = useRef(null);
+  voiceTargetRef.current = voiceTarget;
+
+  function flashVoiceFeedback(field, kind, text, ms = 2400) {
+    setVoiceFeedback({ field, kind, text });
+    if (voiceTimerRef.current) clearTimeout(voiceTimerRef.current);
+    voiceTimerRef.current = setTimeout(() => setVoiceFeedback({ field: null, kind: null, text: '' }), ms);
+  }
+
+  function speechErrorText(code) {
+    switch (code) {
+      case 'not-allowed':         return 'הגישה למיקרופון נדחתה';
+      case 'service-not-allowed': return 'נדרש HTTPS לזיהוי קולי';
+      case 'audio-capture':       return 'לא נמצא מיקרופון';
+      case 'no-speech':           return 'לא זוהה דיבור';
+      case 'network':             return 'אין חיבור רשת';
+      default:                    return 'שגיאת זיהוי קולי';
+    }
+  }
+
+  const speech = useSpeechRecognition({
+    lang: uiLangToBcp47(lang),
+    onResult: (r) => {
+      if (!r.isFinal) return;
+      const target = voiceTargetRef.current;
+      const transcript = r.transcript || '';
+      if (!target) return;
+      const candidates = target === 'artist' ? (autocomplete.artists || []) : (autocomplete.titles || []);
+      const m = bestMatch(transcript, candidates);
+      if (m?.best) {
+        if (target === 'artist') setPickedArtist(m.best);
+        else                     setPickedTitle(m.best);
+        setVoiceFeedback({ field: null, kind: null, text: '' });
+      } else if (transcript) {
+        flashVoiceFeedback(target, 'miss', transcript, 1500);
+      }
+      setVoiceTarget(null);
+    },
+    onError: (e) => {
+      const target = voiceTargetRef.current;
+      flashVoiceFeedback(target, 'error', speechErrorText(e?.error));
+      setVoiceTarget(null);
+    },
+  });
+
+  function startVoice(target) {
+    if (submitted) return;
+    if (!speech.supported) {
+      flashVoiceFeedback(target, 'error',
+        window.isSecureContext ? 'הדפדפן לא תומך בקלט קולי' : 'נדרש HTTPS לזיהוי קולי');
+      return;
+    }
+    try { audioRef.current?.pause?.(); } catch { /* ignore */ }
+    setVoiceTarget(target);
+    try { speech.start(); }
+    catch { flashVoiceFeedback(target, 'error', 'שגיאת זיהוי קולי'); setVoiceTarget(null); }
+  }
+
+  const artistLongPress = useLongPress({ onLongPress: () => startVoice('artist'), threshold: 400 });
+  const titleLongPress  = useLongPress({ onLongPress: () => startVoice('title'),  threshold: 400 });
 
   const me = useMemo(() => players.find(p => p.socketId === mySocketId) || null, [players, mySocketId]);
   const isHost = me?.isHost;
@@ -529,8 +597,22 @@ export default function ChampionMultiplayerScreen({ onExit }) {
             </div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <SelectBox label="🎤 זמר"  value={pickedArtist} onClick={() => setPicker('artist')} />
-              <SelectBox label="🎵 שיר"  value={pickedTitle}  onClick={() => setPicker('title')} />
+              <VoiceBoxWrap
+                longPress={artistLongPress}
+                listening={voiceTarget === 'artist'}
+                feedback={voiceFeedback.field === 'artist' ? voiceFeedback : null}
+                dir={dir}
+              >
+                <SelectBox label="🎤 זמר"  value={pickedArtist} onClick={artistLongPress.wrapClick(() => setPicker('artist'))} />
+              </VoiceBoxWrap>
+              <VoiceBoxWrap
+                longPress={titleLongPress}
+                listening={voiceTarget === 'title'}
+                feedback={voiceFeedback.field === 'title' ? voiceFeedback : null}
+                dir={dir}
+              >
+                <SelectBox label="🎵 שיר"  value={pickedTitle}  onClick={titleLongPress.wrapClick(() => setPicker('title'))} />
+              </VoiceBoxWrap>
               <SelectBox label="📅 שנה"  value={pickedYear || ''} onClick={() => setPicker('year')} />
               <button
                 onClick={handleSubmit}
@@ -745,6 +827,59 @@ export default function ChampionMultiplayerScreen({ onExit }) {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+// Wrap a SelectBox with long-press handlers + visual cue. While `listening`, a
+// red ring + "🎙 …" badge appears over the box. `feedback` is
+// { kind: 'miss' | 'error', text } and renders briefly under the value: red
+// for a missed match, amber for an error like "HTTPS required".
+function VoiceBoxWrap({ longPress, listening, feedback, dir, children }) {
+  const isError = feedback?.kind === 'error';
+  return (
+    <div
+      {...longPress.handlers}
+      style={{
+        position: 'relative',
+        userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none',
+        borderRadius: 14,
+        boxShadow: listening
+          ? '0 0 0 2px #dc3545'
+          : (isError ? '0 0 0 2px #f39c12' : 'none'),
+        transition: 'box-shadow 0.15s',
+      }}
+    >
+      {children}
+      {listening && (
+        <div style={{
+          position: 'absolute', top: 6, [dir === 'rtl' ? 'left' : 'right']: 6,
+          background: '#dc3545', color: '#fff',
+          fontSize: 10, fontWeight: 700,
+          padding: '2px 6px', borderRadius: 8,
+          pointerEvents: 'none',
+          animation: 'mic-pulse-badge 1.1s ease-in-out infinite',
+        }}>
+          🎙 …
+        </div>
+      )}
+      {!listening && feedback?.text && (
+        <div style={{
+          position: 'absolute', bottom: 4, [dir === 'rtl' ? 'right' : 'left']: 8,
+          fontSize: 10, color: isError ? '#f39c12' : '#ff9999', fontWeight: 600,
+          pointerEvents: 'none',
+          maxWidth: 'calc(100% - 16px)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>
+          {isError ? '⚠' : '❌'} {feedback.text}
+        </div>
+      )}
+      <style>{`
+        @keyframes mic-pulse-badge {
+          0%, 100% { transform: scale(1); }
+          50%      { transform: scale(1.08); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
 function TopBar({ onExit, title, right }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
