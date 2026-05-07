@@ -67,6 +67,11 @@ export const T = {
   click_reveal:   { he:'לחץ לחשיפה',       en:'Tap to reveal',      ar:'اضغط للكشف',            ru:'Нажмите',              es:'Toca para revelar' },
   type_first:     { he:'הקלד אות ראשונה...', en:'Type first letter...', ar:'اكتب الحرف الأول...', ru:'Введите первую букву...', es:'Escribe la primera letra...' },
   attempt:        { he:'נסיון',            en:'Attempt',            ar:'محاولة',                ru:'Попытка',              es:'Intento' },
+  // ── Voice / mic ──
+  mic_say_artist: { he:'אמור את שם הזמר',  en:'Say the artist name', ar:'قل اسم الفنان',         ru:'Назовите исполнителя', es:'Di el nombre del artista' },
+  mic_listening:  { he:'מקשיב…',           en:'Listening…',         ar:'يستمع…',                ru:'Слушаю…',              es:'Escuchando…' },
+  mic_unsupported:{ he:'הדפדפן לא תומך בקלט קולי', en:'Voice input not supported', ar:'الإدخال الصوتي غير مدعوم', ru:'Голосовой ввод не поддерживается', es:'Entrada de voz no soportada' },
+  mic_heard:      { he:'שמעתי',            en:'heard',              ar:'سمعت',                  ru:'услышал',              es:'oí' },
   // ── Solo Typing ──
   last_song:      { he:'שיר אחרון!',       en:'Last song!',         ar:'آخر أغنية!',            ru:'Последняя песня!',     es:'¡Última canción!' },
   songs_remaining:{ he:'נותרו {n} שירים',  en:'{n} songs left',     ar:'بقي {n} أغاني',        ru:'Осталось {n} песен',   es:'Quedan {n} canciones' },

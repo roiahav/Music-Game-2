@@ -7,6 +7,8 @@ import { useLang } from '../i18n/useLang.js';
 import { unlockAudio } from '../utils/audioUnlock.js';
 import { useFavorites } from '../hooks/useFavorites.js';
 import CastButton from '../components/CastButton.jsx';
+import MicButton from '../components/MicButton.jsx';
+import { bestMatch } from '../utils/textMatch.js';
 import { useMultiplayerSocket } from '../hooks/useMultiplayerSocket.js';
 
 const DECADES = [1950, 1960, 1970, 1980, 1990, 2000, 2010, 2020];
@@ -75,6 +77,21 @@ export default function ChampionMultiplayerScreen({ onExit }) {
   const audioRef = useRef(null);
   const victoryRef = useRef(null);
   const [audioPlaying, setAudioPlaying] = useState(false);
+
+  // Voice feedback for the mic button — flashes when speech doesn't match a known artist
+  const [voiceMiss, setVoiceMiss] = useState('');
+  const voiceTimerRef = useRef(null);
+  function flashVoiceMiss(text) {
+    setVoiceMiss(text);
+    if (voiceTimerRef.current) clearTimeout(voiceTimerRef.current);
+    voiceTimerRef.current = setTimeout(() => setVoiceMiss(''), 1500);
+  }
+  function handleArtistVoice(transcript) {
+    if (!transcript) return;
+    const m = bestMatch(transcript, autocomplete.artists || []);
+    if (m?.best) { setPickedArtist(m.best); setVoiceMiss(''); }
+    else flashVoiceMiss(transcript);
+  }
 
   const me = useMemo(() => players.find(p => p.socketId === mySocketId) || null, [players, mySocketId]);
   const isHost = me?.isHost;
@@ -529,7 +546,24 @@ export default function ChampionMultiplayerScreen({ onExit }) {
             </div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <SelectBox label="🎤 זמר"  value={pickedArtist} onClick={() => setPicker('artist')} />
+              <div style={{ position: 'relative' }}>
+                <SelectBox label="🎤 זמר"  value={pickedArtist} onClick={() => setPicker('artist')} />
+                <div style={{ position: 'absolute', top: 6, [dir === 'rtl' ? 'left' : 'right']: 6 }}>
+                  <MicButton
+                    audioRef={audioRef}
+                    onResult={handleArtistVoice}
+                    size={30}
+                  />
+                </div>
+                {voiceMiss && (
+                  <div style={{
+                    position: 'absolute', bottom: 4, [dir === 'rtl' ? 'right' : 'left']: 8,
+                    fontSize: 10, color: '#ff9999', fontWeight: 600,
+                  }}>
+                    ❌ {voiceMiss}
+                  </div>
+                )}
+              </div>
               <SelectBox label="🎵 שיר"  value={pickedTitle}  onClick={() => setPicker('title')} />
               <SelectBox label="📅 שנה"  value={pickedYear || ''} onClick={() => setPicker('year')} />
               <button

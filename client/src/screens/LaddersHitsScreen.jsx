@@ -19,6 +19,8 @@ import { useFavorites } from '../hooks/useFavorites.js';
 import SnakeLadderBoard from '../components/SnakeLadderBoard.jsx';
 import DiceRoller from '../components/DiceRoller.jsx';
 import CastButton from '../components/CastButton.jsx';
+import MicButton from '../components/MicButton.jsx';
+import { bestMatch } from '../utils/textMatch.js';
 import { useMultiplayerSocket } from '../hooks/useMultiplayerSocket.js';
 
 const COLORS = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c', '#e67e22', '#34495e', '#d35400', '#16a085', '#c0392b', '#8e44ad'];
@@ -659,6 +661,7 @@ export default function LaddersHitsScreen({ onExit }) {
                   suggestions={autocomplete.artists}
                   disabled={submitting}
                   shake={wrongShake}
+                  audioRef={audioRef}
                 />
               ) : (
                 <YearAnswer
@@ -753,28 +756,44 @@ function effectivePosition(player, diceData, dicePhase) {
 
 // ── Answer-input components ─────────────────────────────────────────────
 
-function ArtistAnswer({ value, onChange, onSubmit, suggestions, disabled, shake }) {
+function ArtistAnswer({ value, onChange, onSubmit, suggestions, disabled, shake, audioRef }) {
+  function handleVoice(transcript) {
+    if (!transcript) return;
+    // Snap to a known artist if we have a confident match — otherwise drop the
+    // raw transcript into the input so the user can edit before submitting.
+    const m = bestMatch(transcript, suggestions || []);
+    onChange(m?.best || transcript);
+  }
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <input
-        key={`shake-${shake}`}
-        autoFocus
-        list="lh-artist-suggestions"
-        type="text"
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        onKeyDown={e => { if (e.key === 'Enter') onSubmit(); }}
-        placeholder="הזן את שם הזמר/אמן…"
-        disabled={disabled}
-        autoComplete="off"
-        style={{
-          ...inputStyle,
-          fontSize: 16,
-          animation: shake ? 'lh-shake 0.3s' : 'none',
-          background: shake ? '#3a1010' : '#1e1e1e',
-          border: shake ? '1px solid #dc3545' : '1px solid #2d2d30',
-        }}
-      />
+      <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
+        <input
+          key={`shake-${shake}`}
+          autoFocus
+          list="lh-artist-suggestions"
+          type="text"
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') onSubmit(); }}
+          placeholder="הזן את שם הזמר/אמן…"
+          disabled={disabled}
+          autoComplete="off"
+          style={{
+            ...inputStyle,
+            flex: 1,
+            fontSize: 16,
+            animation: shake ? 'lh-shake 0.3s' : 'none',
+            background: shake ? '#3a1010' : '#1e1e1e',
+            border: shake ? '1px solid #dc3545' : '1px solid #2d2d30',
+          }}
+        />
+        <MicButton
+          audioRef={audioRef}
+          onResult={handleVoice}
+          disabled={disabled}
+          size={44}
+        />
+      </div>
       <datalist id="lh-artist-suggestions">
         {(suggestions || []).map(a => <option key={a} value={a} />)}
       </datalist>

@@ -353,6 +353,8 @@ export default function SoloTypingScreen({ onExit }) {
             disabled={phase === 'confirmed'}
             onAccept={() => { artistAccepted.current = true; }}
             onPenalty={() => { artistPenalty.current = true; }}
+            audioRef={audioRef}
+            enableMic
           />
         </div>
 

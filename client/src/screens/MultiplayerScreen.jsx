@@ -815,6 +815,8 @@ export default function MultiplayerScreen({ onExit }) {
           disabled={playerConfirmed || songPhase === 'reveal'}
           onAccept={() => { artistAccepted.current = true; }}
           onPenalty={() => { artistPenalty.current = true; }}
+          audioRef={audioRef}
+          enableMic
         />
       </div>
 

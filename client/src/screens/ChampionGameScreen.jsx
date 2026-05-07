@@ -8,6 +8,8 @@ import TimerBar from '../components/TimerBar.jsx';
 import { AvatarCircle } from '../App.jsx';
 import { useLang } from '../i18n/useLang.js';
 import CastButton from '../components/CastButton.jsx';
+import MicButton from '../components/MicButton.jsx';
+import { bestMatch } from '../utils/textMatch.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const DECADES = [1950, 1960, 1970, 1980, 1990, 2000, 2010, 2020];
@@ -68,6 +70,22 @@ export default function ChampionGameScreen({ onExit }) {
   // Audio
   const audioRef = useRef(null);
   const [audioPlaying, setAudioPlaying] = useState(false);
+
+  // Voice feedback for the mic button — shown briefly when speech doesn't
+  // match any known artist (gets cleared on next song / after 1.5s)
+  const [voiceMiss, setVoiceMiss] = useState('');
+  const voiceTimerRef = useRef(null);
+  function flashVoiceMiss(text) {
+    setVoiceMiss(text);
+    if (voiceTimerRef.current) clearTimeout(voiceTimerRef.current);
+    voiceTimerRef.current = setTimeout(() => setVoiceMiss(''), 1500);
+  }
+  function handleArtistVoice(transcript) {
+    if (!transcript) return;
+    const m = bestMatch(transcript, allArtists);
+    if (m?.best) { setPickedArtist(m.best); setVoiceMiss(''); }
+    else flashVoiceMiss(transcript);
+  }
 
   // Always-fresh ref for handleSubmit so TimerBar's captured onExpire calls
   // the latest version (with current picks) rather than a stale one
@@ -467,15 +485,33 @@ export default function ChampionGameScreen({ onExit }) {
 
         {/* Selection boxes — 2x2 grid: artist, title, year, submit */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <SelectBox
-            label="🎤 זמר"
-            value={pickedArtist}
-            placeholder="לחץ לבחירה"
-            state={resultStateFor('artist')}
-            correctValue={submitted ? currentSong?.artist : null}
-            disabled={submitted}
-            onClick={() => setPicker('artist')}
-          />
+          <div style={{ position: 'relative' }}>
+            <SelectBox
+              label="🎤 זמר"
+              value={pickedArtist}
+              placeholder="לחץ לבחירה"
+              state={resultStateFor('artist')}
+              correctValue={submitted ? currentSong?.artist : null}
+              disabled={submitted}
+              onClick={() => setPicker('artist')}
+            />
+            <div style={{ position: 'absolute', top: 6, [dir === 'rtl' ? 'left' : 'right']: 6 }}>
+              <MicButton
+                audioRef={audioRef}
+                onResult={handleArtistVoice}
+                disabled={submitted}
+                size={30}
+              />
+            </div>
+            {voiceMiss && (
+              <div style={{
+                position: 'absolute', bottom: 4, [dir === 'rtl' ? 'right' : 'left']: 8,
+                fontSize: 10, color: '#ff9999', fontWeight: 600,
+              }}>
+                ❌ {voiceMiss}
+              </div>
+            )}
+          </div>
           <SelectBox
             label="🎵 שיר"
             value={pickedTitle}

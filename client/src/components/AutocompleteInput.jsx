@@ -1,5 +1,7 @@
 import { useState, useRef } from 'react';
 import { useLang } from '../i18n/useLang.js';
+import MicButton from './MicButton.jsx';
+import { isVoiceMatch } from '../utils/textMatch.js';
 
 // Checks whether user's first typed character matches the answer's first character (Hebrew-aware)
 function firstCharMatches(typed, answer) {
@@ -7,9 +9,20 @@ function firstCharMatches(typed, answer) {
   return typed[0].toLowerCase() === answer.trim()[0].toLowerCase();
 }
 
-export default function AutocompleteInput({ label, answer, disabled, onAccept, onPenalty }) {
+export default function AutocompleteInput({
+  label,
+  answer,
+  disabled,
+  onAccept,
+  onPenalty,
+  // When provided, render a mic that pauses this audio element + accepts on a
+  // good voice match (full-name shortcut, bypasses the first-character flow).
+  audioRef,
+  enableMic = false,
+}) {
   const [phase, setPhase] = useState('idle'); // idle | match | wrong | locked | accepted
   const [attempts, setAttempts] = useState(0);
+  const [voiceFeedback, setVoiceFeedback] = useState(null); // 'listening' | { miss: text }
   const inputRef = useRef(null);
   const { t, dir } = useLang();
 
@@ -42,6 +55,28 @@ export default function AutocompleteInput({ label, answer, disabled, onAccept, o
     setPhase('idle'); // Let user try again (still counts the char as typed but no penalty)
   }
 
+  function handleVoiceResult(transcript, alternatives) {
+    setVoiceFeedback(null);
+    if (phase === 'accepted' || phase === 'locked') return;
+    const heard = [transcript, ...(alternatives || [])].filter(Boolean);
+    if (heard.some(h => isVoiceMatch(h, ans))) {
+      // Full-name match — skip first-char ceremony, accept directly
+      setPhase('accepted');
+      onAccept?.();
+      return;
+    }
+    // Treat as a wrong attempt (same penalty curve as a wrong typed char)
+    setVoiceFeedback({ miss: transcript || '' });
+    const n = attempts + 1;
+    setAttempts(n);
+    setPhase('wrong');
+    setTimeout(() => {
+      setVoiceFeedback(null);
+      if (n >= 3) { setPhase('locked'); onPenalty?.(); }
+      else setPhase('idle');
+    }, 1200);
+  }
+
   const isDisabled = disabled || phase === 'locked' || phase === 'accepted';
 
   return (
@@ -62,17 +97,23 @@ export default function AutocompleteInput({ label, answer, disabled, onAccept, o
           </span>
         )}
         {(phase === 'idle' || phase === 'wrong') && (
-          <input
-            ref={inputRef}
-            onChange={handleChange}
-            disabled={isDisabled}
-            placeholder={phase === 'wrong' ? `❌ ${t('attempt')} ${attempts}/3` : t('type_first')}
-            style={{
-              background: 'transparent', border: 'none', outline: 'none',
-              color: phase === 'wrong' ? '#dc3545' : '#ccc',
-              fontSize: 14, width: '100%', direction: dir,
-            }}
-          />
+          voiceFeedback?.miss ? (
+            <span style={{ color: '#dc3545', fontSize: 13 }}>
+              ❌ {t('mic_heard')}: <span style={{ color: '#ff9999' }}>{voiceFeedback.miss}</span>
+            </span>
+          ) : (
+            <input
+              ref={inputRef}
+              onChange={handleChange}
+              disabled={isDisabled}
+              placeholder={phase === 'wrong' ? `❌ ${t('attempt')} ${attempts}/3` : t('type_first')}
+              style={{
+                background: 'transparent', border: 'none', outline: 'none',
+                color: phase === 'wrong' ? '#dc3545' : '#ccc',
+                fontSize: 14, width: '100%', direction: dir,
+              }}
+            />
+          )
         )}
       </div>
 
@@ -90,6 +131,18 @@ export default function AutocompleteInput({ label, answer, disabled, onAccept, o
             ✗
           </button>
         </>
+      )}
+
+      {/* Mic — say the answer instead of typing */}
+      {enableMic && (
+        <MicButton
+          audioRef={audioRef}
+          onListenStart={() => setVoiceFeedback({ miss: '' })}
+          onListenEnd={() => setVoiceFeedback(v => (v?.miss ? v : null))}
+          onResult={handleVoiceResult}
+          disabled={isDisabled}
+          size={32}
+        />
       )}
     </div>
   );
