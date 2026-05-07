@@ -73,19 +73,30 @@ export default function ChampionGameScreen({ onExit }) {
   const [audioPlaying, setAudioPlaying] = useState(false);
 
   // Voice — long-press the artist or title box to speak the answer.
-  // `voiceTarget` tracks which box is currently listening so we route the
-  // transcript to the right field; `voiceMiss` flashes the heard text when no
-  // confident catalogue match is found.
+  //   voiceTarget — which box is currently listening (routes the transcript)
+  //   voiceFeedback — { field, kind, text } for the inline overlay (miss text
+  //                   or a friendly error like "HTTPS required")
   const [voiceTarget, setVoiceTarget] = useState(null); // null | 'artist' | 'title'
-  const [voiceMiss, setVoiceMiss] = useState({ field: null, text: '' });
+  const [voiceFeedback, setVoiceFeedback] = useState({ field: null, kind: null, text: '' });
   const voiceTimerRef = useRef(null);
   const voiceTargetRef = useRef(null);
   voiceTargetRef.current = voiceTarget;
 
-  function flashVoiceMiss(field, text) {
-    setVoiceMiss({ field, text });
+  function flashVoiceFeedback(field, kind, text, ms = 2400) {
+    setVoiceFeedback({ field, kind, text });
     if (voiceTimerRef.current) clearTimeout(voiceTimerRef.current);
-    voiceTimerRef.current = setTimeout(() => setVoiceMiss({ field: null, text: '' }), 1500);
+    voiceTimerRef.current = setTimeout(() => setVoiceFeedback({ field: null, kind: null, text: '' }), ms);
+  }
+
+  function speechErrorText(code) {
+    switch (code) {
+      case 'not-allowed':         return 'הגישה למיקרופון נדחתה';
+      case 'service-not-allowed': return 'נדרש HTTPS לזיהוי קולי';
+      case 'audio-capture':       return 'לא נמצא מיקרופון';
+      case 'no-speech':           return 'לא זוהה דיבור';
+      case 'network':             return 'אין חיבור רשת';
+      default:                    return 'שגיאת זיהוי קולי';
+    }
   }
 
   const speech = useSpeechRecognition({
@@ -100,24 +111,34 @@ export default function ChampionGameScreen({ onExit }) {
       if (m?.best) {
         if (target === 'artist') setPickedArtist(m.best);
         else                     setPickedTitle(m.best);
-        setVoiceMiss({ field: null, text: '' });
+        setVoiceFeedback({ field: null, kind: null, text: '' });
       } else if (transcript) {
-        flashVoiceMiss(target, transcript);
+        flashVoiceFeedback(target, 'miss', transcript, 1500);
       }
       setVoiceTarget(null);
     },
-    onError: () => { setVoiceTarget(null); },
+    onError: (e) => {
+      const target = voiceTargetRef.current;
+      flashVoiceFeedback(target, 'error', speechErrorText(e?.error));
+      setVoiceTarget(null);
+    },
   });
 
   function startVoice(target) {
-    if (!speech.supported || submitted) return;
+    if (submitted) return;
+    if (!speech.supported) {
+      flashVoiceFeedback(target, 'error',
+        window.isSecureContext ? 'הדפדפן לא תומך בקלט קולי' : 'נדרש HTTPS לזיהוי קולי');
+      return;
+    }
     try { audioRef.current?.pause?.(); } catch { /* ignore */ }
     setVoiceTarget(target);
-    speech.start();
+    try { speech.start(); }
+    catch { flashVoiceFeedback(target, 'error', 'שגיאת זיהוי קולי'); setVoiceTarget(null); }
   }
 
-  const artistLongPress = useLongPress({ onLongPress: () => startVoice('artist'), threshold: 450 });
-  const titleLongPress  = useLongPress({ onLongPress: () => startVoice('title'),  threshold: 450 });
+  const artistLongPress = useLongPress({ onLongPress: () => startVoice('artist'), threshold: 400 });
+  const titleLongPress  = useLongPress({ onLongPress: () => startVoice('title'),  threshold: 400 });
 
   // Always-fresh ref for handleSubmit so TimerBar's captured onExpire calls
   // the latest version (with current picks) rather than a stale one
@@ -521,7 +542,7 @@ export default function ChampionGameScreen({ onExit }) {
           <VoiceBoxWrap
             longPress={artistLongPress}
             listening={voiceTarget === 'artist'}
-            miss={voiceMiss.field === 'artist' ? voiceMiss.text : ''}
+            feedback={voiceFeedback.field === 'artist' ? voiceFeedback : null}
             dir={dir}
           >
             <SelectBox
@@ -537,7 +558,7 @@ export default function ChampionGameScreen({ onExit }) {
           <VoiceBoxWrap
             longPress={titleLongPress}
             listening={voiceTarget === 'title'}
-            miss={voiceMiss.field === 'title' ? voiceMiss.text : ''}
+            feedback={voiceFeedback.field === 'title' ? voiceFeedback : null}
             dir={dir}
           >
             <SelectBox
@@ -622,9 +643,11 @@ export default function ChampionGameScreen({ onExit }) {
 }
 
 // ─── VoiceBoxWrap — wraps a SelectBox with long-press handlers + visual cue ──
-// While `listening`, a red ring + "🎙 listening" badge appears over the box;
-// after a missed match, the heard transcript flashes briefly.
-function VoiceBoxWrap({ longPress, listening, miss, dir, children }) {
+// While `listening`, a red ring + "🎙 …" badge appears over the box.
+// `feedback` is { kind: 'miss' | 'error', text } and renders briefly under the
+// value: red for a missed match, amber for an error like "HTTPS required".
+function VoiceBoxWrap({ longPress, listening, feedback, dir, children }) {
+  const isError = feedback?.kind === 'error';
   return (
     <div
       {...longPress.handlers}
@@ -632,7 +655,9 @@ function VoiceBoxWrap({ longPress, listening, miss, dir, children }) {
         position: 'relative',
         userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none',
         borderRadius: 14,
-        boxShadow: listening ? '0 0 0 2px #dc3545' : 'none',
+        boxShadow: listening
+          ? '0 0 0 2px #dc3545'
+          : (isError ? '0 0 0 2px #f39c12' : 'none'),
         transition: 'box-shadow 0.15s',
       }}
     >
@@ -649,13 +674,14 @@ function VoiceBoxWrap({ longPress, listening, miss, dir, children }) {
           🎙 …
         </div>
       )}
-      {!listening && miss && (
+      {!listening && feedback?.text && (
         <div style={{
           position: 'absolute', bottom: 4, [dir === 'rtl' ? 'right' : 'left']: 8,
-          fontSize: 10, color: '#ff9999', fontWeight: 600, pointerEvents: 'none',
+          fontSize: 10, color: isError ? '#f39c12' : '#ff9999', fontWeight: 600,
+          pointerEvents: 'none',
           maxWidth: 'calc(100% - 16px)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>
-          ❌ {miss}
+          {isError ? '⚠' : '❌'} {feedback.text}
         </div>
       )}
       <style>{`

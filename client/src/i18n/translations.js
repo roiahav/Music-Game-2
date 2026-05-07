@@ -73,6 +73,13 @@ export const T = {
   mic_unsupported:{ he:'הדפדפן לא תומך בקלט קולי', en:'Voice input not supported', ar:'الإدخال الصوتي غير مدعوم', ru:'Голосовой ввод не поддерживается', es:'Entrada de voz no soportada' },
   mic_heard:      { he:'שמעתי',            en:'heard',              ar:'سمعت',                  ru:'услышал',              es:'oí' },
   mic_long_press_hint: { he:'לחיצה ארוכה לזיהוי קולי', en:'Long-press for voice', ar:'اضغط مطولاً للإدخال الصوتي', ru:'Долгое нажатие — голосом', es:'Mantén pulsado para hablar' },
+  // Friendly text for SpeechRecognition `error` events
+  mic_perm_denied:    { he:'הגישה למיקרופון נדחתה',  en:'Microphone permission denied', ar:'تم رفض إذن الميكروفون', ru:'Доступ к микрофону отклонён', es:'Permiso de micrófono denegado' },
+  mic_https_required: { he:'נדרש HTTPS לזיהוי קולי', en:'Voice input requires HTTPS',   ar:'الإدخال الصوتي يتطلب HTTPS', ru:'Голосовой ввод требует HTTPS', es:'Se requiere HTTPS para voz' },
+  mic_no_capture:     { he:'לא נמצא מיקרופון',       en:'No microphone found',          ar:'لا يوجد ميكروفون',      ru:'Микрофон не найден',     es:'Micrófono no encontrado' },
+  mic_no_speech:      { he:'לא זוהה דיבור',          en:'No speech detected',           ar:'لم يتم اكتشاف كلام',     ru:'Речь не распознана',      es:'No se detectó voz' },
+  mic_network:        { he:'אין חיבור רשת',          en:'No network connection',        ar:'لا يوجد اتصال شبكة',     ru:'Нет сети',                es:'Sin conexión de red' },
+  mic_error:          { he:'שגיאת זיהוי קולי',       en:'Voice input error',            ar:'خطأ في الإدخال الصوتي', ru:'Ошибка голосового ввода', es:'Error de entrada de voz' },
   // ── Solo Typing ──
   last_song:      { he:'שיר אחרון!',       en:'Last song!',         ar:'آخر أغنية!',            ru:'Последняя песня!',     es:'¡Última canción!' },
   songs_remaining:{ he:'נותרו {n} שירים',  en:'{n} songs left',     ar:'بقي {n} أغاني',        ru:'Осталось {n} песен',   es:'Quedan {n} canciones' },
