@@ -100,11 +100,12 @@ export default function AutocompleteInput({
   const isDisabled = disabled || phase === 'locked' || phase === 'accepted';
   const errorMsg = voiceState && typeof voiceState === 'object' && 'error' in voiceState ? voiceState.error : null;
   const listening = voiceState === 'listening';
+  const hasStatusLine = listening || !!errorMsg || !!voiceState?.miss;
 
   return (
     <div
       style={{
-        display: 'flex', alignItems: 'center', gap: 8,
+        display: 'flex', flexDirection: 'column', gap: 4,
         padding: '10px 14px', borderRadius: 12,
         background: listening ? '#3a1a1a' : (errorMsg ? '#3a2010' : '#2d2d30'),
         border: `1px solid ${listening ? '#dc3545' : (errorMsg ? '#f39c12' : '#3a3a3a')}`,
@@ -113,35 +114,26 @@ export default function AutocompleteInput({
         position: 'relative',
       }}
     >
-      <span style={{ color: '#888', fontSize: 13, minWidth: 52, flexShrink: 0 }}>{label}:</span>
+      {/* Main row: label, value/input, indicators, mic. The typing input stays
+          visible during/after a mic attempt, so the user can fall back to
+          first-character typing without waiting for the voice state to clear. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ color: '#888', fontSize: 13, minWidth: 52, flexShrink: 0 }}>{label}:</span>
 
-      <div style={{ flex: 1, direction: dir }}>
-        {phase === 'accepted' && (
-          <span style={{ color: '#1db954', fontWeight: 700, fontSize: 15 }}>✓ {ans}</span>
-        )}
-        {phase === 'locked' && (
-          <span style={{ color: '#dc3545', fontSize: 13 }}>❌ {ans}</span>
-        )}
-        {phase === 'match' && (
-          <span style={{ fontSize: 15 }}>
-            <span style={{ color: '#fff', fontWeight: 700 }}>{ans[0]}</span>
-            <span style={{ color: '#444' }}>{ans.slice(1)}</span>
-          </span>
-        )}
-        {(phase === 'idle' || phase === 'wrong') && (
-          listening ? (
-            <span style={{ color: '#ff6b6b', fontSize: 14, fontWeight: 600 }}>
-              🎙 {t('mic_listening')}
+        <div style={{ flex: 1, direction: dir }}>
+          {phase === 'accepted' && (
+            <span style={{ color: '#1db954', fontWeight: 700, fontSize: 15 }}>✓ {ans}</span>
+          )}
+          {phase === 'locked' && (
+            <span style={{ color: '#dc3545', fontSize: 13 }}>❌ {ans}</span>
+          )}
+          {phase === 'match' && (
+            <span style={{ fontSize: 15 }}>
+              <span style={{ color: '#fff', fontWeight: 700 }}>{ans[0]}</span>
+              <span style={{ color: '#444' }}>{ans.slice(1)}</span>
             </span>
-          ) : errorMsg ? (
-            <span style={{ color: '#f39c12', fontSize: 13, fontWeight: 600 }}>
-              ⚠ {errorMsg}
-            </span>
-          ) : voiceState?.miss ? (
-            <span style={{ color: '#dc3545', fontSize: 13 }}>
-              ❌ {t('mic_heard')}: <span style={{ color: '#ff9999' }}>{voiceState.miss}</span>
-            </span>
-          ) : (
+          )}
+          {(phase === 'idle' || phase === 'wrong') && (
             <input
               ref={inputRef}
               onChange={handleChange}
@@ -153,43 +145,61 @@ export default function AutocompleteInput({
                 fontSize: 14, width: '100%', direction: dir,
               }}
             />
-          )
+          )}
+        </div>
+
+        {/* Attempts indicator */}
+        {(phase === 'idle' || phase === 'wrong') && attempts > 0 && (
+          <span style={{ fontSize: 11, color: '#dc3545', flexShrink: 0 }}>{attempts}/3</span>
+        )}
+
+        {phase === 'match' && (
+          <>
+            <button
+              onClick={accept}
+              style={{ background: '#1db954', color: '#000', borderRadius: 8, padding: '5px 12px', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700, flexShrink: 0 }}
+            >
+              ✓
+            </button>
+            <button
+              onClick={rejectMatch}
+              style={{ background: '#444', color: '#ccc', borderRadius: 8, padding: '5px 10px', border: 'none', cursor: 'pointer', fontSize: 13, flexShrink: 0 }}
+            >
+              ✗
+            </button>
+          </>
+        )}
+
+        {/* Mic button — visible, tap to record */}
+        {enableMic && (
+          <MicButton
+            audioRef={audioRef}
+            onListenStart={() => setVoiceState('listening')}
+            onListenEnd={() => setVoiceState((prev) => prev === 'listening' ? null : prev)}
+            onResult={handleVoiceResult}
+            onError={(code) => flashError(speechErrorKey(code))}
+            disabled={isDisabled}
+            size={36}
+          />
         )}
       </div>
 
-      {/* Attempts indicator */}
-      {(phase === 'idle' || phase === 'wrong') && attempts > 0 && !listening && !errorMsg && (
-        <span style={{ fontSize: 11, color: '#dc3545', flexShrink: 0 }}>{attempts}/3</span>
-      )}
-
-      {phase === 'match' && (
-        <>
-          <button
-            onClick={accept}
-            style={{ background: '#1db954', color: '#000', borderRadius: 8, padding: '5px 12px', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700, flexShrink: 0 }}
-          >
-            ✓
-          </button>
-          <button
-            onClick={rejectMatch}
-            style={{ background: '#444', color: '#ccc', borderRadius: 8, padding: '5px 10px', border: 'none', cursor: 'pointer', fontSize: 13, flexShrink: 0 }}
-          >
-            ✗
-          </button>
-        </>
-      )}
-
-      {/* Mic button — visible, tap to record */}
-      {enableMic && (
-        <MicButton
-          audioRef={audioRef}
-          onListenStart={() => setVoiceState('listening')}
-          onListenEnd={() => setVoiceState((prev) => prev === 'listening' ? null : prev)}
-          onResult={handleVoiceResult}
-          onError={(code) => flashError(speechErrorKey(code))}
-          disabled={isDisabled}
-          size={36}
-        />
+      {/* Voice status line — sits beneath the typing row so the input above
+          stays usable. Shows listening / error / heard-text in turn. */}
+      {hasStatusLine && (
+        <div style={{ fontSize: 11, fontWeight: 600, paddingInlineStart: 60 }}>
+          {listening && (
+            <span style={{ color: '#ff6b6b' }}>🎙 {t('mic_listening')}</span>
+          )}
+          {!listening && errorMsg && (
+            <span style={{ color: '#f39c12' }}>⚠ {errorMsg}</span>
+          )}
+          {!listening && !errorMsg && voiceState?.miss && (
+            <span style={{ color: '#dc3545' }}>
+              ❌ {t('mic_heard')}: <span style={{ color: '#ff9999' }}>{voiceState.miss}</span>
+            </span>
+          )}
+        </div>
       )}
     </div>
   );
