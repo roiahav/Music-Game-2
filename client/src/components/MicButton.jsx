@@ -38,27 +38,41 @@ export default function MicButton({
   title,
 }) {
   const { lang, t } = useLang();
-  const sawResultRef = useRef(false);
+  // Was the audio playing when we started listening? If so, resume it after.
+  // Lets the song pick up from where it paused once the user is done speaking,
+  // regardless of whether listening ended via match, error, silence, or stop.
+  const wasPlayingRef = useRef(false);
+  const prevListeningRef = useRef(false);
+  const onListenEndRef = useRef(onListenEnd);
+  useEffect(() => { onListenEndRef.current = onListenEnd; }, [onListenEnd]);
 
   const { supported, listening, start, stop } = useSpeechRecognition({
     lang: uiLangToBcp47(lang),
     onResult: (r) => {
       if (!r.isFinal) return;
-      sawResultRef.current = true;
       onResult?.(r.transcript || '', r.alternatives || []);
-      onListenEnd?.();
+      // Audio resume + onListenEnd are fired uniformly by the listening
+      // transition effect below.
     },
     onError: (e) => {
       onError?.(e?.error || 'error');
-      onListenEnd?.();
     },
   });
 
-  // If recognition ends without a result (no-speech / aborted), still notify parent
+  // Watch the listening flag. When it goes from true → false (any reason —
+  // result, error, silence, manual stop), resume audio if we paused it and
+  // notify the parent through onListenEnd.
   useEffect(() => {
-    if (!listening && sawResultRef.current === false) return;
-    if (!listening) sawResultRef.current = false;
-  }, [listening]);
+    if (prevListeningRef.current && !listening) {
+      const audio = audioRef?.current;
+      if (wasPlayingRef.current && audio) {
+        try { audio.play().catch(() => {}); } catch { /* ignore */ }
+      }
+      wasPlayingRef.current = false;
+      onListenEndRef.current?.();
+    }
+    prevListeningRef.current = listening;
+  }, [listening, audioRef]);
 
   function handleClick(e) {
     e.stopPropagation();
@@ -70,14 +84,25 @@ export default function MicButton({
       return;
     }
     if (listening) { stop(); return; }
-    // Pause music before listening so the recognizer doesn't pick up the song
-    try { audioRef?.current?.pause?.(); } catch { /* ignore */ }
+    // Pause music before listening so the recognizer doesn't pick up the song.
+    // Remember whether it WAS playing so we can resume after listening ends.
+    const audio = audioRef?.current;
+    if (audio) {
+      wasPlayingRef.current = !audio.paused;
+      try { audio.pause(); } catch { /* ignore */ }
+    } else {
+      wasPlayingRef.current = false;
+    }
     onListenStart?.();
-    sawResultRef.current = false;
     try {
       start();
     } catch {
       onError?.('error');
+      // Listening probably never went true; resume audio + notify here.
+      if (wasPlayingRef.current && audio) {
+        try { audio.play().catch(() => {}); } catch { /* ignore */ }
+      }
+      wasPlayingRef.current = false;
       onListenEnd?.();
     }
   }
