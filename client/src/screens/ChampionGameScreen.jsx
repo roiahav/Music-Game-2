@@ -3,11 +3,14 @@ import { useSettingsStore } from '../store/settingsStore.js';
 import { useAuthStore } from '../store/authStore.js';
 import { getPlaylistSongs } from '../api/client.js';
 import { useFavorites } from '../hooks/useFavorites.js';
+import { useBlacklist } from '../hooks/useBlacklist.js';
 import PlaylistSelector from '../components/PlaylistSelector.jsx';
 import TimerBar from '../components/TimerBar.jsx';
 import { AvatarCircle } from '../App.jsx';
 import { useLang } from '../i18n/useLang.js';
 import CastButton from '../components/CastButton.jsx';
+import MicButton from '../components/MicButton.jsx';
+import { bestMatch } from '../utils/textMatch.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const DECADES = [1950, 1960, 1970, 1980, 1990, 2000, 2010, 2020];
@@ -28,6 +31,7 @@ export default function ChampionGameScreen({ onExit }) {
   const { user } = useAuthStore();
   const { playlists } = useSettingsStore();
   const { favoriteIds, toggle: toggleFavorite } = useFavorites();
+  const { blacklistIds, toggleBlacklist, isAdmin } = useBlacklist();
 
   const [phase, setPhase] = useState('idle'); // idle | playing | done
   const [selectedPlaylistIds, setSelectedPlaylistIds] = useState(
@@ -68,6 +72,43 @@ export default function ChampionGameScreen({ onExit }) {
   // Audio
   const audioRef = useRef(null);
   const [audioPlaying, setAudioPlaying] = useState(false);
+
+  // Voice — a small mic button next to each picker tries to fill the field by
+  // speech. `voiceFeedback` is a brief inline overlay shown under the picker
+  // when the heard text didn't match (or speech recognition failed).
+  const [voiceFeedback, setVoiceFeedback] = useState({ field: null, kind: null, text: '' });
+  const voiceTimerRef = useRef(null);
+
+  function flashVoiceFeedback(field, kind, text, ms = 2400) {
+    setVoiceFeedback({ field, kind, text });
+    if (voiceTimerRef.current) clearTimeout(voiceTimerRef.current);
+    voiceTimerRef.current = setTimeout(() => setVoiceFeedback({ field: null, kind: null, text: '' }), ms);
+  }
+
+  function speechErrorText(code) {
+    switch (code) {
+      case 'not-allowed':         return 'הגישה למיקרופון נדחתה';
+      case 'service-not-allowed': return 'נדרש HTTPS לזיהוי קולי';
+      case 'audio-capture':       return 'לא נמצא מיקרופון';
+      case 'no-speech':           return 'לא זוהה דיבור';
+      case 'network':             return 'אין חיבור רשת';
+      case 'unsupported':         return 'הדפדפן לא תומך בקלט קולי';
+      default:                    return 'שגיאת זיהוי קולי';
+    }
+  }
+
+  function handleArtistVoice(transcript) {
+    if (!transcript) return;
+    const m = bestMatch(transcript, allArtists);
+    if (m?.best) { setPickedArtist(m.best); setVoiceFeedback({ field: null, kind: null, text: '' }); }
+    else flashVoiceFeedback('artist', 'miss', transcript, 1500);
+  }
+  function handleTitleVoice(transcript) {
+    if (!transcript) return;
+    const m = bestMatch(transcript, allTitles);
+    if (m?.best) { setPickedTitle(m.best); setVoiceFeedback({ field: null, kind: null, text: '' }); }
+    else flashVoiceFeedback('title', 'miss', transcript, 1500);
+  }
 
   // Always-fresh ref for handleSubmit so TimerBar's captured onExpire calls
   // the latest version (with current picks) rather than a stale one
@@ -465,26 +506,57 @@ export default function ChampionGameScreen({ onExit }) {
           <CastButton audioRef={audioRef} />
         </div>
 
-        {/* Selection boxes — 2x2 grid: artist, title, year, submit */}
+        {/* Selection boxes — 2x2 grid: artist, title, year, submit.
+            Each artist/title cell is itself split into [picker | mic]. */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <SelectBox
-            label="🎤 זמר"
-            value={pickedArtist}
-            placeholder="לחץ לבחירה"
-            state={resultStateFor('artist')}
-            correctValue={submitted ? currentSong?.artist : null}
-            disabled={submitted}
-            onClick={() => setPicker('artist')}
-          />
-          <SelectBox
-            label="🎵 שיר"
-            value={pickedTitle}
-            placeholder="לחץ לבחירה"
-            state={resultStateFor('title')}
-            correctValue={submitted ? currentSong?.title : null}
-            disabled={submitted}
-            onClick={() => setPicker('title')}
-          />
+          <PickerWithMic
+            field="artist"
+            feedback={voiceFeedback.field === 'artist' ? voiceFeedback : null}
+            mic={
+              <MicButton
+                audioRef={audioRef}
+                onResult={handleArtistVoice}
+                onError={(code) => flashVoiceFeedback('artist', 'error', speechErrorText(code))}
+                disabled={submitted}
+                size={56}
+                shape="wide"
+              />
+            }
+          >
+            <SelectBox
+              label="🎤 זמר"
+              value={pickedArtist}
+              placeholder="לחץ לבחירה"
+              state={resultStateFor('artist')}
+              correctValue={submitted ? currentSong?.artist : null}
+              disabled={submitted}
+              onClick={() => setPicker('artist')}
+            />
+          </PickerWithMic>
+          <PickerWithMic
+            field="title"
+            feedback={voiceFeedback.field === 'title' ? voiceFeedback : null}
+            mic={
+              <MicButton
+                audioRef={audioRef}
+                onResult={handleTitleVoice}
+                onError={(code) => flashVoiceFeedback('title', 'error', speechErrorText(code))}
+                disabled={submitted}
+                size={56}
+                shape="wide"
+              />
+            }
+          >
+            <SelectBox
+              label="🎵 שיר"
+              value={pickedTitle}
+              placeholder="לחץ לבחירה"
+              state={resultStateFor('title')}
+              correctValue={submitted ? currentSong?.title : null}
+              disabled={submitted}
+              onClick={() => setPicker('title')}
+            />
+          </PickerWithMic>
           <SelectBox
             label="📅 שנה"
             value={pickedYear || ''}
@@ -519,6 +591,23 @@ export default function ChampionGameScreen({ onExit }) {
             </button>
           )}
         </div>
+
+        {/* Blacklist toggle — admin only. Sends the current song to the
+            global blacklist so it stops appearing in any game's playlist. */}
+        {isAdmin && currentSong && (
+          <button
+            onClick={() => toggleBlacklist(currentSong.id)}
+            style={{
+              width: '100%', padding: '6px 10px', borderRadius: 10, fontSize: 12, fontWeight: 600,
+              background: blacklistIds.has(currentSong.id) ? '#1a1a1a' : '#1e1e1e',
+              border: `1px solid ${blacklistIds.has(currentSong.id) ? '#dc3545' : 'var(--border)'}`,
+              color: blacklistIds.has(currentSong.id) ? '#ff6b6b' : 'var(--text2)',
+              cursor: 'pointer', transition: 'all 0.15s',
+            }}
+          >
+            {blacklistIds.has(currentSong.id) ? '✓ הסר חסימה' : '🚫 חסום שיר'}
+          </button>
+        )}
       </div>
 
       {/* Pickers */}
@@ -556,6 +645,30 @@ export default function ChampionGameScreen({ onExit }) {
   );
 }
 
+// ─── PickerWithMic — split cell layout: tap-picker on the left, mic on right ──
+// `feedback` is { kind: 'miss' | 'error', text } and renders briefly below the
+// row when speech recognition didn't yield a usable result.
+function PickerWithMic({ feedback, mic, children }) {
+  const isError = feedback?.kind === 'error';
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <div style={{ display: 'flex', gap: 6, alignItems: 'stretch' }}>
+        <div style={{ flex: 1, minWidth: 0 }}>{children}</div>
+        {mic}
+      </div>
+      {feedback?.text && (
+        <div style={{
+          fontSize: 10, color: isError ? '#f39c12' : '#ff9999', fontWeight: 600,
+          padding: '0 4px',
+          maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>
+          {isError ? '⚠' : '❌'} {feedback.text}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── TopBar ───────────────────────────────────────────────────────────────────
 function TopBar({ onExit, title, right }) {
   return (
@@ -582,6 +695,10 @@ function SelectBox({ label, value, placeholder, state, correctValue, disabled, o
       onClick={disabled ? undefined : onClick}
       disabled={disabled}
       style={{
+        // width:100% + min-width:0 keep the box honest when it's wrapped in
+        // a flex row next to the mic button — without these the button
+        // expands to fit a long song title and overflows the grid cell.
+        width: '100%', minWidth: 0, boxSizing: 'border-box',
         background: c.bg, border: `2px solid ${c.border}`, borderRadius: 14,
         padding: '14px 12px', textAlign: 'right', cursor: disabled ? 'default' : 'pointer',
         display: 'flex', flexDirection: 'column', gap: 6, minHeight: 80,
@@ -592,6 +709,8 @@ function SelectBox({ label, value, placeholder, state, correctValue, disabled, o
       <div style={{
         color: value ? c.text : 'var(--text3, #555)',
         fontSize: 14, fontWeight: 700,
+        // min-width:0 on a flex item is required so ellipsis can kick in
+        minWidth: 0, maxWidth: '100%',
         whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
       }}>
         {value || placeholder}

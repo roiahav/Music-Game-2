@@ -5,6 +5,7 @@ import PlaylistSelector from '../components/PlaylistSelector.jsx';
 import TimerBar from '../components/TimerBar.jsx';
 import { useLang } from '../i18n/useLang.js';
 import { useFavorites } from '../hooks/useFavorites.js';
+import { useBlacklist } from '../hooks/useBlacklist.js';
 
 const TIMER_OPTIONS = [0, 15, 30, 45, 60];
 
@@ -117,6 +118,7 @@ export default function YearsGameScreen({ onExit }) {
   const [activeSongId, setActiveSongId] = useState(null);
   const [results, setResults] = useState({});          // { [songId]: { correct, guessedYear } }
   const { favoriteIds, toggle: toggleFavorite } = useFavorites();
+  const { blacklistIds, toggleBlacklist, isAdmin } = useBlacklist();
   const [yearStates, setYearStates] = useState({});    // { [year]: 'idle'|'correct'|'wrong'|'used' }
   const [roundNum, setRoundNum] = useState(0);
 
@@ -424,6 +426,20 @@ export default function YearsGameScreen({ onExit }) {
               }}
             >
               {favoriteIds.has(activeSong.id) ? '💔' : '❤️'}
+            </button>
+          )}
+          {isAdmin && activeSong && (
+            <button
+              onClick={() => toggleBlacklist(activeSong.id)}
+              title={blacklistIds.has(activeSong.id) ? 'הסר חסימה' : 'חסום שיר'}
+              style={{
+                background: blacklistIds.has(activeSong.id) ? '#1a1a1a' : 'transparent',
+                color: blacklistIds.has(activeSong.id) ? '#ff6b6b' : '#888',
+                border: `1px solid ${blacklistIds.has(activeSong.id) ? '#dc3545' : '#444'}`,
+                borderRadius: 8, padding: '2px 8px', fontSize: 12, cursor: 'pointer',
+              }}
+            >
+              {blacklistIds.has(activeSong.id) ? '✓' : '🚫'}
             </button>
           )}
         </div>

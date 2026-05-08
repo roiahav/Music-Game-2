@@ -6,7 +6,10 @@ import { AvatarCircle } from '../App.jsx';
 import { useLang } from '../i18n/useLang.js';
 import { unlockAudio } from '../utils/audioUnlock.js';
 import { useFavorites } from '../hooks/useFavorites.js';
+import { useBlacklist } from '../hooks/useBlacklist.js';
 import CastButton from '../components/CastButton.jsx';
+import MicButton from '../components/MicButton.jsx';
+import { bestMatch } from '../utils/textMatch.js';
 import { useMultiplayerSocket } from '../hooks/useMultiplayerSocket.js';
 
 const DECADES = [1950, 1960, 1970, 1980, 1990, 2000, 2010, 2020];
@@ -46,6 +49,7 @@ export default function ChampionMultiplayerScreen({ onExit }) {
   const [decadeFilter, setDecadeFilter] = useState(() => new Set(DECADES));
 
   const { favoriteIds, toggle: toggleFavorite } = useFavorites();
+  const { blacklistIds, toggleBlacklist, isAdmin } = useBlacklist();
 
   // Game
   const [autocomplete, setAutocomplete] = useState({ artists: [], titles: [] });
@@ -75,6 +79,43 @@ export default function ChampionMultiplayerScreen({ onExit }) {
   const audioRef = useRef(null);
   const victoryRef = useRef(null);
   const [audioPlaying, setAudioPlaying] = useState(false);
+
+  // Voice — a small mic button next to each picker tries to fill the field
+  // by speech. `voiceFeedback` is a brief inline overlay shown under the
+  // picker when the heard text didn't match (or speech recognition failed).
+  const [voiceFeedback, setVoiceFeedback] = useState({ field: null, kind: null, text: '' });
+  const voiceTimerRef = useRef(null);
+
+  function flashVoiceFeedback(field, kind, text, ms = 2400) {
+    setVoiceFeedback({ field, kind, text });
+    if (voiceTimerRef.current) clearTimeout(voiceTimerRef.current);
+    voiceTimerRef.current = setTimeout(() => setVoiceFeedback({ field: null, kind: null, text: '' }), ms);
+  }
+
+  function speechErrorText(code) {
+    switch (code) {
+      case 'not-allowed':         return 'הגישה למיקרופון נדחתה';
+      case 'service-not-allowed': return 'נדרש HTTPS לזיהוי קולי';
+      case 'audio-capture':       return 'לא נמצא מיקרופון';
+      case 'no-speech':           return 'לא זוהה דיבור';
+      case 'network':             return 'אין חיבור רשת';
+      case 'unsupported':         return 'הדפדפן לא תומך בקלט קולי';
+      default:                    return 'שגיאת זיהוי קולי';
+    }
+  }
+
+  function handleArtistVoice(transcript) {
+    if (!transcript) return;
+    const m = bestMatch(transcript, autocomplete.artists || []);
+    if (m?.best) { setPickedArtist(m.best); setVoiceFeedback({ field: null, kind: null, text: '' }); }
+    else flashVoiceFeedback('artist', 'miss', transcript, 1500);
+  }
+  function handleTitleVoice(transcript) {
+    if (!transcript) return;
+    const m = bestMatch(transcript, autocomplete.titles || []);
+    if (m?.best) { setPickedTitle(m.best); setVoiceFeedback({ field: null, kind: null, text: '' }); }
+    else flashVoiceFeedback('title', 'miss', transcript, 1500);
+  }
 
   const me = useMemo(() => players.find(p => p.socketId === mySocketId) || null, [players, mySocketId]);
   const isHost = me?.isHost;
@@ -529,8 +570,34 @@ export default function ChampionMultiplayerScreen({ onExit }) {
             </div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <SelectBox label="🎤 זמר"  value={pickedArtist} onClick={() => setPicker('artist')} />
-              <SelectBox label="🎵 שיר"  value={pickedTitle}  onClick={() => setPicker('title')} />
+              <PickerWithMic
+                feedback={voiceFeedback.field === 'artist' ? voiceFeedback : null}
+                mic={
+                  <MicButton
+                    audioRef={audioRef}
+                    onResult={handleArtistVoice}
+                    onError={(code) => flashVoiceFeedback('artist', 'error', speechErrorText(code))}
+                    size={56}
+                    shape="wide"
+                  />
+                }
+              >
+                <SelectBox label="🎤 זמר"  value={pickedArtist} onClick={() => setPicker('artist')} />
+              </PickerWithMic>
+              <PickerWithMic
+                feedback={voiceFeedback.field === 'title' ? voiceFeedback : null}
+                mic={
+                  <MicButton
+                    audioRef={audioRef}
+                    onResult={handleTitleVoice}
+                    onError={(code) => flashVoiceFeedback('title', 'error', speechErrorText(code))}
+                    size={56}
+                    shape="wide"
+                  />
+                }
+              >
+                <SelectBox label="🎵 שיר"  value={pickedTitle}  onClick={() => setPicker('title')} />
+              </PickerWithMic>
               <SelectBox label="📅 שנה"  value={pickedYear || ''} onClick={() => setPicker('year')} />
               <button
                 onClick={handleSubmit}
@@ -561,6 +628,23 @@ export default function ChampionMultiplayerScreen({ onExit }) {
           {isHost && (
             <button onClick={() => socket.emit('champ:reveal')} style={secondaryBtn}>
               💡 חשוף תשובה (עוקף ממתינים)
+            </button>
+          )}
+
+          {/* Blacklist toggle — admin only. Sends the current song to the
+              global blacklist so it stops appearing in any game's playlist. */}
+          {isAdmin && currentSong && (
+            <button
+              onClick={() => toggleBlacklist(currentSong.id)}
+              style={{
+                width: '100%', padding: '6px 10px', borderRadius: 10, fontSize: 12, fontWeight: 600,
+                background: blacklistIds.has(currentSong.id) ? '#1a1a1a' : '#1e1e1e',
+                border: `1px solid ${blacklistIds.has(currentSong.id) ? '#dc3545' : 'var(--border)'}`,
+                color: blacklistIds.has(currentSong.id) ? '#ff6b6b' : 'var(--text2)',
+                cursor: 'pointer', transition: 'all 0.15s',
+              }}
+            >
+              {blacklistIds.has(currentSong.id) ? '✓ הסר חסימה' : '🚫 חסום שיר'}
             </button>
           )}
         </div>
@@ -745,6 +829,31 @@ export default function ChampionMultiplayerScreen({ onExit }) {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+// Split-cell layout: tap-picker on the left, mic on the right. Feedback is a
+// brief inline overlay shown under the row when speech recognition didn't
+// yield a usable result.
+function PickerWithMic({ feedback, mic, children }) {
+  const isError = feedback?.kind === 'error';
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <div style={{ display: 'flex', gap: 6, alignItems: 'stretch' }}>
+        <div style={{ flex: 1, minWidth: 0 }}>{children}</div>
+        {mic}
+      </div>
+      {feedback?.text && (
+        <div style={{
+          fontSize: 10, color: isError ? '#f39c12' : '#ff9999', fontWeight: 600,
+          padding: '0 4px',
+          maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>
+          {isError ? '⚠' : '❌'} {feedback.text}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TopBar({ onExit, title, right }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
@@ -758,6 +867,10 @@ function TopBar({ onExit, title, right }) {
 function SelectBox({ label, value, onClick }) {
   return (
     <button onClick={onClick} style={{
+      // width:100% + min-width:0 — see ChampionGameScreen's SelectBox: in the
+      // PickerWithMic flex row a long title would otherwise stretch the box
+      // past its grid cell.
+      width: '100%', minWidth: 0, boxSizing: 'border-box',
       background: 'var(--bg2)', border: '2px solid var(--border)', borderRadius: 14,
       padding: '14px 12px', textAlign: 'right', cursor: 'pointer',
       display: 'flex', flexDirection: 'column', gap: 6, minHeight: 80,
@@ -766,6 +879,7 @@ function SelectBox({ label, value, onClick }) {
       <div style={{
         color: value ? 'var(--text)' : 'var(--text3, #555)',
         fontSize: 14, fontWeight: 700,
+        minWidth: 0, maxWidth: '100%',
         whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
       }}>{value || 'לחץ לבחירה'}</div>
     </button>
