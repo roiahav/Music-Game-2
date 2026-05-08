@@ -3,6 +3,7 @@ import { useSettingsStore } from '../store/settingsStore.js';
 import { useAuthStore } from '../store/authStore.js';
 import { getPlaylistSongs } from '../api/client.js';
 import { useFavorites } from '../hooks/useFavorites.js';
+import { useBlacklist } from '../hooks/useBlacklist.js';
 import PlaylistSelector from '../components/PlaylistSelector.jsx';
 import TimerBar from '../components/TimerBar.jsx';
 import { AvatarCircle } from '../App.jsx';
@@ -30,6 +31,7 @@ export default function ChampionGameScreen({ onExit }) {
   const { user } = useAuthStore();
   const { playlists } = useSettingsStore();
   const { favoriteIds, toggle: toggleFavorite } = useFavorites();
+  const { blacklistIds, toggleBlacklist, isAdmin } = useBlacklist();
 
   const [phase, setPhase] = useState('idle'); // idle | playing | done
   const [selectedPlaylistIds, setSelectedPlaylistIds] = useState(
@@ -589,6 +591,23 @@ export default function ChampionGameScreen({ onExit }) {
             </button>
           )}
         </div>
+
+        {/* Blacklist toggle — admin only. Sends the current song to the
+            global blacklist so it stops appearing in any game's playlist. */}
+        {isAdmin && currentSong && (
+          <button
+            onClick={() => toggleBlacklist(currentSong.id)}
+            style={{
+              width: '100%', padding: '6px 10px', borderRadius: 10, fontSize: 12, fontWeight: 600,
+              background: blacklistIds.has(currentSong.id) ? '#1a1a1a' : '#1e1e1e',
+              border: `1px solid ${blacklistIds.has(currentSong.id) ? '#dc3545' : 'var(--border)'}`,
+              color: blacklistIds.has(currentSong.id) ? '#ff6b6b' : 'var(--text2)',
+              cursor: 'pointer', transition: 'all 0.15s',
+            }}
+          >
+            {blacklistIds.has(currentSong.id) ? '✓ הסר חסימה' : '🚫 חסום שיר'}
+          </button>
+        )}
       </div>
 
       {/* Pickers */}

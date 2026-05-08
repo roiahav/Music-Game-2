@@ -16,6 +16,7 @@ import { useAuthStore } from '../store/authStore.js';
 import { useSettingsStore } from '../store/settingsStore.js';
 import { Figurine, FIGURINE_OPTIONS } from '../components/Figurine.jsx';
 import { useFavorites } from '../hooks/useFavorites.js';
+import { useBlacklist } from '../hooks/useBlacklist.js';
 import SnakeLadderBoard from '../components/SnakeLadderBoard.jsx';
 import DiceRoller from '../components/DiceRoller.jsx';
 import CastButton from '../components/CastButton.jsx';
@@ -29,6 +30,7 @@ export default function LaddersHitsScreen({ onExit }) {
   const { user } = useAuthStore();
   const { playlists } = useSettingsStore();
   const { favoriteIds, toggle: toggleFavorite } = useFavorites();
+  const { blacklistIds, toggleBlacklist, isAdmin } = useBlacklist();
 
   // Mode: choose to host or join from the entry screen
   const [view, setView] = useState('entry');   // 'entry' | 'lobby' | 'playing' | 'done'
@@ -581,6 +583,22 @@ export default function LaddersHitsScreen({ onExit }) {
             >
               {isFavorited ? '💔' : '❤️'}
             </button>
+            {isAdmin && songForFav.id && (() => {
+              const blocked = blacklistIds.has(songForFav.id);
+              return (
+                <button
+                  onClick={() => toggleBlacklist(songForFav.id)}
+                  title={blocked ? 'הסר חסימה' : 'חסום שיר'}
+                  style={{
+                    width: 56, height: 46,
+                    background: blocked ? '#1a1a1a' : 'var(--bg2)',
+                    color: blocked ? '#ff6b6b' : 'var(--text)',
+                    border: `1px solid ${blocked ? '#dc3545' : 'var(--border)'}`,
+                    borderRadius: 12, fontSize: 18, cursor: 'pointer', flexShrink: 0,
+                  }}
+                >{blocked ? '✓' : '🚫'}</button>
+              );
+            })()}
             <CastButton audioRef={audioRef} />
           </div>
 

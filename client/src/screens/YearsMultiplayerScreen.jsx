@@ -6,6 +6,7 @@ import TimerBar from '../components/TimerBar.jsx';
 import { AvatarCircle } from '../App.jsx';
 import { useLang } from '../i18n/useLang.js';
 import { useFavorites } from '../hooks/useFavorites.js';
+import { useBlacklist } from '../hooks/useBlacklist.js';
 import { useMultiplayerSocket } from '../hooks/useMultiplayerSocket.js';
 const TIMER_OPTIONS = [0, 15, 30, 45, 60];
 
@@ -276,6 +277,7 @@ export default function YearsMultiplayerScreen({ onExit }) {
   const [wrongSongs, setWrongSongs] = useState(new Set()); // cards I guessed wrong (flashing)
   const [activeSongId, setActiveSongId] = useState(null);
   const { favoriteIds, toggle: toggleFavorite } = useFavorites();
+  const { blacklistIds, toggleBlacklist, isAdmin } = useBlacklist();
 
   // ── Round-end ──────────────────────────────────────────────────────────────
   const [roundEndSongs, setRoundEndSongs] = useState([]); // {id, year, title, artist}
@@ -690,23 +692,38 @@ export default function YearsMultiplayerScreen({ onExit }) {
               const s = roundSongs.find(rs => rs.id === activeSongId);
               if (!s) return null;
               const fav = favoriteIds.has(s.id);
+              const blocked = blacklistIds.has(s.id);
               return (
-                <button
-                  onClick={() => toggleFavorite({
-                    id: s.id,
-                    filePath: s.filePath || s.audioUrl || '',
-                    title: s.title || '',
-                    artist: s.artist || '',
-                    year: s.year || '',
-                  })}
-                  title={fav ? 'הסרה מהמועדפים' : 'הוספה למועדפים'}
-                  style={{
-                    background: fav ? '#dc354522' : 'transparent',
-                    color: fav ? '#ff6b6b' : '#888',
-                    border: `1px solid ${fav ? '#dc3545' : '#444'}`,
-                    borderRadius: 8, padding: '2px 8px', fontSize: 12, cursor: 'pointer',
-                  }}
-                >{fav ? '💔' : '❤️'}</button>
+                <>
+                  <button
+                    onClick={() => toggleFavorite({
+                      id: s.id,
+                      filePath: s.filePath || s.audioUrl || '',
+                      title: s.title || '',
+                      artist: s.artist || '',
+                      year: s.year || '',
+                    })}
+                    title={fav ? 'הסרה מהמועדפים' : 'הוספה למועדפים'}
+                    style={{
+                      background: fav ? '#dc354522' : 'transparent',
+                      color: fav ? '#ff6b6b' : '#888',
+                      border: `1px solid ${fav ? '#dc3545' : '#444'}`,
+                      borderRadius: 8, padding: '2px 8px', fontSize: 12, cursor: 'pointer',
+                    }}
+                  >{fav ? '💔' : '❤️'}</button>
+                  {isAdmin && (
+                    <button
+                      onClick={() => toggleBlacklist(s.id)}
+                      title={blocked ? 'הסר חסימה' : 'חסום שיר'}
+                      style={{
+                        background: blocked ? '#1a1a1a' : 'transparent',
+                        color: blocked ? '#ff6b6b' : '#888',
+                        border: `1px solid ${blocked ? '#dc3545' : '#444'}`,
+                        borderRadius: 8, padding: '2px 8px', fontSize: 12, cursor: 'pointer',
+                      }}
+                    >{blocked ? '✓' : '🚫'}</button>
+                  )}
+                </>
               );
             })()}
           </div>

@@ -6,6 +6,7 @@ import { AvatarCircle } from '../App.jsx';
 import { useLang } from '../i18n/useLang.js';
 import { unlockAudio } from '../utils/audioUnlock.js';
 import { useFavorites } from '../hooks/useFavorites.js';
+import { useBlacklist } from '../hooks/useBlacklist.js';
 import CastButton from '../components/CastButton.jsx';
 import MicButton from '../components/MicButton.jsx';
 import { bestMatch } from '../utils/textMatch.js';
@@ -48,6 +49,7 @@ export default function ChampionMultiplayerScreen({ onExit }) {
   const [decadeFilter, setDecadeFilter] = useState(() => new Set(DECADES));
 
   const { favoriteIds, toggle: toggleFavorite } = useFavorites();
+  const { blacklistIds, toggleBlacklist, isAdmin } = useBlacklist();
 
   // Game
   const [autocomplete, setAutocomplete] = useState({ artists: [], titles: [] });
@@ -626,6 +628,23 @@ export default function ChampionMultiplayerScreen({ onExit }) {
           {isHost && (
             <button onClick={() => socket.emit('champ:reveal')} style={secondaryBtn}>
               💡 חשוף תשובה (עוקף ממתינים)
+            </button>
+          )}
+
+          {/* Blacklist toggle — admin only. Sends the current song to the
+              global blacklist so it stops appearing in any game's playlist. */}
+          {isAdmin && currentSong && (
+            <button
+              onClick={() => toggleBlacklist(currentSong.id)}
+              style={{
+                width: '100%', padding: '6px 10px', borderRadius: 10, fontSize: 12, fontWeight: 600,
+                background: blacklistIds.has(currentSong.id) ? '#1a1a1a' : '#1e1e1e',
+                border: `1px solid ${blacklistIds.has(currentSong.id) ? '#dc3545' : 'var(--border)'}`,
+                color: blacklistIds.has(currentSong.id) ? '#ff6b6b' : 'var(--text2)',
+                cursor: 'pointer', transition: 'all 0.15s',
+              }}
+            >
+              {blacklistIds.has(currentSong.id) ? '✓ הסר חסימה' : '🚫 חסום שיר'}
             </button>
           )}
         </div>

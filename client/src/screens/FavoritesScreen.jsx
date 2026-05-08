@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { getFavorites, removeFavorite, reorderFavorites } from '../api/client.js';
 import { useLang } from '../i18n/useLang.js';
+import { useBlacklist } from '../hooks/useBlacklist.js';
 import { getJSON, setJSON } from '../utils/safeStorage.js';
 
 // localStorage key for resume-on-reopen
@@ -26,6 +27,7 @@ function shuffleArr(arr) {
 // ─── component ────────────────────────────────────────────────────────────────
 export default function FavoritesScreen({ onExit }) {
   const { t, dir } = useLang();
+  const { blacklistIds, toggleBlacklist, isAdmin } = useBlacklist();
 
   // ── data ──
   const [songs, setSongs] = useState([]);       // full ordered list
@@ -657,6 +659,29 @@ export default function FavoritesScreen({ onExit }) {
                 >
                   💔
                 </button>
+                {/* Admin-only: block song from any future playlist */}
+                {isAdmin && (() => {
+                  const blocked = blacklistIds.has(s.id);
+                  return (
+                    <button
+                      onClick={e => { e.stopPropagation(); toggleBlacklist(s.id); }}
+                      title={blocked ? 'הסר חסימה' : 'חסום שיר'}
+                      style={{
+                        background: blocked ? '#1a1a1a' : 'transparent',
+                        border: `1px solid ${blocked ? '#dc3545' : '#444'}`,
+                        color: blocked ? '#ff6b6b' : '#888',
+                        borderRadius: 10,
+                        fontSize: 16, cursor: 'pointer',
+                        width: 38, height: 38,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        flexShrink: 0,
+                        lineHeight: 1, padding: 0,
+                      }}
+                    >
+                      {blocked ? '✓' : '🚫'}
+                    </button>
+                  );
+                })()}
               </div>
             </div>
           );
