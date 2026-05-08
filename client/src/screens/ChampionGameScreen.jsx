@@ -676,6 +676,10 @@ function SelectBox({ label, value, placeholder, state, correctValue, disabled, o
       onClick={disabled ? undefined : onClick}
       disabled={disabled}
       style={{
+        // width:100% + min-width:0 keep the box honest when it's wrapped in
+        // a flex row next to the mic button — without these the button
+        // expands to fit a long song title and overflows the grid cell.
+        width: '100%', minWidth: 0, boxSizing: 'border-box',
         background: c.bg, border: `2px solid ${c.border}`, borderRadius: 14,
         padding: '14px 12px', textAlign: 'right', cursor: disabled ? 'default' : 'pointer',
         display: 'flex', flexDirection: 'column', gap: 6, minHeight: 80,
@@ -686,6 +690,8 @@ function SelectBox({ label, value, placeholder, state, correctValue, disabled, o
       <div style={{
         color: value ? c.text : 'var(--text3, #555)',
         fontSize: 14, fontWeight: 700,
+        // min-width:0 on a flex item is required so ellipsis can kick in
+        minWidth: 0, maxWidth: '100%',
         whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
       }}>
         {value || placeholder}

@@ -848,6 +848,10 @@ function TopBar({ onExit, title, right }) {
 function SelectBox({ label, value, onClick }) {
   return (
     <button onClick={onClick} style={{
+      // width:100% + min-width:0 — see ChampionGameScreen's SelectBox: in the
+      // PickerWithMic flex row a long title would otherwise stretch the box
+      // past its grid cell.
+      width: '100%', minWidth: 0, boxSizing: 'border-box',
       background: 'var(--bg2)', border: '2px solid var(--border)', borderRadius: 14,
       padding: '14px 12px', textAlign: 'right', cursor: 'pointer',
       display: 'flex', flexDirection: 'column', gap: 6, minHeight: 80,
@@ -856,6 +860,7 @@ function SelectBox({ label, value, onClick }) {
       <div style={{
         color: value ? 'var(--text)' : 'var(--text3, #555)',
         fontSize: 14, fontWeight: 700,
+        minWidth: 0, maxWidth: '100%',
         whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
       }}>{value || 'לחץ לבחירה'}</div>
     </button>
