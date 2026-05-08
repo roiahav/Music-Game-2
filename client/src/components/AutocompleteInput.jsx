@@ -1,7 +1,6 @@
 import { useState, useRef } from 'react';
 import { useLang } from '../i18n/useLang.js';
-import { useSpeechRecognition, uiLangToBcp47 } from '../hooks/useSpeechRecognition.js';
-import { useLongPress } from '../hooks/useLongPress.js';
+import MicButton from './MicButton.jsx';
 import { isVoiceMatch } from '../utils/textMatch.js';
 
 // Checks whether user's first typed character matches the answer's first character (Hebrew-aware)
@@ -10,7 +9,7 @@ function firstCharMatches(typed, answer) {
   return typed[0].toLowerCase() === answer.trim()[0].toLowerCase();
 }
 
-/** Map a SpeechRecognition `error` code to a user-facing message key. */
+/** SpeechRecognition error code → i18n key. */
 function speechErrorKey(code) {
   switch (code) {
     case 'not-allowed':         return 'mic_perm_denied';
@@ -18,6 +17,7 @@ function speechErrorKey(code) {
     case 'audio-capture':       return 'mic_no_capture';
     case 'no-speech':           return 'mic_no_speech';
     case 'network':             return 'mic_network';
+    case 'unsupported':         return 'mic_unsupported';
     default:                    return 'mic_error';
   }
 }
@@ -28,8 +28,9 @@ export default function AutocompleteInput({
   disabled,
   onAccept,
   onPenalty,
-  // When provided, long-press on the row pauses this audio + opens speech
-  // recognition to take a full-name voice answer (bypasses the first-char flow).
+  // When provided, a small mic button at the end of the row pauses this audio
+  // and runs speech recognition. A confident voice match accepts directly,
+  // bypassing the first-character flow.
   audioRef,
   enableMic = false,
 }) {
@@ -39,7 +40,7 @@ export default function AutocompleteInput({
   const [voiceState, setVoiceState] = useState(null);
   const inputRef = useRef(null);
   const errorTimerRef = useRef(null);
-  const { t, lang, dir } = useLang();
+  const { t, dir } = useLang();
 
   const ans = (answer || '').trim();
 
@@ -49,53 +50,25 @@ export default function AutocompleteInput({
     errorTimerRef.current = setTimeout(() => setVoiceState(null), 2400);
   }
 
-  // Voice / speech recognition
-  const { supported: voiceSupported, listening, start, stop } = useSpeechRecognition({
-    lang: uiLangToBcp47(lang),
-    onResult: (r) => {
-      if (!r.isFinal) return;
-      const heard = [r.transcript, ...(r.alternatives || [])].filter(Boolean);
-      if (heard.some(h => isVoiceMatch(h, ans))) {
-        setVoiceState(null);
-        setPhase('accepted');
-        onAccept?.();
-        return;
-      }
-      // Treat as a wrong attempt (same penalty curve as a wrong typed char)
-      setVoiceState({ miss: r.transcript || '' });
-      const n = attempts + 1;
-      setAttempts(n);
-      setPhase('wrong');
-      setTimeout(() => {
-        setVoiceState(null);
-        if (n >= 3) { setPhase('locked'); onPenalty?.(); }
-        else setPhase('idle');
-      }, 1200);
-    },
-    onError: (e) => { flashError(speechErrorKey(e?.error)); },
-  });
-
-  function startVoice() {
-    if (!enableMic) return;
-    if (phase === 'accepted' || phase === 'locked' || disabled) return;
-    if (!voiceSupported) {
-      // Most common reason on a phone: page is served over plain HTTP, so
-      // window.SpeechRecognition is not exposed. Tell the user explicitly.
-      flashError(window.isSecureContext ? 'mic_unsupported' : 'mic_https_required');
+  function handleVoiceResult(transcript, alternatives) {
+    const heard = [transcript, ...(alternatives || [])].filter(Boolean);
+    if (heard.some(h => isVoiceMatch(h, ans))) {
+      setVoiceState(null);
+      setPhase('accepted');
+      onAccept?.();
       return;
     }
-    try { audioRef?.current?.pause?.(); } catch { /* ignore */ }
-    setVoiceState('listening');
-    try {
-      start();
-    } catch (err) {
-      flashError('mic_error');
-    }
+    // Treat as a wrong attempt (same penalty curve as a wrong typed char)
+    setVoiceState({ miss: transcript || '' });
+    const n = attempts + 1;
+    setAttempts(n);
+    setPhase('wrong');
+    setTimeout(() => {
+      setVoiceState(null);
+      if (n >= 3) { setPhase('locked'); onPenalty?.(); }
+      else setPhase('idle');
+    }, 1200);
   }
-
-  // Long-press: hold the row → start listening. Always attached when the mic
-  // is enabled, so unsupported browsers still show feedback on hold.
-  const longPress = useLongPress({ onLongPress: startVoice, threshold: 400 });
 
   function handleChange(e) {
     const val = e.target.value;
@@ -125,30 +98,22 @@ export default function AutocompleteInput({
   }
 
   const isDisabled = disabled || phase === 'locked' || phase === 'accepted';
-  const showMicHint = enableMic && phase === 'idle' && !listening && voiceState == null;
   const errorMsg = voiceState && typeof voiceState === 'object' && 'error' in voiceState ? voiceState.error : null;
+  const listening = voiceState === 'listening';
 
   return (
     <div
-      {...(enableMic ? longPress.handlers : {})}
       style={{
         display: 'flex', alignItems: 'center', gap: 8,
         padding: '10px 14px', borderRadius: 12,
         background: listening ? '#3a1a1a' : (errorMsg ? '#3a2010' : '#2d2d30'),
         border: `1px solid ${listening ? '#dc3545' : (errorMsg ? '#f39c12' : '#3a3a3a')}`,
         direction: dir,
-        // Suppress text-selection / context-menu only on non-input children;
-        // the input below opts back in so typing still works.
-        WebkitTouchCallout: enableMic ? 'none' : 'default',
-        // touchAction: manipulation tells the browser this surface is for
-        // taps/holds, not scrolling — without it, mobile fires pointercancel
-        // on slight finger drift and the long-press never reaches threshold.
-        touchAction: enableMic ? 'manipulation' : 'auto',
         transition: 'background 0.15s, border 0.15s',
         position: 'relative',
       }}
     >
-      <span style={{ color: '#888', fontSize: 13, minWidth: 52, flexShrink: 0, userSelect: 'none', WebkitUserSelect: 'none' }}>{label}:</span>
+      <span style={{ color: '#888', fontSize: 13, minWidth: 52, flexShrink: 0 }}>{label}:</span>
 
       <div style={{ flex: 1, direction: dir }}>
         {phase === 'accepted' && (
@@ -164,7 +129,7 @@ export default function AutocompleteInput({
           </span>
         )}
         {(phase === 'idle' || phase === 'wrong') && (
-          listening || voiceState === 'listening' ? (
+          listening ? (
             <span style={{ color: '#ff6b6b', fontSize: 14, fontWeight: 600 }}>
               🎙 {t('mic_listening')}
             </span>
@@ -186,8 +151,6 @@ export default function AutocompleteInput({
                 background: 'transparent', border: 'none', outline: 'none',
                 color: phase === 'wrong' ? '#dc3545' : '#ccc',
                 fontSize: 14, width: '100%', direction: dir,
-                // Override the row's user-select so the input remains usable
-                userSelect: 'text', WebkitUserSelect: 'text',
               }}
             />
           )
@@ -203,14 +166,12 @@ export default function AutocompleteInput({
         <>
           <button
             onClick={accept}
-            onPointerDown={(e) => e.stopPropagation()}
             style={{ background: '#1db954', color: '#000', borderRadius: 8, padding: '5px 12px', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700, flexShrink: 0 }}
           >
             ✓
           </button>
           <button
             onClick={rejectMatch}
-            onPointerDown={(e) => e.stopPropagation()}
             style={{ background: '#444', color: '#ccc', borderRadius: 8, padding: '5px 10px', border: 'none', cursor: 'pointer', fontSize: 13, flexShrink: 0 }}
           >
             ✗
@@ -218,26 +179,17 @@ export default function AutocompleteInput({
         </>
       )}
 
-      {/* Mic hint — shown while idle, indicating long-press is available */}
-      {showMicHint && (
-        <span
-          aria-hidden="true"
-          title={t('mic_long_press_hint')}
-          style={{ fontSize: 14, color: '#666', flexShrink: 0, opacity: 0.7, userSelect: 'none', WebkitUserSelect: 'none' }}
-        >
-          🎙
-        </span>
-      )}
-
-      {/* Tap-to-stop while listening (in case user wants to cancel early) */}
-      {listening && (
-        <button
-          onClick={(e) => { e.stopPropagation(); stop(); setVoiceState(null); }}
-          onPointerDown={(e) => e.stopPropagation()}
-          style={{ background: '#dc3545', color: '#fff', borderRadius: 8, padding: '5px 10px', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, flexShrink: 0 }}
-        >
-          ✕
-        </button>
+      {/* Mic button — visible, tap to record */}
+      {enableMic && (
+        <MicButton
+          audioRef={audioRef}
+          onListenStart={() => setVoiceState('listening')}
+          onListenEnd={() => setVoiceState((prev) => prev === 'listening' ? null : prev)}
+          onResult={handleVoiceResult}
+          onError={(code) => flashError(speechErrorKey(code))}
+          disabled={isDisabled}
+          size={36}
+        />
       )}
     </div>
   );

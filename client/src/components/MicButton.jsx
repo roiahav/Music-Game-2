@@ -3,23 +3,27 @@ import { useSpeechRecognition, uiLangToBcp47 } from '../hooks/useSpeechRecogniti
 import { useLang } from '../i18n/useLang.js';
 
 /**
- * Microphone button for voice-guessing the artist (or any other field).
+ * Microphone button for voice-guessing a single field (artist, song, …).
  *
  * Behaviour on tap:
- *   1. Pauses any audio referenced by `audioRef` (caller passes its <audio>'s ref)
- *      OR calls `onListenStart` so the parent can pause its own player.
+ *   1. Pauses any audio referenced by `audioRef` (parent passes its <audio>'s ref).
  *   2. Starts speech recognition in the current UI language.
  *   3. Emits the transcript via `onResult` so the parent can match / fill the field.
+ *   4. Surfaces failures via `onError(code)` — common codes: 'unsupported',
+ *      'service-not-allowed' (HTTPS required), 'not-allowed' (permission denied),
+ *      'audio-capture', 'no-speech', 'network'.
  *
  * Tapping again while listening stops the recognizer.
  *
  * Props:
  *   audioRef       — optional ref to an HTMLAudioElement to pause on press
- *   onListenStart  — optional callback to pause something other than audioRef
+ *   onListenStart  — optional callback fired when recognition begins
  *   onListenEnd    — optional callback fired when recognition ends
  *   onResult       — callback (transcript, alternatives) when speech is recognized
+ *   onError        — callback (code) when speech recognition fails
  *   disabled       — disable the button
- *   size           — pixel size (default 36)
+ *   size           — pixel size (default 36, square)
+ *   shape          — 'square' (default) | 'wide' (full-height pill in flex row)
  *   title          — tooltip (defaults to localized "say the artist's name")
  */
 export default function MicButton({
@@ -27,8 +31,10 @@ export default function MicButton({
   onListenStart,
   onListenEnd,
   onResult,
+  onError,
   disabled,
   size = 36,
+  shape = 'square',
   title,
 }) {
   const { lang, t } = useLang();
@@ -42,7 +48,10 @@ export default function MicButton({
       onResult?.(r.transcript || '', r.alternatives || []);
       onListenEnd?.();
     },
-    onError: () => { onListenEnd?.(); },
+    onError: (e) => {
+      onError?.(e?.error || 'error');
+      onListenEnd?.();
+    },
   });
 
   // If recognition ends without a result (no-speech / aborted), still notify parent
@@ -51,14 +60,26 @@ export default function MicButton({
     if (!listening) sawResultRef.current = false;
   }, [listening]);
 
-  function handleClick() {
-    if (disabled || !supported) return;
+  function handleClick(e) {
+    e.stopPropagation();
+    if (disabled) return;
+    if (!supported) {
+      // Most common reason on mobile: page is on plain HTTP, so the API isn't
+      // exposed. Tell the parent so it can show a friendly message.
+      onError?.(typeof window !== 'undefined' && window.isSecureContext ? 'unsupported' : 'service-not-allowed');
+      return;
+    }
     if (listening) { stop(); return; }
     // Pause music before listening so the recognizer doesn't pick up the song
     try { audioRef?.current?.pause?.(); } catch { /* ignore */ }
     onListenStart?.();
     sawResultRef.current = false;
-    start();
+    try {
+      start();
+    } catch {
+      onError?.('error');
+      onListenEnd?.();
+    }
   }
 
   const tooltip = !supported
@@ -67,28 +88,34 @@ export default function MicButton({
 
   const bg     = listening ? '#dc3545' : '#2d2d30';
   const border = listening ? '#dc3545' : '#3a3a3a';
-  const color  = listening ? '#fff'    : (supported ? '#ccc' : '#555');
+  const color  = listening ? '#fff'    : (supported ? '#ccc' : '#888');
+
+  const isWide = shape === 'wide';
+  const widthStyle = isWide
+    ? { width: size, alignSelf: 'stretch' }
+    : { width: size, height: size };
 
   return (
     <button
       type="button"
       onClick={handleClick}
-      disabled={disabled || !supported}
+      onPointerDown={(e) => e.stopPropagation()}
+      disabled={disabled}
       title={tooltip}
       aria-label={tooltip}
       style={{
-        width: size, height: size, flexShrink: 0,
+        ...widthStyle, flexShrink: 0,
         background: bg, border: `1px solid ${border}`,
-        color, borderRadius: 10,
+        color, borderRadius: isWide ? 14 : 10,
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-        cursor: (disabled || !supported) ? 'not-allowed' : 'pointer',
-        padding: 0, fontSize: Math.round(size * 0.5),
-        opacity: !supported ? 0.5 : 1,
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        padding: 0, fontSize: isWide ? 26 : Math.round(size * 0.5),
+        opacity: disabled ? 0.5 : 1,
         transition: 'all 0.15s',
         animation: listening ? 'mic-pulse 1.1s ease-in-out infinite' : 'none',
       }}
     >
-      <span aria-hidden="true">{listening ? '⏺' : '🎙'}</span>
+      <span aria-hidden="true">{listening ? '⏺' : '🎤'}</span>
       <style>{`
         @keyframes mic-pulse {
           0%, 100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.6); }
