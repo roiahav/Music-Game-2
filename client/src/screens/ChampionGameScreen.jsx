@@ -654,6 +654,10 @@ function VoiceBoxWrap({ longPress, listening, feedback, dir, children }) {
       style={{
         position: 'relative',
         userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none',
+        // Without touchAction: 'manipulation' the browser treats slight finger
+        // drift as a scroll start and fires pointercancel before our 400ms
+        // long-press threshold — so the gesture appears to "do nothing".
+        touchAction: 'manipulation',
         borderRadius: 14,
         boxShadow: listening
           ? '0 0 0 2px #dc3545'

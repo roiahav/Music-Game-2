@@ -140,6 +140,10 @@ export default function AutocompleteInput({
         // Suppress text-selection / context-menu only on non-input children;
         // the input below opts back in so typing still works.
         WebkitTouchCallout: enableMic ? 'none' : 'default',
+        // touchAction: manipulation tells the browser this surface is for
+        // taps/holds, not scrolling — without it, mobile fires pointercancel
+        // on slight finger drift and the long-press never reaches threshold.
+        touchAction: enableMic ? 'manipulation' : 'auto',
         transition: 'background 0.15s, border 0.15s',
         position: 'relative',
       }}

@@ -840,6 +840,9 @@ function VoiceBoxWrap({ longPress, listening, feedback, dir, children }) {
       style={{
         position: 'relative',
         userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none',
+        // See comment in ChampionGameScreen — without this mobile cancels the
+        // press as a potential scroll before our threshold fires.
+        touchAction: 'manipulation',
         borderRadius: 14,
         boxShadow: listening
           ? '0 0 0 2px #dc3545'
